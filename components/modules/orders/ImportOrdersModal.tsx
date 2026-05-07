@@ -31,7 +31,7 @@ import { Upload, AlertCircle, RefreshCw, CheckCircle2, XCircle, Save, ChevronRig
 type Step = 'upload' | 'mapping' | 'preview' | 'done'
 type RowError = 'missing_name' | 'invalid_price' | 'missing_date'
 type RowStatus = 'ready' | 'warning' | 'error' | 'skip'
-type CsvFormat = 'A' | 'B' | 'DD' | 'unknown'
+type CsvFormat = 'A' | 'B' | 'DD' | 'DD2025' | 'unknown'
 
 interface ParsedRow {
   orderRef: string
@@ -89,6 +89,8 @@ function detectFormat(headers: string[]): CsvFormat {
   const lower = headers.map(h => h.toLowerCase().trim())
   if (lower.includes('线上单号')) return 'A'
   if (lower.some(h => h.includes('receiver name'))) return 'B'
+  // DD2025 legacy format: has 'Chanel' (typo), 'Phone number', 'Price', but NO 'Order code'
+  if (lower.includes('chanel') && lower.includes('phone number') && lower.includes('price') && !lower.includes('order code')) return 'DD2025'
   // DD format: has 'order code' column (e.g. DD003120)
   if (lower.includes('order code')) return 'DD'
   // fallback heuristics
@@ -154,6 +156,17 @@ const FORMAT_DD_AUTO_KEYS: Record<string, string[]> = {
   customer_type:  ['New or Repeat'],
 }
 
+const FORMAT_DD2025_AUTO_KEYS: Record<string, string[]> = {
+  date:           ['Date'],
+  channel:        ['Chanel'],
+  customer_name:  ['Name'],
+  phone:          ['Phone number'],
+  package:        ['Package'],
+  price:          ['Price'],
+  remark:         ['Purchase reason Copy'],
+  customer_type:  ['New/repeat'],
+}
+
 // ── Field definitions ──────────────────────────────────────────────────────────
 
 const FIELD_DEFS_A: FieldDef[] = [
@@ -189,6 +202,17 @@ const FIELD_DEFS_DD: FieldDef[] = [
   { key: 'customer_type',  label: 'New / Repeat',    required: false, autoKeys: FORMAT_DD_AUTO_KEYS.customer_type },
 ]
 
+const FIELD_DEFS_DD2025: FieldDef[] = [
+  { key: 'date',          label: 'Order Date',     required: true,  autoKeys: FORMAT_DD2025_AUTO_KEYS.date },
+  { key: 'customer_name', label: 'Customer Name',  required: true,  autoKeys: FORMAT_DD2025_AUTO_KEYS.customer_name },
+  { key: 'phone',         label: 'Phone Number',   required: false, autoKeys: FORMAT_DD2025_AUTO_KEYS.phone },
+  { key: 'channel',       label: 'Channel',        required: false, autoKeys: FORMAT_DD2025_AUTO_KEYS.channel },
+  { key: 'package',       label: 'Package Name',   required: false, autoKeys: FORMAT_DD2025_AUTO_KEYS.package },
+  { key: 'price',         label: 'Sale Price',     required: true,  autoKeys: FORMAT_DD2025_AUTO_KEYS.price },
+  { key: 'remark',        label: 'Purchase Reason',required: false, autoKeys: FORMAT_DD2025_AUTO_KEYS.remark },
+  { key: 'customer_type', label: 'New / Repeat',   required: false, autoKeys: FORMAT_DD2025_AUTO_KEYS.customer_type },
+]
+
 const FIELD_DEFS_B: FieldDef[] = [
   { key: 'row_number',    label: 'Row Number',         required: true,  autoKeys: FORMAT_B_AUTO_KEYS.row_number },
   { key: 'track_2026',    label: 'Tracking (2026)',    required: false, autoKeys: FORMAT_B_AUTO_KEYS.track_2026 },
@@ -211,7 +235,7 @@ const FIELD_DEFS_B: FieldDef[] = [
 // ── Parse helpers ──────────────────────────────────────────────────────────────
 
 function autoDetectMapping(headers: string[], format: CsvFormat): Record<string, string> {
-  const fieldDefs = format === 'B' ? FIELD_DEFS_B : format === 'DD' ? FIELD_DEFS_DD : FIELD_DEFS_A
+  const fieldDefs = format === 'B' ? FIELD_DEFS_B : format === 'DD' ? FIELD_DEFS_DD : format === 'DD2025' ? FIELD_DEFS_DD2025 : FIELD_DEFS_A
   const normalized = headers.map(h => ({ original: h, lower: h.trim().toLowerCase() }))
   const result: Record<string, string> = {}
   for (const field of fieldDefs) {
@@ -418,7 +442,84 @@ function parseRows(
   for (const raw of rawData) {
     const get = (key: string) => getField(raw, mapping, key)
 
-    if (format === 'DD') {
+    if (format === 'DD2025') {
+      // ── Format DD2025 (Diamond Drink legacy 2025) ─────────────────────────
+      const dateRaw         = get('date')
+      const customerNameRaw = get('customer_name')
+      const phoneRaw        = get('phone')
+      const channelRaw      = get('channel')
+      const packageName     = get('package')
+      const priceRaw        = get('price')
+      const remarkRaw       = get('remark')
+      const customerType    = get('customer_type')
+
+      if (!dateRaw && !customerNameRaw) continue
+
+      const totalPrice = parsePrice(priceRaw)
+      const date       = parseDate(dateRaw)
+
+      // Phone may be in scientific notation (e.g. 6.016874066e+10)
+      let phone = phoneRaw.trim()
+      if (phone.includes('e') || phone.includes('E')) {
+        phone = Math.round(Number(phone)).toString()
+      } else {
+        phone = normalizePhone(phone, 'B')
+      }
+
+      const channel  = channelRaw.trim()
+      const isRepeat = parseIsRepeat(customerType)
+
+      const projectId = fallbackProjectId ?? null
+      const pkgMatch  = findPackageMatch('', packageName, projectId, allPackages)
+
+      const errors: RowError[] = []
+      if (!customerNameRaw) errors.push('missing_name')
+      if (!dateRaw)          errors.push('missing_date')
+      if (isNaN(totalPrice)) errors.push('invalid_price')
+
+      let status: RowStatus = 'ready'
+      let importWarning: string | undefined
+      let skipReason: string | undefined
+
+      if (errors.length > 0) {
+        status = 'error'
+        skipReason = errors.map(errorLabel).join(', ')
+      } else if (!pkgMatch.matched && packageName) {
+        status = 'warning'
+        importWarning = pkgMatch.warning
+      }
+
+      parsed.push({
+        orderRef:       `row-${parsed.length + 1}`,
+        date,
+        customerName:   customerNameRaw,
+        phone,
+        packageName,
+        trackingNumber: null,
+        totalPrice:     isNaN(totalPrice) ? 0 : totalPrice,
+        listPrice:      null,
+        channel,
+        address:        '',
+        isRepeat,
+        isCod:          false,
+        codAmount:      null,
+        shippingFee:    null,
+        courier:        '',
+        country:        'MY',
+        projectId,
+        packageId:      pkgMatch.id,
+        productName:    packageName || channel || '—',
+        remark:         remarkRaw,
+        state:          '',
+        sourceId:       null,
+        errors,
+        status,
+        packageMatched: pkgMatch.matched,
+        skipReason,
+        importWarning,
+        needsAutoId:    true,
+      })
+    } else if (format === 'DD') {
       // ── Format DD (Diamond Drink actual CSV format) ───────────────────────
       const dateRaw         = get('date')
       const customerNameRaw = get('customer_name')
@@ -988,7 +1089,7 @@ export default function ImportOrdersModal({ open, onClose }: Props) {
   const invalidRows  = rows.filter(r => r.status === 'error')
   const importableRows = rows.filter(r => r.status === 'ready' || r.status === 'warning')
   const dialogWidth = step === 'preview' ? 'max-w-5xl' : step === 'mapping' ? 'max-w-2xl' : 'max-w-md'
-  const currentFieldDefs = detectedFormat === 'B' ? FIELD_DEFS_B : detectedFormat === 'DD' ? FIELD_DEFS_DD : FIELD_DEFS_A
+  const currentFieldDefs = detectedFormat === 'B' ? FIELD_DEFS_B : detectedFormat === 'DD' ? FIELD_DEFS_DD : detectedFormat === 'DD2025' ? FIELD_DEFS_DD2025 : FIELD_DEFS_A
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -1027,7 +1128,8 @@ export default function ImportOrdersModal({ open, onClose }: Props) {
               <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
                 Format A (FIOR/KHH): 线上单号, Date, Name, Phone number, COD…<br />
                 Format B (Juji/NE): Number, Receiver Name, Full Phone No, Remark…<br />
-                Format DD (DD): Date, Name, Phone Number, Order code, Payment method…
+                Format DD (DD): Date, Name, Phone Number, Order code, Payment method…<br />
+                Format DD-2025 (DD Legacy): Date, Chanel, Name, Phone number, Price…
               </p>
               <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleFileChange} />
             </div>
@@ -1048,6 +1150,7 @@ export default function ImportOrdersModal({ open, onClose }: Props) {
                 <Badge variant={detectedFormat === 'A' ? 'default' : 'secondary'}>
                   {detectedFormat === 'A' ? 'Format A — FIOR/KHH style'
                     : detectedFormat === 'DD' ? 'Format DD — Diamond Drink'
+                    : detectedFormat === 'DD2025' ? 'Format DD-2025 — Diamond Drink (Legacy)'
                     : 'Format B — Juji/NE style'}
                 </Badge>
               </div>
