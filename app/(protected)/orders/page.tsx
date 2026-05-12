@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { Plus, ShoppingCart, Download, FileUp, History, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, ShoppingCart, Download, FileUp, History, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Receipt, User, FileText } from 'lucide-react'
 import DateRangePicker from '@/components/shared/DateRangePicker'
 import type { OrderFilters, Order } from '@/lib/types'
 import { exportOrders } from '@/lib/export-utils'
@@ -27,6 +27,15 @@ import { cn } from '@/lib/utils'
 
 type ViewMode = 'day' | 'week' | 'month'
 const PAGE_SIZE = 50
+const RECEIPT_BRANDS = ['DD', 'NE', 'Juji']
+
+function isOrderIncomplete(order: Order, projectName: string | null): boolean {
+  const needsReceipt = projectName !== null && RECEIPT_BRANDS.includes(projectName)
+  const missingReceipt = needsReceipt && !(order.customers as any)?.receipt_url
+  const missingNewRepeat = (order.is_new_customer as unknown) == null
+  const missingReason = !order.purchase_reason || order.purchase_reason.trim() === ''
+  return !!(missingReceipt || missingNewRepeat || missingReason)
+}
 
 function toDateStr(d: Date) {
   return d.toISOString().split('T')[0]
@@ -127,6 +136,7 @@ function OrdersPageInner() {
   const [showImportModal, setShowImportModal] = useState(false)
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set())
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set())
+  const [incompleteFilter, setIncompleteFilter] = useState(false)
 
   // When ?batch=<id> is in the URL (e.g. from "View imported orders" link),
   // activate batch filter so orders are shown regardless of date range.
@@ -151,7 +161,7 @@ function OrdersPageInner() {
     }, [dateFrom, dateTo, batchId])
   )
 
-  // Paginated orders — for day view table
+  // Paginated orders — for day view table (not used when incompleteFilter is on)
   const { data, isLoading, error } = useOrders(
     useMemo(() => {
       const f: OrderFilters = { page, pageSize: PAGE_SIZE }
@@ -203,6 +213,18 @@ function OrdersPageInner() {
     return base
   }, [allData, selectedBrand, brandProjectId, search])
 
+  const incompleteCount = useMemo(() =>
+    filteredOrders.filter(o => isOrderIncomplete(o, (o.projects as any)?.name ?? null)).length,
+    [filteredOrders]
+  )
+
+  const displayFilteredOrders = useMemo(() =>
+    incompleteFilter
+      ? filteredOrders.filter(o => isOrderIncomplete(o, (o.projects as any)?.name ?? null))
+      : filteredOrders,
+    [filteredOrders, incompleteFilter]
+  )
+
   const stats = useMemo(() => {
     const total = filteredOrders.length
     const revenue = filteredOrders.reduce((s, o) => s + Number(o.total_price), 0)
@@ -213,12 +235,12 @@ function OrdersPageInner() {
 
   const ordersByDay = useMemo(() => {
     const groups: Record<string, Order[]> = {}
-    for (const o of filteredOrders) {
+    for (const o of displayFilteredOrders) {
       if (!groups[o.order_date]) groups[o.order_date] = []
       groups[o.order_date].push(o)
     }
     return groups
-  }, [filteredOrders])
+  }, [displayFilteredOrders])
 
   const sortedDays = useMemo(() => Object.keys(ordersByDay).sort((a, b) => b.localeCompare(a)), [ordersByDay])
 
@@ -276,6 +298,11 @@ function OrdersPageInner() {
     const isExp = expandedOrders.has(order.id)
     const colSpan = showDate ? 13 : 12
 
+    const needsReceipt = projectName !== null && RECEIPT_BRANDS.includes(projectName)
+    const missingReceipt = needsReceipt && !(order.customers as any)?.receipt_url
+    const missingNewRepeat = (order.is_new_customer as unknown) == null
+    const missingReason = !order.purchase_reason || order.purchase_reason.trim() === ''
+
     const mainRow = (
       <TableRow
         key={order.id}
@@ -293,6 +320,25 @@ function OrdersPageInner() {
           {(order.customers as any)?.name ?? '—'}
           {(order.customers as any)?.phone && (
             <div className="text-xs text-muted-foreground">{(order.customers as any).phone}</div>
+          )}
+          {(missingReceipt || missingNewRepeat || missingReason) && (
+            <div className="flex gap-1 mt-0.5">
+              {missingReceipt && (
+                <span title="No receipt image">
+                  <Receipt className="h-3 w-3 text-red-500" />
+                </span>
+              )}
+              {missingNewRepeat && (
+                <span title="New/Repeat not set">
+                  <User className="h-3 w-3 text-amber-500" />
+                </span>
+              )}
+              {missingReason && (
+                <span title="No purchase reason">
+                  <FileText className="h-3 w-3 text-gray-400" />
+                </span>
+              )}
+            </div>
           )}
         </TableCell>
         <TableCell>
@@ -414,6 +460,25 @@ function OrdersPageInner() {
             </Button>
           </div>
         )}
+        <button
+          onClick={() => { setIncompleteFilter(f => !f); setPage(1) }}
+          className={cn(
+            'inline-flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-colors',
+            incompleteFilter
+              ? 'bg-amber-500 border-amber-500 text-white hover:bg-amber-600'
+              : 'bg-background border-border text-muted-foreground hover:border-amber-400 hover:text-amber-600'
+          )}
+        >
+          ⚠ Incomplete
+          {incompleteCount > 0 && (
+            <span className={cn(
+              'rounded-full px-1.5 py-0.5 text-[10px] font-bold',
+              incompleteFilter ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'
+            )}>
+              {incompleteCount}
+            </span>
+          )}
+        </button>
         <Input
           placeholder="Search tracking #, customer, phone…"
           value={search}
@@ -565,38 +630,59 @@ function OrdersPageInner() {
         </div>
       )}
 
-      {/* DAY VIEW — paginated flat table */}
+      {/* DAY VIEW — paginated flat table (client-side when incomplete filter is on) */}
       {viewMode === 'day' && (
-        isLoading ? <LoadingState /> :
-        error ? <p className="text-destructive text-sm">Failed to load orders.</p> :
-        !data?.data.length ? (
-          <EmptyState
-            icon={ShoppingCart} title="No orders found"
-            description={search ? 'Try a different search term.' : 'No orders for this date/filter.'}
-            action={{ label: 'Add Order', onClick: () => setShowAddModal(true) }}
-          />
-        ) : (
-          <>
+        incompleteFilter ? (
+          !displayFilteredOrders.length ? (
+            <EmptyState
+              icon={ShoppingCart} title="No incomplete orders"
+              description="All orders for this day have complete Stage 2 data."
+              action={{ label: 'Add Order', onClick: () => setShowAddModal(true) }}
+            />
+          ) : (
             <div className="rounded-lg border bg-white overflow-hidden">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader><TableHeaders showDate={false} /></TableHeader>
                   <TableBody>
-                    {data.data.flatMap(order => renderOrderRows(order, false))}
+                    {displayFilteredOrders.flatMap(order => renderOrderRows(order, false))}
                   </TableBody>
                 </Table>
               </div>
             </div>
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-4 text-sm text-muted-foreground">
-                <span>Page {page} of {totalPages}</span>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
-                  <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
+          )
+        ) : (
+          isLoading ? <LoadingState /> :
+          error ? <p className="text-destructive text-sm">Failed to load orders.</p> :
+          !data?.data.length ? (
+            <EmptyState
+              icon={ShoppingCart} title="No orders found"
+              description={search ? 'Try a different search term.' : 'No orders for this date/filter.'}
+              action={{ label: 'Add Order', onClick: () => setShowAddModal(true) }}
+            />
+          ) : (
+            <>
+              <div className="rounded-lg border bg-white overflow-hidden">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader><TableHeaders showDate={false} /></TableHeader>
+                    <TableBody>
+                      {data.data.flatMap(order => renderOrderRows(order, false))}
+                    </TableBody>
+                  </Table>
                 </div>
               </div>
-            )}
-          </>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4 text-sm text-muted-foreground">
+                  <span>Page {page} of {totalPages}</span>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
+                    <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )
         )
       )}
 

@@ -261,6 +261,7 @@ export interface OrderFilters {
   dateTo?: string
   search?: string
   batchId?: string
+  incomplete?: boolean
   page?: number
   pageSize?: number
 }
