@@ -47,6 +47,7 @@ export default function EditOrderModal({ order, onClose }: Props) {
   const [status, setStatus]         = useState('pending')
   const [deliveryStatus, setDeliveryStatus] = useState('Pending')
   const [notes, setNotes]           = useState('')
+  const [isNewCustomer, setIsNewCustomer] = useState<boolean | null>(null)
   const [customState, setCustomState] = useState(false)
   const [customChannel, setCustomChannel] = useState(false)
 
@@ -78,6 +79,7 @@ export default function EditOrderModal({ order, onClose }: Props) {
     setStatus(order.status ?? 'pending')
     setDeliveryStatus(order.delivery_status ?? 'Pending')
     setNotes(order.purchase_reason ?? '')
+    setIsNewCustomer(order.is_new_customer ?? null)
     // Load existing receipt
     const existing = (order.customers as any)?.receipt_url ?? null
     setOriginalReceiptUrl(existing)
@@ -184,6 +186,7 @@ export default function EditOrderModal({ order, onClose }: Props) {
         status,
         delivery_status: deliveryStatus || null,
         purchase_reason: notes || null,
+        is_new_customer: isNewCustomer,
       })
 
       const customerId = order.customer_id
@@ -347,10 +350,25 @@ export default function EditOrderModal({ order, onClose }: Props) {
             </Select>
           </div>
 
-          {/* Notes */}
+          {/* Notes / Purchase Reason */}
           <div className="space-y-1">
             <Label className="text-xs">Notes / Purchase Reason</Label>
             <Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. Weight loss" />
+          </div>
+
+          {/* New / Repeat */}
+          <div className="space-y-1">
+            <Label className="text-xs">New / Repeat</Label>
+            <Select
+              value={isNewCustomer === null ? '' : isNewCustomer ? 'new' : 'repeat'}
+              onValueChange={v => setIsNewCustomer(v === 'new')}
+            >
+              <SelectTrigger><SelectValue placeholder="— Not set —" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="new">New</SelectItem>
+                <SelectItem value="repeat">Repeat</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Receipt Image (NE / DD / Juji only) */}
