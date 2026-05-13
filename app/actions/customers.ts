@@ -150,6 +150,34 @@ export async function updateCustomerName(
   if (error) throw new Error('Failed to update customer name: ' + error.message)
 }
 
+// ─── Update customer phone ────────────────────────────────────────────────────
+
+export async function updateCustomerPhone(
+  customerId: string,
+  phone: string,
+): Promise<void> {
+  const supabase = createAdminClient()
+  const { error } = await supabase
+    .from('customers')
+    .update({ phone: phone || null })
+    .eq('id', customerId)
+  if (error) throw new Error('Failed to update customer phone: ' + error.message)
+}
+
+// ─── Update customer address ──────────────────────────────────────────────────
+
+export async function updateCustomerAddress(
+  customerId: string,
+  address: string,
+): Promise<void> {
+  const supabase = createAdminClient()
+  const { error } = await supabase
+    .from('customers')
+    .update({ address: address || null })
+    .eq('id', customerId)
+  if (error) throw new Error('Failed to update customer address: ' + error.message)
+}
+
 // ─── Remove customer receipt ──────────────────────────────────────────────────
 
 export async function removeCustomerReceipt(

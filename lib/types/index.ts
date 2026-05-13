@@ -70,6 +70,7 @@ export interface Order {
   fb_name: string | null
   channel: string | null
   purchase_reason: string | null
+  remark: string | null
   is_new_customer: boolean
   // Production-ready fields (migration 011)
   package_snapshot: { name?: string; price?: number; code?: string } | null

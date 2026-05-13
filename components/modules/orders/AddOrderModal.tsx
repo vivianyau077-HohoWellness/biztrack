@@ -120,7 +120,7 @@ export default function AddOrderModal({ open, onClose }: Props) {
     try {
       let customerId = foundCustomerId
       if (!customerId && data.customer_phone) {
-        customerId = await upsertCustomer(data.customer_name, data.customer_phone)
+        customerId = await upsertCustomer(data.customer_name ?? '', data.customer_phone)
       }
       await createOrder({
         customer_id: customerId,
@@ -223,14 +223,13 @@ export default function AddOrderModal({ open, onClose }: Props) {
 
           {/* Name */}
           <div className="space-y-1">
-            <Label><Req>名字</Req></Label>
+            <Label>名字</Label>
             <Input
               placeholder="Full name"
               {...register('customer_name')}
               className={cn(isAuto('customer_name') && 'text-red-600 border-red-200')}
             />
             {isAuto('customer_name') && <p className="text-xs text-red-500">Auto-filled from phone lookup</p>}
-            {errors.customer_name && <p className="text-xs text-destructive">{errors.customer_name.message}</p>}
           </div>
 
           {/* Phone */}

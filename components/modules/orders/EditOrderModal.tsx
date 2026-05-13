@@ -3,7 +3,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { updateOrder } from '@/app/actions/data'
-import { setCustomerReceiptUrl, removeCustomerReceipt, updateCustomerName } from '@/app/actions/customers'
+import {
+  setCustomerReceiptUrl, removeCustomerReceipt, updateCustomerName,
+  updateCustomerPhone, updateCustomerAddress,
+} from '@/app/actions/customers'
 import { createClient } from '@/lib/supabase/client'
 import { useProjects, type Package } from '@/lib/hooks/useProjects'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -15,15 +18,6 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import type { Order } from '@/lib/types'
 
-const MALAYSIA_STATES = [
-  'Johor', 'Kedah', 'Kelantan', 'Melaka', 'Negeri Sembilan', 'Pahang',
-  'Penang', 'Perak', 'Perlis', 'Sabah', 'Sarawak', 'Selangor', 'Terengganu',
-  'Kuala Lumpur', 'Labuan', 'Putrajaya',
-]
-
-const STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled']
-const PAYMENT_STATUSES = ['Settled', 'Pending', 'Refunded']
-const DELIVERY_STATUSES = ['Pending', 'Delivered', 'Returned']
 const CHANNELS = ['Facebook', 'TikTok', 'Shopee', 'Lazada', 'Xiaohongshu', 'WhatsApp', 'Website', 'Other']
 const RECEIPT_BRANDS = ['NE', 'DD', 'Juji']
 
@@ -35,27 +29,23 @@ export default function EditOrderModal({ order, onClose }: Props) {
   const { projects } = useProjects()
 
   const [customerName, setCustomerName] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [customerAddress, setCustomerAddress] = useState('')
   const [date, setDate]             = useState('')
-  const [tracking, setTracking]     = useState('')
   const [projectId, setProjectId]   = useState('')
   const [packageId, setPackageId]   = useState('')
   const [packageName, setPackageName] = useState('')
   const [price, setPrice]           = useState('')
   const [channel, setChannel]       = useState('')
-  const [state, setState]           = useState('')
-  const [isCod, setIsCod]           = useState(false)
-  const [paymentStatus, setPaymentStatus] = useState('Settled')
-  const [status, setStatus]         = useState('pending')
-  const [deliveryStatus, setDeliveryStatus] = useState('Pending')
-  const [notes, setNotes]           = useState('')
   const [isNewCustomer, setIsNewCustomer] = useState<boolean | null>(null)
-  const [customState, setCustomState] = useState(false)
+  const [purchaseReason, setPurchaseReason] = useState('')
+  const [remark, setRemark]         = useState('')
   const [customChannel, setCustomChannel] = useState(false)
 
   // Receipt state
   const [originalReceiptUrl, setOriginalReceiptUrl] = useState<string | null>(null)
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null)
-  const [receiptFilePath, setReceiptFilePath] = useState<string | null>(null) // path of newly uploaded file
+  const [receiptFilePath, setReceiptFilePath] = useState<string | null>(null)
   const [receiptRemoved, setReceiptRemoved] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
@@ -64,8 +54,9 @@ export default function EditOrderModal({ order, onClose }: Props) {
   useEffect(() => {
     if (!order) return
     setCustomerName((order.customers as any)?.name ?? '')
+    setCustomerPhone((order.customers as any)?.phone ?? '')
+    setCustomerAddress((order.customers as any)?.address ?? '')
     setDate(order.order_date ?? '')
-    setTracking(order.tracking_number ?? '')
     setProjectId(order.project_id ?? '')
     setPackageId(order.package_id ?? '')
     setPackageName(order.package_name ?? order.package_snapshot?.name ?? '')
@@ -73,16 +64,9 @@ export default function EditOrderModal({ order, onClose }: Props) {
     const orderChannel = order.channel ?? ''
     setChannel(orderChannel)
     setCustomChannel(!!orderChannel && !CHANNELS.includes(orderChannel))
-    const orderState = order.state ?? ''
-    setState(orderState)
-    setCustomState(!!orderState && !MALAYSIA_STATES.includes(orderState))
-    setIsCod(order.is_cod ?? false)
-    setPaymentStatus(order.payment_status ?? 'Settled')
-    setStatus(order.status ?? 'pending')
-    setDeliveryStatus(order.delivery_status ?? 'Pending')
-    setNotes(order.purchase_reason ?? '')
     setIsNewCustomer(order.is_new_customer ?? null)
-    // Load existing receipt
+    setPurchaseReason(order.purchase_reason ?? '')
+    setRemark((order as any).remark ?? '')
     const existing = (order.customers as any)?.receipt_url ?? null
     setOriginalReceiptUrl(existing)
     setReceiptUrl(existing)
@@ -114,7 +98,6 @@ export default function EditOrderModal({ order, onClose }: Props) {
     setUploading(true)
     setUploadError('')
 
-    // Remove previously uploaded (not-yet-saved) file if any
     if (receiptFilePath) {
       createClient().storage.from('receipts').remove([receiptFilePath]).catch(() => {})
       setReceiptFilePath(null)
@@ -143,7 +126,6 @@ export default function EditOrderModal({ order, onClose }: Props) {
   }
 
   function handleRemoveReceipt() {
-    // If there's a newly uploaded file, delete it from storage immediately
     if (receiptFilePath) {
       createClient().storage.from('receipts').remove([receiptFilePath]).catch(() => {})
       setReceiptFilePath(null)
@@ -154,7 +136,6 @@ export default function EditOrderModal({ order, onClose }: Props) {
   }
 
   function handleCancelClose() {
-    // If a new file was uploaded but we're cancelling, delete it
     if (receiptFilePath) {
       createClient().storage.from('receipts').remove([receiptFilePath]).catch(() => {})
     }
@@ -176,34 +157,40 @@ export default function EditOrderModal({ order, onClose }: Props) {
     try {
       await updateOrder(order.id, {
         order_date: date,
-        tracking_number: tracking || null,
         project_id: projectId || undefined,
         package_id: packageId || null,
         package_name: packageName || null,
         total_price: parseFloat(price) || 0,
         channel,
-        state: state || null,
-        is_cod: isCod,
-        payment_status: paymentStatus,
-        status,
-        delivery_status: deliveryStatus || null,
-        purchase_reason: notes || null,
+        purchase_reason: purchaseReason || null,
+        remark: remark || null,
         is_new_customer: isNewCustomer,
       })
 
       const customerId = order.customer_id
-      if (customerId && customerName.trim() && customerName.trim() !== ((order.customers as any)?.name ?? '')) {
-        await updateCustomerName(customerId, customerName.trim())
-      }
+      if (customerId) {
+        const origName = (order.customers as any)?.name ?? ''
+        if (customerName.trim() && customerName.trim() !== origName) {
+          await updateCustomerName(customerId, customerName.trim())
+        }
 
-      if (customerId && isReceiptBrand) {
-        if (receiptUrl && receiptUrl !== originalReceiptUrl) {
-          // New image uploaded — save URL
-          try { await setCustomerReceiptUrl(customerId, receiptUrl) } catch { /* best-effort */ }
-          setReceiptFilePath(null) // committed — don't delete on close
-        } else if (receiptRemoved && originalReceiptUrl) {
-          // User removed existing receipt — clear it
-          try { await removeCustomerReceipt(customerId, '') } catch { /* best-effort */ }
+        const origPhone = (order.customers as any)?.phone ?? ''
+        if (customerPhone !== origPhone) {
+          await updateCustomerPhone(customerId, customerPhone.trim())
+        }
+
+        const origAddress = (order.customers as any)?.address ?? ''
+        if (customerAddress !== origAddress) {
+          await updateCustomerAddress(customerId, customerAddress.trim())
+        }
+
+        if (isReceiptBrand) {
+          if (receiptUrl && receiptUrl !== originalReceiptUrl) {
+            try { await setCustomerReceiptUrl(customerId, receiptUrl) } catch { /* best-effort */ }
+            setReceiptFilePath(null)
+          } else if (receiptRemoved && originalReceiptUrl) {
+            try { await removeCustomerReceipt(customerId, '') } catch { /* best-effort */ }
+          }
         }
       }
 
@@ -233,51 +220,66 @@ export default function EditOrderModal({ order, onClose }: Props) {
             />
           </div>
 
-          {/* Date + Tracking */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Order Date</Label>
-              <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Tracking Number</Label>
-              <Input value={tracking} onChange={e => setTracking(e.target.value)} placeholder="Tracking #" />
-            </div>
+          {/* Phone Number */}
+          <div className="space-y-1">
+            <Label className="text-xs">Phone Number</Label>
+            <Input
+              value={customerPhone}
+              onChange={e => setCustomerPhone(e.target.value)}
+              placeholder="601xxxxxxxx"
+            />
           </div>
 
-          {/* Project + Channel */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Brand</Label>
-              <Select value={projectId} onValueChange={v => { setProjectId(v); setPackageId(''); setPackageName('') }}>
-                <SelectTrigger><SelectValue placeholder="Select brand" /></SelectTrigger>
-                <SelectContent>
-                  {projects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Channel</Label>
-              <Select
-                value={CHANNELS.includes(channel) ? channel : channel ? 'custom' : ''}
-                onValueChange={v => {
-                  if (v === 'custom') { setCustomChannel(true); setChannel('') }
-                  else { setCustomChannel(false); setChannel(v) }
-                }}
-              >
-                <SelectTrigger><SelectValue placeholder="Select channel" /></SelectTrigger>
-                <SelectContent>
-                  {CHANNELS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                  <SelectItem value="custom">Custom…</SelectItem>
-                </SelectContent>
-              </Select>
-              {(customChannel || (channel && !CHANNELS.includes(channel))) && (
-                <Input className="mt-1.5" value={channel} onChange={e => setChannel(e.target.value)} placeholder="Enter channel name" />
-              )}
-            </div>
+          {/* Address */}
+          <div className="space-y-1">
+            <Label className="text-xs">Address 地址</Label>
+            <textarea
+              value={customerAddress}
+              onChange={e => setCustomerAddress(e.target.value)}
+              rows={2}
+              placeholder="Delivery address…"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+            />
           </div>
 
-          {/* Package */}
+          {/* Date */}
+          <div className="space-y-1">
+            <Label className="text-xs">Order Date</Label>
+            <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+
+          {/* Channel */}
+          <div className="space-y-1">
+            <Label className="text-xs">Channel</Label>
+            <Select
+              value={CHANNELS.includes(channel) ? channel : channel ? 'custom' : ''}
+              onValueChange={v => {
+                if (v === 'custom') { setCustomChannel(true); setChannel('') }
+                else { setCustomChannel(false); setChannel(v) }
+              }}
+            >
+              <SelectTrigger><SelectValue placeholder="Select channel" /></SelectTrigger>
+              <SelectContent>
+                {CHANNELS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                <SelectItem value="custom">Custom…</SelectItem>
+              </SelectContent>
+            </Select>
+            {(customChannel || (channel && !CHANNELS.includes(channel))) && (
+              <Input className="mt-1.5" value={channel} onChange={e => setChannel(e.target.value)} placeholder="Enter channel name" />
+            )}
+          </div>
+
+          {/* Brand + Package */}
+          <div className="space-y-1">
+            <Label className="text-xs">Brand</Label>
+            <Select value={projectId} onValueChange={v => { setProjectId(v); setPackageId(''); setPackageName('') }}>
+              <SelectTrigger><SelectValue placeholder="Select brand" /></SelectTrigger>
+              <SelectContent>
+                {projects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="space-y-1">
             <Label className="text-xs">Package</Label>
             <Select value={packageId || 'none'} onValueChange={handlePackageSelect} disabled={!projectId}>
@@ -285,7 +287,7 @@ export default function EditOrderModal({ order, onClose }: Props) {
               <SelectContent>
                 <SelectItem value="none">— None / Manual —</SelectItem>
                 {projectPackages.map(p => (
-                  <SelectItem key={p.id} value={p.id}>[{p.code}] {p.name} — RM {p.price.toFixed(2)}</SelectItem>
+                  <SelectItem key={p.id} value={p.id}>[{p.code}] {p.name} — RM {p.price?.toFixed(2)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -294,82 +296,10 @@ export default function EditOrderModal({ order, onClose }: Props) {
             )}
           </div>
 
-          {/* Price + Status */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Total Price (RM)</Label>
-              <Input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Delivery Status</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {STATUSES.map(s => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* State */}
+          {/* Total Price */}
           <div className="space-y-1">
-            <Label className="text-xs">State</Label>
-            <Select
-              value={MALAYSIA_STATES.includes(state) ? state : state ? 'custom' : ''}
-              onValueChange={v => {
-                if (v === 'custom') { setCustomState(true); setState('') }
-                else { setCustomState(false); setState(v) }
-              }}
-            >
-              <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
-              <SelectContent>
-                {MALAYSIA_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                <SelectItem value="custom">Other (International)</SelectItem>
-              </SelectContent>
-            </Select>
-            {(customState || (state && !MALAYSIA_STATES.includes(state))) && (
-              <Input value={state} onChange={e => setState(e.target.value)} placeholder="Enter state / country" />
-            )}
-          </div>
-
-          {/* COD + Payment Status */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Payment Method</Label>
-              <Select value={isCod ? 'cod' : 'prepaid'} onValueChange={v => setIsCod(v === 'cod')}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="prepaid">Prepaid</SelectItem>
-                  <SelectItem value="cod">COD</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Payment Status</Label>
-              <Select value={paymentStatus} onValueChange={setPaymentStatus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {PAYMENT_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Delivery Status */}
-          <div className="space-y-1">
-            <Label className="text-xs">Delivery Status</Label>
-            <Select value={deliveryStatus} onValueChange={setDeliveryStatus}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {DELIVERY_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Notes / Purchase Reason */}
-          <div className="space-y-1">
-            <Label className="text-xs">Notes / Purchase Reason</Label>
-            <Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. Weight loss" />
+            <Label className="text-xs">Total Price (RM)</Label>
+            <Input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} />
           </div>
 
           {/* New / Repeat */}
@@ -385,6 +315,30 @@ export default function EditOrderModal({ order, onClose }: Props) {
                 <SelectItem value="repeat">Repeat</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Purchase Reason */}
+          <div className="space-y-1">
+            <Label className="text-xs">Purchase Reason 购买原因</Label>
+            <textarea
+              value={purchaseReason}
+              onChange={e => setPurchaseReason(e.target.value)}
+              rows={2}
+              placeholder="e.g. Weight loss"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+
+          {/* Notes / Remark */}
+          <div className="space-y-1">
+            <Label className="text-xs">Notes / Remark 备注</Label>
+            <textarea
+              value={remark}
+              onChange={e => setRemark(e.target.value)}
+              rows={2}
+              placeholder="Optional notes…"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+            />
           </div>
 
           {/* Receipt Image (NE / DD / Juji only) */}

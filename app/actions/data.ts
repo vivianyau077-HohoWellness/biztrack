@@ -826,6 +826,7 @@ export async function updateOrder(id: string, payload: {
   status?: string
   delivery_status?: string | null
   purchase_reason?: string | null
+  remark?: string | null
   is_new_customer?: boolean | null
 }) {
   const sb = createAdminClient()

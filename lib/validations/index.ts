@@ -12,7 +12,7 @@ export const customerSchema = z.object({
 })
 
 export const orderSchema = z.object({
-  customer_name: z.string().min(1, 'Name is required'),
+  customer_name: z.string().optional(),
   customer_phone: z.string().optional(),
   fb_name: z.string().optional(),
   project_id: z.string().uuid('Select a project'),
