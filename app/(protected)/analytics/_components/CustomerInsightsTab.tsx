@@ -346,61 +346,6 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
         )
       })()}
 
-      {/* Customer Mix donut */}
-      {(() => {
-        const newPct = data.total > 0 ? ((data.newCount / data.total) * 100).toFixed(1) : '0.0'
-        const retPct = data.total > 0 ? ((data.retentionCount / data.total) * 100).toFixed(1) : '0.0'
-        const mixData = [
-          { name: 'New Customers',       value: data.newCount,       color: '#22c55e' },
-          { name: 'Retention Customers', value: data.retentionCount, color: '#3b82f6' },
-        ]
-        return (
-          <div className="bg-white rounded-xl border p-6">
-            <div className="mb-4">
-              <h3 className="text-sm font-semibold">📊 Customer Mix</h3>
-              <p className="text-xs text-muted-foreground">(selected date range)</p>
-            </div>
-            <div className="flex flex-col items-center gap-4">
-              <div className="relative">
-                <ResponsiveContainer width={220} height={220}>
-                  <PieChart>
-                    <Pie
-                      data={mixData}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      strokeWidth={2}
-                    >
-                      {mixData.map(entry => (
-                        <Cell key={entry.name} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(v: number, name: string) => [v, name]} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-xs text-muted-foreground">Total</span>
-                  <span className="text-xl font-bold">{data.total}</span>
-                </div>
-              </div>
-              <div className="flex gap-6 text-xs">
-                <div className="flex items-center gap-1.5">
-                  <div className="h-3 w-3 rounded-full bg-green-500 shrink-0" />
-                  <span>New Customers — <strong>{data.newCount}</strong> ({newPct}%)</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="h-3 w-3 rounded-full bg-blue-500 shrink-0" />
-                  <span>Retention Customers — <strong>{data.retentionCount}</strong> ({retPct}%)</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )
-      })()}
-
       {/* AOV / LTV / Retention KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
