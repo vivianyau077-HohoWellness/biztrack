@@ -46,26 +46,20 @@ export interface WikiNode {
   space_id:   string
 }
 
-/** List all spaces then return first-level nodes for each space. */
+/** List wiki nodes from the configured space. */
 export async function listWikiNodes(): Promise<WikiNode[]> {
-  const spacesData = await larkFetch('/wiki/v2/spaces?page_size=50')
-  const spaces: any[] = spacesData.data?.items ?? []
+  const spaceId = process.env.LARK_WIKI_SPACE_ID
+  if (!spaceId) throw new Error('LARK_WIKI_SPACE_ID env var is not set')
 
-  const nodes: WikiNode[] = []
-  for (const space of spaces) {
-    const nodesData = await larkFetch(
-      `/wiki/v2/spaces/${space.space_id}/nodes?page_size=50`,
-    )
-    for (const n of nodesData.data?.items ?? []) {
-      nodes.push({
-        node_token: n.node_token,
-        title:      n.title ?? '(untitled)',
-        obj_token:  n.obj_token ?? '',
-        space_id:   space.space_id,
-      })
-    }
-  }
-  return nodes
+  const data = await larkFetch(`/wiki/v2/spaces/${spaceId}/nodes?page_size=50`)
+  const items: any[] = data.data?.items ?? []
+
+  return items.map(n => ({
+    node_token: n.node_token,
+    title:      n.title ?? '(untitled)',
+    obj_token:  n.obj_token ?? '',
+    space_id:   spaceId,
+  }))
 }
 
 /** Resolve a node_token → obj_token (document id). */
