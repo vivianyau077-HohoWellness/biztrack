@@ -10,7 +10,7 @@ import {
   LayoutDashboard, ShoppingCart, BarChart2,
   FolderKanban, Settings, LogOut, Leaf, ChevronDown, ChevronRight,
   PanelLeftClose, PanelLeft, Megaphone,
-  Package, DollarSign,
+  Package, DollarSign, BookOpen,
 } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
@@ -53,6 +53,7 @@ const NAV: NavGroup[] = [
   },
   { label: 'Projects',   icon: FolderKanban, href: '/projects' },
   { label: 'Campaigns',  icon: Megaphone,    href: '/campaigns' },
+  { label: 'Wiki / SOP', icon: BookOpen,      href: '/wiki' },
   { label: 'Settings',   icon: Settings,     href: '/settings' },
 ]
 
