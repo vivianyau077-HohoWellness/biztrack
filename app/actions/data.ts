@@ -508,6 +508,9 @@ export async function createOrder(payload: {
   tracking_number?: string | null
   state?: string | null
   address?: string | null
+  payment_method_1?: string | null
+  payment_method_2?: string | null
+  remark?: string | null
 }) {
   const sb = createAdminClient()
   const { data: inserted, error } = await sb
@@ -827,6 +830,8 @@ export async function updateOrder(id: string, payload: {
   delivery_status?: string | null
   purchase_reason?: string | null
   remark?: string | null
+  payment_method_1?: string | null
+  payment_method_2?: string | null
   is_new_customer?: boolean | null
 }) {
   const sb = createAdminClient()

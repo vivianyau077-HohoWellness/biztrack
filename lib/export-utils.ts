@@ -31,8 +31,12 @@ function todayStr(): string {
   return new Date().toISOString().split('T')[0]
 }
 
-function getOrderNotes(order: Order): string {
+function getOrderPurchaseReason(order: Order): string {
   return order.purchase_reason ?? ''
+}
+
+function getOrderRemark(order: Order): string {
+  return (order as any).remark ?? ''
 }
 
 /** Auto-fit column widths from an array of character-width hints. */
@@ -73,8 +77,8 @@ export function exportKHHFIOR(orders: OrderWithDetails[], brand: string, filenam
       '付款方式':     isCod ? 'COD' : '在线支付',
       '代收货款金额': isCod ? salePrice : '',
       '币种':         'MYR',
-      '留言':         getOrderNotes(o),
-      '备注':         '',
+      '留言':         getOrderPurchaseReason(o),
+      '备注':         getOrderRemark(o),
       'SourceID':     '',
       'Parent items 2': '',
       'Parent items 3': '',
@@ -146,6 +150,7 @@ export function exportDDNEJuji(
     'State',
     'Grand Total',
     'Payment Method',
+    'Purchase Reason',
     'Remark',
     'Receipt',
     ...productCols.map(p => p.header),
@@ -183,7 +188,8 @@ export function exportDDNEJuji(
       o.state ?? '',                       // State
       Number(o.total_price),               // Grand Total
       isCod ? 'COD' : 'Bank Transfer',    // Payment Method
-      getOrderNotes(o),                    // Remark
+      getOrderPurchaseReason(o),           // Purchase Reason
+      getOrderRemark(o),                   // Remark
       c?.receipt_url ?? '',               // Receipt
       ...productQtys,                      // Product quantity columns
     ]
@@ -201,8 +207,8 @@ export function exportDDNEJuji(
     }
   })
 
-  // 15 base columns + product columns
-  const baseWidths = [22, 15, 18, 14, 12, 22, 16, 35, 10, 12, 12, 12, 14, 25, 40]
+  // 16 base columns + product columns
+  const baseWidths = [22, 15, 18, 14, 12, 22, 16, 35, 10, 12, 12, 12, 14, 22, 25, 40]
   const productWidths = productCols.map(() => 16)
   ws['!cols'] = colWidths([...baseWidths, ...productWidths])
 

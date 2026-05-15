@@ -71,6 +71,8 @@ export interface Order {
   channel: string | null
   purchase_reason: string | null
   remark: string | null
+  payment_method_1: string | null
+  payment_method_2: string | null
   is_new_customer: boolean
   // Production-ready fields (migration 011)
   package_snapshot: { name?: string; price?: number; code?: string } | null

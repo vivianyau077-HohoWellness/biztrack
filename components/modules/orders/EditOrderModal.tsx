@@ -21,6 +21,14 @@ import type { Order } from '@/lib/types'
 const CHANNELS = ['Facebook', 'TikTok', 'Shopee', 'Lazada', 'Xiaohongshu', 'WhatsApp', 'Website', 'Other']
 const RECEIPT_BRANDS = ['NE', 'DD', 'Juji']
 
+const PAYMENT_METHODS = [
+  'None', 'Cash', 'CIMB (MYR)', 'KIPLEPAY SDN BHD', 'DHL ECOMMERCE - COD',
+  'TOUCH N GO E WALLET', 'ATOME', 'LAZADA', 'SHOPEE', 'UOB BANK (SGD)',
+  'NINJA VAN - COD', 'SINGAPORE - COD', 'PAYNOW - SINGAPORE', 'BILLPLZ', 'SINGAPORE JNT',
+]
+const COD_METHODS = new Set(['DHL ECOMMERCE - COD', 'NINJA VAN - COD', 'SINGAPORE - COD'])
+const COD_REMARK = 'COD, call or Whatsapp customer 30 mins before arriving'
+
 const PURCHASE_REASONS: Record<string, string[]> = {
   DD: [
     '眼袋/黑眼圈', '斑斑', '美白提亮', '毛孔', '只想保养', '皮肤敏感/痒',
@@ -57,6 +65,8 @@ export default function EditOrderModal({ order, onClose }: Props) {
   const [isNewCustomer, setIsNewCustomer] = useState<boolean | null>(null)
   const [purchaseReason, setPurchaseReason] = useState('')
   const [remark, setRemark]         = useState('')
+  const [paymentMethod1, setPaymentMethod1] = useState('')
+  const [paymentMethod2, setPaymentMethod2] = useState('')
   const [customChannel, setCustomChannel] = useState(false)
 
   // Receipt state
@@ -84,6 +94,8 @@ export default function EditOrderModal({ order, onClose }: Props) {
     setIsNewCustomer(order.is_new_customer ?? null)
     setPurchaseReason(order.purchase_reason ?? '')
     setRemark((order as any).remark ?? '')
+    setPaymentMethod1((order as any).payment_method_1 ?? '')
+    setPaymentMethod2((order as any).payment_method_2 ?? '')
     const existing = (order.customers as any)?.receipt_url ?? null
     setOriginalReceiptUrl(existing)
     setReceiptUrl(existing)
@@ -183,6 +195,8 @@ export default function EditOrderModal({ order, onClose }: Props) {
         channel,
         purchase_reason: purchaseReason || null,
         remark: remark || null,
+        payment_method_1: paymentMethod1 || null,
+        payment_method_2: paymentMethod2 || null,
         is_new_customer: isNewCustomer,
       })
 
@@ -319,6 +333,38 @@ export default function EditOrderModal({ order, onClose }: Props) {
           <div className="space-y-1">
             <Label className="text-xs">Total Price (RM)</Label>
             <Input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} />
+          </div>
+
+          {/* Payment Methods */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Payment Method 1</Label>
+              <select
+                value={paymentMethod1}
+                onChange={e => {
+                  const v = e.target.value
+                  setPaymentMethod1(v)
+                  if (COD_METHODS.has(v) && !remark) setRemark(COD_REMARK)
+                }}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring h-9"
+              >
+                {PAYMENT_METHODS.map(m => <option key={m} value={m === 'None' ? '' : m}>{m}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Payment Method 2</Label>
+              <select
+                value={paymentMethod2}
+                onChange={e => {
+                  const v = e.target.value
+                  setPaymentMethod2(v)
+                  if (COD_METHODS.has(v) && !remark) setRemark(COD_REMARK)
+                }}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring h-9"
+              >
+                {PAYMENT_METHODS.map(m => <option key={m} value={m === 'None' ? '' : m}>{m}</option>)}
+              </select>
+            </div>
           </div>
 
           {/* New / Repeat */}
