@@ -56,10 +56,8 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
   const [drillFilter,   setDrillFilter]   = useState<DrillFilter>('all')
   const [isExporting,   setIsExporting]   = useState(false)
   const [exportingId,   setExportingId]   = useState<string | null>(null)
-  const [hasPhoneOnly,  setHasPhoneOnly]  = useState(false)
-  const [phoneOnly,     setPhoneOnly]     = useState(false)
-  const drillRef    = useRef<HTMLDivElement>(null)
-  const phoneRef    = useRef<HTMLDivElement>(null)
+  const [phoneOnly, setPhoneOnly] = useState(false)
+  const drillRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
 
   // VIP/Retention settings panel
@@ -164,17 +162,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
     },
   })
 
-  const hasPhoneList    = phoneRows.filter(c => c.phone && c.phone !== '' && c.phone !== '0')
-  const hasPhoneCount   = hasPhoneList.length
-  const missingPhoneCount = phoneRows.length - hasPhoneCount
-
-  function handlePhoneToggle() {
-    const next = !hasPhoneOnly
-    setHasPhoneOnly(next)
-    if (next) {
-      setTimeout(() => phoneRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
-    }
-  }
+  const missingPhoneCount = phoneRows.filter(c => !c.phone || c.phone === '' || c.phone === '0').length
 
   function handleCardClick(filter: DrillFilter) {
     const next = drillFilter === filter ? 'all' : filter
@@ -281,33 +269,13 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
             <Button
               type="button"
               size="sm"
-              variant={hasPhoneOnly ? 'default' : 'outline'}
-              onClick={handlePhoneToggle}
-              className="h-8 gap-1.5"
-            >
-              📱 Has Phone Only
-              {hasPhoneCount > 0 && (
-                <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${hasPhoneOnly ? 'bg-white/20' : 'bg-muted text-muted-foreground'}`}>
-                  {hasPhoneCount}
-                </span>
-              )}
-            </Button>
-            {missingPhoneCount > 0 && (
-              <span className="text-xs text-amber-600 font-medium whitespace-nowrap">
-                ⚠️ {missingPhoneCount} missing phone
-              </span>
-            )}
-            <div className="h-5 w-px bg-border mx-1" />
-            <Button
-              type="button"
-              size="sm"
               variant={phoneOnly ? 'default' : 'outline'}
               onClick={() => setPhoneOnly(v => !v)}
               className="h-8 gap-1.5"
             >
               📱 Phone Only
             </Button>
-            {phoneOnly && missingPhoneCount > 0 && (
+            {missingPhoneCount > 0 && (
               <span className="text-xs text-amber-600 font-medium whitespace-nowrap">
                 ⚠️ {missingPhoneCount} excluded (no phone)
               </span>
@@ -374,57 +342,6 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
           </div>
         )}
       </div>
-
-      {/* Has Phone filter table */}
-      {hasPhoneOnly && (
-        <div ref={phoneRef}>
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium">
-                  📱 Customers with Phone Number
-                  <span className="ml-2 text-xs font-normal text-muted-foreground">({hasPhoneCount} customers)</span>
-                </CardTitle>
-                <button onClick={() => setHasPhoneOnly(false)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-                  <X className="h-3.5 w-3.5" /> Clear filter
-                </button>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              {hasPhoneList.length === 0 ? (
-                <p className="text-sm text-muted-foreground p-6 text-center">No customers with phone numbers found</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b bg-muted/50">
-                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">Name</th>
-                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">Phone</th>
-                        <th className="px-3 py-2 text-right font-medium text-muted-foreground">Orders</th>
-                        <th className="px-3 py-2 text-right font-medium text-muted-foreground">Total Spent</th>
-                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">Last Order</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {hasPhoneList.map((c) => (
-                        <tr key={c.id} className="border-b hover:bg-muted/30">
-                          <td className="px-3 py-2">
-                            <Link href={`/customers/${c.id}`} className="font-medium hover:text-green-600 hover:underline">{c.name}</Link>
-                          </td>
-                          <td className="px-3 py-2 text-muted-foreground font-mono">{c.phone}</td>
-                          <td className="px-3 py-2 text-right">{c.total_orders}</td>
-                          <td className="px-3 py-2 text-right font-medium">{formatCurrency(Number(c.total_spent))}</td>
-                          <td className="px-3 py-2 text-muted-foreground">{c.last_order_date ? formatDate(c.last_order_date) : '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
 
       {/* KPI Cards — clickable */}
       {(() => {
