@@ -1378,20 +1378,16 @@ export type DeliveryStatus = 'pending_delivery' | 'out_for_delivery' | 'delivere
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * For each row, find existing orders matching (project_id + order_date +
- * total_price + channel) where customer_id IS NULL, then set customer_id
- * and fb_name.  Returns which row indices were matched (so the caller can
- * skip inserting duplicates).
- */
-/**
  * Process a single batch (max 100 rows) of DD2025 backfill rows in parallel.
- * For each row, finds orders matching (project_id + order_date + total_price
- * + channel) where customer_id IS NULL, then sets customer_id + fb_name.
  *
- * Also marks rows where the order already EXISTS (regardless of customer_id)
- * so the caller can skip inserting them even when customer_id is unavailable.
+ * For each row:
+ *  - Order exists + customer_id IS NULL + we have customer_id  → UPDATE, add to linkedIndices
+ *  - Order exists + customer_id IS NOT NULL                    → add to linkedIndices (already done)
+ *  - Order exists + customer_id IS NULL + no customer_id       → add to existingIndices (prevent dup insert)
+ *  - Order does not exist                                      → not included in either set (allow insert)
  *
- * Returns indices (relative to this batch) that matched existing orders.
+ * linkedIndices: caller should skip insert AND count as updated
+ * existingIndices: caller should skip insert but NOT count as updated
  */
 export async function dd2025BackfillCustomers(
   rows: Array<{
@@ -1402,18 +1398,18 @@ export async function dd2025BackfillCustomers(
     customer_id: string | null
     fb_name: string
   }>
-): Promise<{ updatedCount: number; matchedIndices: number[] }> {
+): Promise<{ updatedCount: number; linkedIndices: number[]; existingIndices: number[] }> {
   if (rows.length > 100) throw new Error('dd2025BackfillCustomers: max 100 rows per call')
 
   const sb = createAdminClient()
   let updatedCount = 0
 
+  type RowResult = { i: number; linked: boolean } | null
+
   const results = await Promise.all(
-    rows.map(async (row, i) => {
+    rows.map(async (row, i): Promise<RowResult> => {
       if (!row.project_id) return null
 
-      // First check: does any order exist for this row (with or without customer_id)?
-      // This lets us skip the insert even when we can't update (no customer_id).
       let existQ = sb
         .from('orders')
         .select('id, customer_id')
@@ -1424,28 +1420,44 @@ export async function dd2025BackfillCustomers(
       if (row.channel) existQ = existQ.eq('channel', row.channel)
 
       const { data: existingOrders } = await existQ
-      if (!existingOrders || existingOrders.length === 0) return null  // truly new row
+      if (!existingOrders || existingOrders.length === 0) return null  // truly new row — allow insert
 
-      // If we have a customer_id, update any orders that are still unlinked
+      // Some orders already have customer_id set (fully linked)
+      const alreadyLinked = existingOrders.some(o => o.customer_id !== null)
+
+      // Update any orders still missing customer_id — but only if we have one to set
+      let didUpdate = false
       if (row.customer_id) {
         const unlinked = existingOrders.filter(o => o.customer_id === null)
-        await Promise.all(
-          unlinked.map(async o => {
-            const { error } = await sb
-              .from('orders')
-              .update({ customer_id: row.customer_id, fb_name: row.fb_name || null })
-              .eq('id', o.id)
-            if (!error) updatedCount++
-          })
-        )
+        if (unlinked.length > 0) {
+          await Promise.all(
+            unlinked.map(async o => {
+              const { error } = await sb
+                .from('orders')
+                .update({ customer_id: row.customer_id, fb_name: row.fb_name || null })
+                .eq('id', o.id)
+              if (!error) { updatedCount++; didUpdate = true }
+            })
+          )
+        }
       }
 
-      return i  // mark this row index as "exists in DB — skip insert"
+      // linked = we successfully set (or confirmed) customer_id on these orders
+      // existing (linked=false) = order exists but customer_id still NULL — skip insert but don't count
+      const linked = alreadyLinked || didUpdate
+      return { i, linked }
     })
   )
 
-  const matchedIndices = results.filter((v): v is number => v !== null)
-  return plain({ updatedCount, matchedIndices })
+  const linkedIndices:   number[] = []
+  const existingIndices: number[] = []
+  for (const r of results) {
+    if (r === null) continue
+    if (r.linked) linkedIndices.push(r.i)
+    else existingIndices.push(r.i)
+  }
+
+  return plain({ updatedCount, linkedIndices, existingIndices })
 }
 
 export async function updateCODDeliveryStatus(

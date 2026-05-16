@@ -942,6 +942,9 @@ export default function ImportOrdersModal({ open, onClose }: Props) {
       // Processed in batches of 100 (parallel within each batch) to avoid timeout.
       // Any row whose order already EXISTS in the DB is added to backfilledIndices
       // and will be skipped from the insert path entirely.
+      // backfilledIndices = rows to skip from insert entirely (order exists in DB)
+      //   linkedIndices:   order existed + customer_id was set → skip insert, count as updated
+      //   existingIndices: order existed + customer_id still NULL → skip insert, NOT counted
       const backfilledIndices = new Set<number>()
       let backfillUpdatedCount = 0
       if (detectedFormat === 'DD2025') {
@@ -961,16 +964,17 @@ export default function ImportOrdersModal({ open, onClose }: Props) {
         for (let b = 0; b < backfillRows.length; b += BACKFILL_BATCH) {
           const chunk = backfillRows.slice(b, b + BACKFILL_BATCH)
           try {
-            const { updatedCount, matchedIndices } = await dd2025BackfillCustomers(chunk)
+            const { updatedCount, linkedIndices, existingIndices } = await dd2025BackfillCustomers(chunk)
             backfillUpdatedCount += updatedCount
-            // matchedIndices are relative to this chunk — convert to absolute
-            for (const idx of matchedIndices) backfilledIndices.add(b + idx)
+            // Convert chunk-relative indices to absolute, add both sets to skip-insert
+            for (const idx of linkedIndices)   backfilledIndices.add(b + idx)
+            for (const idx of existingIndices) backfilledIndices.add(b + idx)
           } catch (backfillErr) {
             console.error(`[DD2025 backfill] batch ${b}–${b + chunk.length - 1} error:`, backfillErr)
             // non-fatal — rows in this chunk may fall through to insert
           }
         }
-        console.log(`[DD2025 backfill] updated ${backfillUpdatedCount} orders, skipping ${backfilledIndices.size} rows from insert`)
+        console.log(`[DD2025 backfill] linked ${backfillUpdatedCount} orders, skipping ${backfilledIndices.size} rows from insert`)
       }
 
       const trackingNumbers = validRows.map(r => r.trackingNumber).filter((t): t is string => t !== null)
