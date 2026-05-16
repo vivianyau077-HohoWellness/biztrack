@@ -1383,6 +1383,16 @@ export type DeliveryStatus = 'pending_delivery' | 'out_for_delivery' | 'delivere
  * and fb_name.  Returns which row indices were matched (so the caller can
  * skip inserting duplicates).
  */
+/**
+ * Process a single batch (max 100 rows) of DD2025 backfill rows in parallel.
+ * For each row, finds orders matching (project_id + order_date + total_price
+ * + channel) where customer_id IS NULL, then sets customer_id + fb_name.
+ *
+ * Also marks rows where the order already EXISTS (regardless of customer_id)
+ * so the caller can skip inserting them even when customer_id is unavailable.
+ *
+ * Returns indices (relative to this batch) that matched existing orders.
+ */
 export async function dd2025BackfillCustomers(
   rows: Array<{
     order_date: string
@@ -1393,46 +1403,48 @@ export async function dd2025BackfillCustomers(
     fb_name: string
   }>
 ): Promise<{ updatedCount: number; matchedIndices: number[] }> {
+  if (rows.length > 100) throw new Error('dd2025BackfillCustomers: max 100 rows per call')
+
   const sb = createAdminClient()
-  const matchedIndices: number[] = []
   let updatedCount = 0
 
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i]
-    if (!row.customer_id || !row.project_id) continue
+  const results = await Promise.all(
+    rows.map(async (row, i) => {
+      if (!row.project_id) return null
 
-    // Build match query
-    let q = sb
-      .from('orders')
-      .select('id')
-      .eq('project_id', row.project_id)
-      .eq('order_date', row.order_date)
-      .eq('total_price', row.total_price)
-      .is('customer_id', null)
-      .limit(5)
-
-    // Match channel only when non-empty
-    if (row.channel) q = q.eq('channel', row.channel)
-
-    const { data: matches } = await q
-    if (!matches || matches.length === 0) continue
-
-    // Update all matched orders
-    for (const match of matches) {
-      const { error } = await sb
+      // First check: does any order exist for this row (with or without customer_id)?
+      // This lets us skip the insert even when we can't update (no customer_id).
+      let existQ = sb
         .from('orders')
-        .update({
-          customer_id: row.customer_id,
-          fb_name:     row.fb_name || null,
-        })
-        .eq('id', match.id)
+        .select('id, customer_id')
+        .eq('project_id', row.project_id)
+        .eq('order_date', row.order_date)
+        .eq('total_price', row.total_price)
+        .limit(5)
+      if (row.channel) existQ = existQ.eq('channel', row.channel)
 
-      if (!error) updatedCount++
-    }
+      const { data: existingOrders } = await existQ
+      if (!existingOrders || existingOrders.length === 0) return null  // truly new row
 
-    matchedIndices.push(i)
-  }
+      // If we have a customer_id, update any orders that are still unlinked
+      if (row.customer_id) {
+        const unlinked = existingOrders.filter(o => o.customer_id === null)
+        await Promise.all(
+          unlinked.map(async o => {
+            const { error } = await sb
+              .from('orders')
+              .update({ customer_id: row.customer_id, fb_name: row.fb_name || null })
+              .eq('id', o.id)
+            if (!error) updatedCount++
+          })
+        )
+      }
 
+      return i  // mark this row index as "exists in DB — skip insert"
+    })
+  )
+
+  const matchedIndices = results.filter((v): v is number => v !== null)
   return plain({ updatedCount, matchedIndices })
 }
 

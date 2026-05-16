@@ -939,14 +939,14 @@ export default function ImportOrdersModal({ open, onClose }: Props) {
       const customerMap = await bulkUpsertCustomers(customerRows)
 
       // ── DD2025 backfill: update existing orders that are missing customer_id ──
-      // For each valid row, try to find a previously-imported order matching
-      // (project_id + order_date + total_price + channel WHERE customer_id IS NULL)
-      // and write the resolved customer_id.  Rows that hit an existing order are
-      // skipped from the insert step below.
+      // Processed in batches of 100 (parallel within each batch) to avoid timeout.
+      // Any row whose order already EXISTS in the DB is added to backfilledIndices
+      // and will be skipped from the insert path entirely.
       const backfilledIndices = new Set<number>()
       let backfillUpdatedCount = 0
       if (detectedFormat === 'DD2025') {
-        const backfillRows = validRows.map((r, _i) => {
+        const BACKFILL_BATCH = 100
+        const backfillRows = validRows.map(r => {
           const pid = r.projectId ?? selectedProjectId ?? dominantProjectId ?? ''
           const customerKey = r.phone ? r.phone : `__noPhone__${r.customerName}`
           return {
@@ -958,15 +958,19 @@ export default function ImportOrdersModal({ open, onClose }: Props) {
             fb_name:     r.customerName,
           }
         })
-        try {
-          const { updatedCount, matchedIndices } = await dd2025BackfillCustomers(backfillRows)
-          backfillUpdatedCount = updatedCount
-          for (const idx of matchedIndices) backfilledIndices.add(idx)
-          console.log(`[DD2025 backfill] updated ${updatedCount} existing orders, matched ${matchedIndices.length} rows`)
-        } catch (backfillErr) {
-          console.error('[DD2025 backfill] error:', backfillErr)
-          // non-fatal — fall through to normal insert
+        for (let b = 0; b < backfillRows.length; b += BACKFILL_BATCH) {
+          const chunk = backfillRows.slice(b, b + BACKFILL_BATCH)
+          try {
+            const { updatedCount, matchedIndices } = await dd2025BackfillCustomers(chunk)
+            backfillUpdatedCount += updatedCount
+            // matchedIndices are relative to this chunk — convert to absolute
+            for (const idx of matchedIndices) backfilledIndices.add(b + idx)
+          } catch (backfillErr) {
+            console.error(`[DD2025 backfill] batch ${b}–${b + chunk.length - 1} error:`, backfillErr)
+            // non-fatal — rows in this chunk may fall through to insert
+          }
         }
+        console.log(`[DD2025 backfill] updated ${backfillUpdatedCount} orders, skipping ${backfilledIndices.size} rows from insert`)
       }
 
       const trackingNumbers = validRows.map(r => r.trackingNumber).filter((t): t is string => t !== null)
@@ -975,12 +979,14 @@ export default function ImportOrdersModal({ open, onClose }: Props) {
         : []
       const existingTracking = new Set<string>(existingTrackingArr)
 
-      // Pre-generate order IDs for Format B rows that need auto-generated tracking numbers
-      // We do this atomically before building toInsert so each row gets a unique sequential ID
+      // Pre-generate order IDs for rows that need auto-generated tracking numbers.
+      // IMPORTANT: skip any row that was matched by the DD2025 backfill — these
+      // already exist in the DB and must not receive a new order ID or be inserted.
       const resolvedTrackingNumbers = new Map<number, string>()
       for (let i = 0; i < validRows.length; i++) {
+        if (backfilledIndices.has(i)) continue  // ← must be first
         const r = validRows[i]
-        if (r.needsAutoId && !backfilledIndices.has(i)) {
+        if (r.needsAutoId) {
           const pid = r.projectId ?? selectedProjectId ?? dominantProjectId
           if (pid) {
             try {
@@ -995,11 +1001,10 @@ export default function ImportOrdersModal({ open, onClose }: Props) {
 
       const toInsert: object[] = []
       for (let i = 0; i < validRows.length; i++) {
-        const r = validRows[i]
-
-        // DD2025 rows that matched existing orders via backfill are already
-        // updated — skip inserting them again
+        // MUST be the very first check — backfilled rows already exist in DB
         if (backfilledIndices.has(i)) continue
+
+        const r = validRows[i]
 
         // Use pre-generated tracking if needed, else use the parsed one
         const trackingNumber = r.needsAutoId
