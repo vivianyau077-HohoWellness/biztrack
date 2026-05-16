@@ -47,13 +47,29 @@ function colWidths(widths: number[]): XLSX.ColInfo[] {
   return widths.map(wch => ({ wch }))
 }
 
+/**
+ * Resolve the payment method string for export.
+ * If payment_method_1 is set, use it as-is.
+ * Otherwise fall back to "COD" if the remark mentions COD (legacy orders).
+ */
+function getExportPaymentMethod(
+  paymentMethod1: string | null | undefined,
+  remark: string | null | undefined,
+): string {
+  if (paymentMethod1) return paymentMethod1
+  if (remark && remark.toUpperCase().includes('COD')) return 'COD'
+  return ''
+}
+
 // ─── Format A: KHH & FIOR ─────────────────────────────────────────────────────
 
 export function exportKHHFIOR(orders: OrderWithDetails[], brand: string, filename?: string): void {
   const rows = orders.map(o => {
     const c = o.customers
-    const isCod = o.is_cod ?? false
     const salePrice = Number(o.total_price)
+    const remark = getOrderRemark(o)
+    const pm = getExportPaymentMethod((o as any).payment_method_1, remark)
+    const isCodExport = pm.toUpperCase().includes('COD')
     return {
       '线上单号':    o.tracking_number ?? o.id,
       '店铺':        '',
@@ -77,11 +93,11 @@ export function exportKHHFIOR(orders: OrderWithDetails[], brand: string, filenam
       '商品数量':     1,
       '商品单价':     salePrice,
       '商品税金':     '',
-      '付款方式':     isCod ? 'COD' : '在线支付',
-      '代收货款金额': isCod ? salePrice : '',
+      '付款方式':     pm || '在线支付',
+      '代收货款金额': isCodExport ? salePrice : '',
       '币种':         'MYR',
       '留言':         '',
-      '备注':         getOrderRemark(o),
+      '备注':         remark,
       'SourceID':     '',
       'Parent items 2': '',
       'Parent items 3': '',
@@ -161,9 +177,10 @@ export function exportDDNEJuji(
   // Build data rows as arrays in the same column order
   const dataRows = orders.map(o => {
     const c = o.customers
-    const isCod = o.is_cod ?? false
     const projectName = o.projects?.name ?? brand
     const shopeeOrderNo = (o.channel === 'Shopee' || o.channel === 'Shopee SG') ? (o.tracking_number ?? '') : ''
+    const remark = getOrderRemark(o)
+    const pm = getExportPaymentMethod((o as any).payment_method_1, remark)
 
     // Look up component quantities: prefer package_id lookup, fall back to snapshot attrs
     const pkgAttrs: Record<string, number> =
@@ -189,8 +206,8 @@ export function exportDDNEJuji(
       o.state ?? '',                       // City
       o.state ?? '',                       // State
       Number(o.total_price),               // Grand Total
-      isCod ? 'COD' : 'Bank Transfer',    // Payment Method
-      getOrderRemark(o),                   // Remark
+      pm || 'Bank Transfer',              // Payment Method
+      remark,                              // Remark
       c?.receipt_url ?? '',               // Receipt
       ...productQtys,                      // Product quantity columns
     ]
