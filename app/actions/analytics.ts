@@ -796,17 +796,16 @@ export async function fetchCustomerInsights(
     : 0
 
   // ── Retention Rate: returning customers (first order BEFORE period) ÷ total in period
+  // New      = first-ever order for this brand falls within [dateFrom, dateTo]
+  // Retention = ordered in period but first-ever order was before dateFrom
+  // Customers with no resolvable first order date are excluded from both counts.
   const newCount = all.filter(c => {
-    const firstDate = projectId
-      ? (firstOrderMap.get(c.id) ?? dateFrom)
-      : (c.first_order_date ?? dateFrom)
-    return firstDate >= dateFrom
+    const firstDate = projectId ? firstOrderMap.get(c.id) : (c.first_order_date ?? undefined)
+    return firstDate != null && firstDate >= dateFrom && firstDate <= dateTo
   }).length
   const retentionCount = all.filter(c => {
-    const firstDate = projectId
-      ? (firstOrderMap.get(c.id) ?? dateFrom)
-      : (c.first_order_date ?? dateFrom)
-    return firstDate < dateFrom
+    const firstDate = projectId ? firstOrderMap.get(c.id) : (c.first_order_date ?? undefined)
+    return firstDate != null && firstDate < dateFrom
   }).length
   const retentionRate = total > 0 ? (retentionCount / total) * 100 : 0
 
