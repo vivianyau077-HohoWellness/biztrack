@@ -581,20 +581,30 @@ export async function fetchCustomerInsights(
       })
     }
 
-    // All-time first order date per customer — for "new in range" status.
-    // Paginated in chunks of 1000 to avoid PostgREST max_rows truncation.
+    // All-time first order date per customer for this brand — built directly from
+    // the orders table so it's always current. Batched by customer ID (500 per
+    // chunk) with inner pagination (1000 rows per page) to handle large datasets.
+    const FOD_CID_BATCH = 500
     const FOD_PAGE = 1000
-    let fodOffset = 0
-    while (true) {
-      const { data: fodPage } = await sb
-        .rpc('get_customer_first_orders', { p_project_id: projectId })
-        .range(fodOffset, fodOffset + FOD_PAGE - 1)
-      if (!fodPage || fodPage.length === 0) break
-      for (const r of fodPage as Array<{ customer_id: string; first_order_date: string }>) {
-        firstOrderMap.set(r.customer_id, r.first_order_date)
+    for (let i = 0; i < brandCustomerIds.length; i += FOD_CID_BATCH) {
+      const chunk = brandCustomerIds.slice(i, i + FOD_CID_BATCH)
+      let pageOffset = 0
+      while (true) {
+        const { data: fodPage } = await sb
+          .from('orders')
+          .select('customer_id, order_date')
+          .eq('project_id', projectId)
+          .in('customer_id', chunk)
+          .not('order_date', 'is', null)
+          .range(pageOffset, pageOffset + FOD_PAGE - 1)
+        if (!fodPage || fodPage.length === 0) break
+        for (const r of fodPage as Array<{ customer_id: string; order_date: string }>) {
+          const existing = firstOrderMap.get(r.customer_id)
+          if (!existing || r.order_date < existing) firstOrderMap.set(r.customer_id, r.order_date)
+        }
+        if (fodPage.length < FOD_PAGE) break
+        pageOffset += FOD_PAGE
       }
-      if (fodPage.length < FOD_PAGE) break
-      fodOffset += FOD_PAGE
     }
     console.log('[CI] firstOrderMap size:', firstOrderMap.size)
 
@@ -645,6 +655,30 @@ export async function fetchCustomerInsights(
 
     const allBrandsIds = Array.from(new Set(allBrandsOrders.map(r => r.customer_id)))
     console.log(`[CI] all-brands unique customers in range: ${allBrandsIds.length}`)
+
+    // Build firstOrderMap from orders table (no project filter — all-time across all brands).
+    const AB_FOD_BATCH = 200
+    const AB_FOD_PAGE = 1000
+    for (let i = 0; i < allBrandsIds.length; i += AB_FOD_BATCH) {
+      const chunk = allBrandsIds.slice(i, i + AB_FOD_BATCH)
+      let pageOffset = 0
+      while (true) {
+        const { data: fodPage } = await sb
+          .from('orders')
+          .select('customer_id, order_date')
+          .in('customer_id', chunk)
+          .not('order_date', 'is', null)
+          .range(pageOffset, pageOffset + AB_FOD_PAGE - 1)
+        if (!fodPage || fodPage.length === 0) break
+        for (const r of fodPage as Array<{ customer_id: string; order_date: string }>) {
+          const existing = firstOrderMap.get(r.customer_id)
+          if (!existing || r.order_date < existing) firstOrderMap.set(r.customer_id, r.order_date)
+        }
+        if (fodPage.length < AB_FOD_PAGE) break
+        pageOffset += AB_FOD_PAGE
+      }
+    }
+    console.log('[CI] all-brands firstOrderMap size:', firstOrderMap.size)
 
     const AB_BATCH = 100
     for (let i = 0; i < allBrandsIds.length; i += AB_BATCH) {
