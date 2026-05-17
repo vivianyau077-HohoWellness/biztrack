@@ -581,29 +581,27 @@ export async function fetchCustomerInsights(
       })
     }
 
-    // All-time first order date per customer for this brand — built directly from
-    // the orders table so it's always current. Batched by customer ID (500 per
-    // chunk) with inner pagination (1000 rows per page) to handle large datasets.
-    const FOD_CID_BATCH = 500
-    const FOD_PAGE = 1000
-    for (let i = 0; i < brandCustomerIds.length; i += FOD_CID_BATCH) {
-      const chunk = brandCustomerIds.slice(i, i + FOD_CID_BATCH)
-      let pageOffset = 0
+    // All-time first order date per customer for this brand.
+    // Query orders sorted by customer_id + order_date so the first occurrence
+    // per customer is always the earliest — no RPC needed.
+    {
+      let fodOffset = 0
+      const FOD_PAGE = 1000
       while (true) {
         const { data: fodPage } = await sb
           .from('orders')
           .select('customer_id, order_date')
           .eq('project_id', projectId)
-          .in('customer_id', chunk)
-          .not('order_date', 'is', null)
-          .range(pageOffset, pageOffset + FOD_PAGE - 1)
+          .not('customer_id', 'is', null)
+          .order('customer_id')
+          .order('order_date')
+          .range(fodOffset, fodOffset + FOD_PAGE - 1)
         if (!fodPage || fodPage.length === 0) break
         for (const r of fodPage as Array<{ customer_id: string; order_date: string }>) {
-          const existing = firstOrderMap.get(r.customer_id)
-          if (!existing || r.order_date < existing) firstOrderMap.set(r.customer_id, r.order_date)
+          if (!firstOrderMap.has(r.customer_id)) firstOrderMap.set(r.customer_id, r.order_date)
         }
         if (fodPage.length < FOD_PAGE) break
-        pageOffset += FOD_PAGE
+        fodOffset += FOD_PAGE
       }
     }
     console.log('[CI] firstOrderMap size:', firstOrderMap.size)
@@ -621,6 +619,10 @@ export async function fetchCustomerInsights(
       if (data) brandRpcRows.push(...(data as CustRow[]))
     }
     console.log('[CI] brand customers fetched:', brandRpcRows.length)
+    console.log('[CI] firstOrderMap size:', firstOrderMap.size)
+    console.log('[CI] brandRpcRows length:', brandRpcRows.length)
+    console.log('[CI] sample firstOrderMap entry:', Array.from(firstOrderMap.entries()).slice(0, 3))
+    console.log('[CI] sample brandRpcRows entry:', brandRpcRows.slice(0, 3).map(r => r.id))
   }
 
   // ── Customers list: brand-scoped uses RPC rows; all-brands paginates ─────────
