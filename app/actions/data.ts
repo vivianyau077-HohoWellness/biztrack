@@ -524,6 +524,8 @@ export async function createOrder(payload: {
   payment_method_1?: string | null
   payment_method_2?: string | null
   remark?: string | null
+  receipt_url_1?: string | null
+  receipt_url_2?: string | null
 }) {
   const sb = createAdminClient()
   const { data: inserted, error } = await sb

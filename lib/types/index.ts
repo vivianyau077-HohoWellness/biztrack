@@ -89,6 +89,8 @@ export interface Order {
   delivery_status: string | null
   quantity: number | null
   state: string | null
+  receipt_url_1: string | null
+  receipt_url_2: string | null
   customers?: Customer
   projects?: Project
   packages?: Pick<Package, 'id' | 'name' | 'code'>
