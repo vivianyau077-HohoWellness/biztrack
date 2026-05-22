@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import type { User } from '@supabase/supabase-js'
+import { syncLarkNow } from '@/app/actions/sync-lark'
 
 export default function SettingsPage() {
   const supabase = createClient()
@@ -20,6 +21,7 @@ export default function SettingsPage() {
   const [savingProfile, setSavingProfile] = useState(false)
   const [displayName, setDisplayName] = useState('')
   const [savingBrand, setSavingBrand] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
 
   // Password change — plain state, no react-hook-form
   const [newPassword,    setNewPassword]    = useState('')
@@ -127,6 +129,19 @@ export default function SettingsPage() {
       toast.error(e.message ?? 'Failed to save')
     } finally {
       setSavingBrand(null)
+    }
+  }
+
+  async function handleSyncLark() {
+    setSyncing(true)
+    try {
+      const result = await syncLarkNow()
+      const errMsg = result.errors.length > 0 ? ` (${result.errors.length} errors)` : ''
+      toast.success(`Synced ${result.synced} records, skipped ${result.skipped}${errMsg}`)
+    } catch (e: any) {
+      toast.error(e.message ?? 'Lark sync failed')
+    } finally {
+      setSyncing(false)
     }
   }
 
@@ -276,6 +291,20 @@ export default function SettingsPage() {
           {projects.length === 0 && (
             <p className="text-sm text-muted-foreground">No projects found.</p>
           )}
+        </CardContent>
+      </Card>
+      {/* Lark Sync */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Lark Sync</CardTitle>
+          <CardDescription>
+            Manually trigger a one-way sync from Lark Base into Supabase (DD 2026 orders).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button type="button" size="sm" onClick={handleSyncLark} disabled={syncing}>
+            {syncing ? 'Syncing...' : 'Sync Lark Now'}
+          </Button>
         </CardContent>
       </Card>
     </div>

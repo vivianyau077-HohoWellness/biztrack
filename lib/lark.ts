@@ -37,6 +37,44 @@ export async function larkFetch(path: string, options: RequestInit = {}): Promis
   return res.json()
 }
 
+// ── Bitable / Base helpers ────────────────────────────────────────────────────
+
+const LARK_BASE_APP_TOKEN = 'S8XXb8PT2a82ouslzQWjBaYap2g'
+
+export interface LarkRecord {
+  record_id: string
+  fields: Record<string, unknown>
+}
+
+/**
+ * Fetch ALL records from a Lark Base table, handling pagination automatically.
+ * Uses page_size=500 and follows has_more / page_token until exhausted.
+ */
+export async function fetchLarkRecords(tableId: string): Promise<LarkRecord[]> {
+  const all: LarkRecord[] = []
+  let pageToken: string | undefined
+
+  do {
+    const params = new URLSearchParams({ page_size: '500' })
+    if (pageToken) params.set('page_token', pageToken)
+
+    const data = await larkFetch(
+      `/bitable/v1/apps/${LARK_BASE_APP_TOKEN}/tables/${tableId}/records?${params}`,
+    )
+
+    if (data.code !== 0) {
+      throw new Error(`Lark fetchLarkRecords error (${data.code}): ${data.msg}`)
+    }
+
+    const items: LarkRecord[] = data.data?.items ?? []
+    all.push(...items)
+
+    pageToken = data.data?.has_more ? (data.data.page_token as string) : undefined
+  } while (pageToken)
+
+  return all
+}
+
 // ── Wiki helpers ──────────────────────────────────────────────────────────────
 
 export interface WikiNode {
