@@ -153,7 +153,7 @@ export async function deleteAttributeSchema(id: string) {
 
 export async function fetchOrders(filters: OrderFilters = {}): Promise<PaginatedResult<Order>> {
   const sb = createAdminClient()
-  const { status, projectId, dateFrom, dateTo, search, batchId, incomplete, page = 1, pageSize = 50 } = filters
+  const { status, projectId, dateFrom, dateTo, yearFrom, yearTo, search, batchId, incomplete, page = 1, pageSize = 50 } = filters
 
   let q = sb
     .from('orders')
@@ -170,6 +170,9 @@ export async function fetchOrders(filters: OrderFilters = {}): Promise<Paginated
     if (dateFrom) q = q.gte('order_date', dateFrom)
     if (dateTo)   q = q.lte('order_date', dateTo)
   }
+  // Year bounds applied independently of date range (e.g. from year dropdown)
+  if (yearFrom) q = q.gte('order_date', yearFrom)
+  if (yearTo)   q = q.lte('order_date', yearTo)
   if (search)    q = q.or(`tracking_number.ilike.%${search}%,customers.name.ilike.%${search}%,customers.phone.ilike.%${search}%`)
   if (incomplete) q = q.or('purchase_reason.is.null,purchase_reason.eq.,is_new_customer.is.null,customers.receipt_url.is.null')
 

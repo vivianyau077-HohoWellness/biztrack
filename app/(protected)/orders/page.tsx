@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, Fragment, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useOrders } from '@/lib/hooks/useOrders'
 import { useProjects } from '@/lib/hooks/useProjects'
 import PageHeader from '@/components/shared/PageHeader'
@@ -121,11 +121,24 @@ function TableHeaders({ showDate = false }: { showDate?: boolean }) {
   )
 }
 
+const YEAR_OPTIONS = ['2026', '2025', 'All Years'] as const
+type YearOption = typeof YEAR_OPTIONS[number]
+
+function getYearBounds(year: YearOption): { yearFrom?: string; yearTo?: string } {
+  if (year === '2026') return { yearFrom: '2026-01-01', yearTo: '2026-12-31' }
+  if (year === '2025') return { yearFrom: '2025-01-01', yearTo: '2025-12-31' }
+  return {}
+}
+
 function OrdersPageInner() {
   useCleanupDialogArtifacts()
   const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
   const today = getToday()
   const thisWeek = getThisWeek()
+
+  const selectedYear = (searchParams.get('year') ?? '2026') as YearOption
 
   const [dateFrom, setDateFrom] = useState(thisWeek.from)
   const [dateTo, setDateTo] = useState(thisWeek.to)
@@ -153,19 +166,21 @@ function OrdersPageInner() {
     return map
   }, [projects])
 
+  const yearBounds = useMemo(() => getYearBounds(selectedYear), [selectedYear])
+
   // All orders for the range — for stats, tabs, week/month views
   const { data: allData } = useOrders(
     useMemo(() => {
-      const f: OrderFilters = { pageSize: 9999, page: 1 }
+      const f: OrderFilters = { pageSize: 9999, page: 1, ...yearBounds }
       if (batchId) { f.batchId = batchId } else { f.dateFrom = dateFrom; f.dateTo = dateTo }
       return f
-    }, [dateFrom, dateTo, batchId])
+    }, [dateFrom, dateTo, batchId, yearBounds])
   )
 
   // Paginated orders — for day view table (not used when incompleteFilter is on)
   const { data, isLoading, error } = useOrders(
     useMemo(() => {
-      const f: OrderFilters = { page, pageSize: PAGE_SIZE }
+      const f: OrderFilters = { page, pageSize: PAGE_SIZE, ...yearBounds }
       if (batchId) {
         f.batchId = batchId
       } else {
@@ -176,7 +191,7 @@ function OrdersPageInner() {
         f.projectId = brandProjectId[selectedBrand]
       if (search.trim()) f.search = search.trim()
       return f
-    }, [dateFrom, dateTo, batchId, selectedBrand, brandProjectId, page, search])
+    }, [dateFrom, dateTo, batchId, selectedBrand, brandProjectId, page, search, yearBounds])
   )
 
   // Brand tab stats (count + revenue)
@@ -284,6 +299,14 @@ function OrdersPageInner() {
 
   function toggleOrder(id: string) {
     setExpandedOrders(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+
+  function setYear(year: YearOption) {
+    const params = new URLSearchParams(searchParams.toString())
+    if (year === '2026') params.delete('year')
+    else params.set('year', year)
+    router.replace(`${pathname}?${params.toString()}`)
+    setPage(1)
   }
 
   async function handleExport() {
@@ -490,6 +513,29 @@ function OrdersPageInner() {
           onChange={e => { setSearch(e.target.value); setPage(1) }}
           className="h-8 w-64 text-sm ml-auto"
         />
+      </div>
+
+      {/* Year + Brand filters row */}
+      <div className="flex flex-wrap items-center gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-muted-foreground">Year</span>
+          <div className="flex rounded-md border overflow-hidden">
+            {YEAR_OPTIONS.map(y => (
+              <button
+                key={y}
+                onClick={() => setYear(y)}
+                className={cn(
+                  'px-3 py-1.5 text-sm font-medium transition-colors',
+                  selectedYear === y
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-background text-muted-foreground hover:bg-muted'
+                )}
+              >
+                {y}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Brand tabs */}

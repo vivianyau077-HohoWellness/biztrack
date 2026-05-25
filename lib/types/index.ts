@@ -264,6 +264,8 @@ export interface OrderFilters {
   projectId?: string
   dateFrom?: string
   dateTo?: string
+  yearFrom?: string
+  yearTo?: string
   search?: string
   batchId?: string
   incomplete?: boolean
