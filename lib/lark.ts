@@ -42,13 +42,15 @@ export interface LarkRecord {
 }
 
 /**
- * Fetch ALL records from a Lark Base table, handling pagination automatically.
+ * Fetch records from a Lark Base table, handling pagination automatically.
  * @param tableId - The table ID to fetch from
  * @param appToken - The base app token (defaults to DD base for backward compatibility)
+ * @param modifiedAfter - Unix timestamp in milliseconds; if provided, only fetch records modified after this time
  */
 export async function fetchLarkRecords(
   tableId: string,
-  appToken: string = 'S8XXb8PT2a82ouslzQWjBaYap2g'
+  appToken: string = 'S8XXb8PT2a82ouslzQWjBaYap2g',
+  modifiedAfter?: number
 ): Promise<LarkRecord[]> {
   const all: LarkRecord[] = []
   let pageToken: string | undefined
@@ -56,6 +58,9 @@ export async function fetchLarkRecords(
   do {
     const params = new URLSearchParams({ page_size: '500' })
     if (pageToken) params.set('page_token', pageToken)
+    if (modifiedAfter != null) {
+      params.set('filter', `CurrentValue.[ModifyTime]>${modifiedAfter}`)
+    }
 
     const data = await larkFetch(
       `/bitable/v1/apps/${appToken}/tables/${tableId}/records?${params}`,

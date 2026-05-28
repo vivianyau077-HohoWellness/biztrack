@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Leaf, Crown } from 'lucide-react'
+import { Leaf, Crown, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type VIPStatusCode = 'active' | 'expiring' | 'expired' | 'not_vip'
+type VIPStatusCode = 'active' | 'expiring' | 'expired' | 'not_vip' | 'inactive'
 
 interface LookupResult {
   phone: string
@@ -22,6 +22,7 @@ interface LookupResult {
   vipSince?: string
   expiryDate?: string
   daysUntilExpiry?: number
+  lastOrderDate?: string | null
   dateOfBirth: string | null
   giftClaimedAt: string | null
   giftClaimYear: number | null
@@ -36,16 +37,19 @@ function formatDate(iso: string | undefined | null): string {
 }
 
 function StatusBadge({ status }: { status: VIPStatusCode }) {
-  if (status === 'active') return <Badge variant="success">Active VIP</Badge>
+  if (status === 'active')   return <Badge variant="success">Active VIP</Badge>
   if (status === 'expiring') return <Badge variant="warning">Expiring Soon</Badge>
-  if (status === 'expired') return <Badge variant="destructive">Expired</Badge>
+  if (status === 'expired')  return <Badge variant="destructive">Expired</Badge>
+  if (status === 'inactive') return <Badge variant="secondary">Inactive</Badge>
   return <Badge variant="secondary">Not VIP</Badge>
 }
 
-function StatusIcon({ status }: { status: VIPStatusCode }) {
-  if (status === 'active') return <span className="text-green-600 text-xl">✅</span>
-  if (status === 'expiring') return <span className="text-yellow-500 text-xl">⚠️</span>
-  return <span className="text-red-500 text-xl">❌</span>
+const STATUS_META: Record<VIPStatusCode, { icon: string; label: string; color: string }> = {
+  active:   { icon: '🟢', label: 'Active VIP Member',           color: 'text-green-700' },
+  expiring: { icon: '🟡', label: 'Expiring Soon',               color: 'text-yellow-600' },
+  expired:  { icon: '🔴', label: 'VIP membership has expired',  color: 'text-red-600' },
+  inactive: { icon: '⚫', label: 'Inactive — no recent orders', color: 'text-gray-500' },
+  not_vip:  { icon: '⚪', label: 'Not a VIP member',            color: 'text-gray-500' },
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -56,12 +60,19 @@ export default function VIPCheckPage() {
   const [result, setResult] = useState<LookupResult | null>(null)
   const [claiming, setClaiming] = useState(false)
 
+  // Registration state
+  const [showRegister, setShowRegister] = useState(false)
+  const [regName, setRegName] = useState('')
+  const [regDob, setRegDob] = useState('')
+  const [registering, setRegistering] = useState(false)
+
   async function handleLookup(e: React.FormEvent) {
     e.preventDefault()
     if (!phone.trim()) return
 
     setLoading(true)
     setResult(null)
+    setShowRegister(false)
 
     try {
       const res = await fetch('/api/vip/lookup', {
@@ -89,6 +100,46 @@ export default function VIPCheckPage() {
     }
   }
 
+  async function handleRegister(e: React.FormEvent) {
+    e.preventDefault()
+    if (!regName.trim() || !result) return
+
+    setRegistering(true)
+    try {
+      const res = await fetch('/api/vip/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: result.phone, name: regName.trim(), dob: regDob || undefined }),
+      })
+
+      if (res.status === 429) {
+        toast.error('Too many requests. Please wait before trying again.')
+        return
+      }
+
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error ?? 'Registration failed')
+        return
+      }
+
+      toast.success('Registered successfully!')
+      setShowRegister(false)
+
+      // Re-run lookup to show updated status
+      const lookupRes = await fetch('/api/vip/lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phone.trim() }),
+      })
+      if (lookupRes.ok) setResult(await lookupRes.json())
+    } catch {
+      toast.error('Network error. Please try again.')
+    } finally {
+      setRegistering(false)
+    }
+  }
+
   async function handleClaimGift() {
     if (!result) return
     setClaiming(true)
@@ -104,14 +155,8 @@ export default function VIPCheckPage() {
         return
       }
       toast.success('Birthday gift marked as claimed!')
-      // Update result in place
       setResult(prev => prev
-        ? {
-            ...prev,
-            giftClaimedAt: new Date().toISOString(),
-            giftClaimYear: new Date().getFullYear(),
-            giftAvailable: false,
-          }
+        ? { ...prev, giftClaimedAt: new Date().toISOString(), giftClaimYear: new Date().getFullYear(), giftAvailable: false }
         : null)
     } catch {
       toast.error('Network error. Please try again.')
@@ -119,6 +164,8 @@ export default function VIPCheckPage() {
       setClaiming(false)
     }
   }
+
+  const isVIPStatus = result && (result.status === 'active' || result.status === 'expiring' || result.status === 'expired')
 
   return (
     <div className="min-h-screen bg-green-50 flex flex-col items-center py-12 px-4">
@@ -168,7 +215,7 @@ export default function VIPCheckPage() {
         </CardContent>
       </Card>
 
-      {/* Results */}
+      {/* Status Result Card */}
       {result && (
         <Card className="w-full max-w-md shadow-sm mt-4">
           <CardHeader className="pb-3">
@@ -180,18 +227,30 @@ export default function VIPCheckPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            {/* VIP Status Row */}
-            <div className="flex items-center gap-2">
-              <StatusIcon status={result.status} />
-              <span className="text-sm font-medium">
-                {result.status === 'active' && 'Active VIP Member'}
-                {result.status === 'expiring' && `Expiring in ${result.daysUntilExpiry} days`}
-                {result.status === 'expired' && 'VIP membership has expired'}
-                {result.status === 'not_vip' && 'Not a VIP member'}
-              </span>
-            </div>
+            {/* Status Row */}
+            {(() => {
+              const meta = STATUS_META[result.status]
+              return (
+                <div className={`flex items-center gap-2 ${meta.color}`}>
+                  <span className="text-lg">{meta.icon}</span>
+                  <span className="text-sm font-medium">
+                    {result.status === 'expiring'
+                      ? `Expiring in ${result.daysUntilExpiry} days`
+                      : meta.label}
+                  </span>
+                </div>
+              )
+            })()}
 
-            {(result.status === 'active' || result.status === 'expiring' || result.status === 'expired') && (
+            {/* Inactive banner */}
+            {result.status === 'inactive' && (
+              <div className="bg-gray-100 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600">
+                This customer has not ordered in over 365 days.
+              </div>
+            )}
+
+            {/* VIP Details */}
+            {isVIPStatus && (
               <div className="bg-muted/50 rounded-lg p-3 space-y-2 text-sm">
                 {result.brand && (
                   <div className="flex justify-between">
@@ -205,14 +264,41 @@ export default function VIPCheckPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Valid Until</span>
-                  <span className={`font-medium ${result.status === 'expiring' ? 'text-yellow-600' : result.status === 'expired' ? 'text-red-600' : ''}`}>
+                  <span className={`font-medium ${
+                    result.status === 'expiring' ? 'text-yellow-600' :
+                    result.status === 'expired'  ? 'text-red-600' : ''
+                  }`}>
                     {formatDate(result.expiryDate)}
                   </span>
+                </div>
+                {result.daysUntilExpiry != null && result.daysUntilExpiry >= 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Days Remaining</span>
+                    <span className={`font-medium ${result.status === 'expiring' ? 'text-yellow-600' : ''}`}>
+                      {result.daysUntilExpiry}d
+                    </span>
+                  </div>
+                )}
+                {result.lastOrderDate && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Last Order</span>
+                    <span className="font-medium">{formatDate(result.lastOrderDate)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Last order for inactive / not_vip */}
+            {!isVIPStatus && result.lastOrderDate && (
+              <div className="bg-muted/50 rounded-lg p-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Last Order</span>
+                  <span className="font-medium">{formatDate(result.lastOrderDate)}</span>
                 </div>
               </div>
             )}
 
-            {/* Birthday Gift Section */}
+            {/* Birthday Gift */}
             <div className="border-t pt-3">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
                 Birthday Gift
@@ -248,18 +334,85 @@ export default function VIPCheckPage() {
         </Card>
       )}
 
-      {result && result.status === 'not_vip' && !result.found && (
+      {/* Not found → Registration option */}
+      {result && !result.found && !showRegister && (
         <Card className="w-full max-w-md shadow-sm mt-4">
-          <CardContent className="pt-6 pb-4">
+          <CardContent className="pt-6 pb-4 space-y-4">
             <p className="text-sm text-muted-foreground text-center">
-              No orders found for this phone number.
+              No records found for this phone number.
             </p>
+            <Button
+              variant="outline"
+              className="w-full border-green-600 text-green-700 hover:bg-green-50 gap-2"
+              onClick={() => setShowRegister(true)}
+            >
+              <UserPlus className="h-4 w-4" />
+              Register as New Customer
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Registration Form */}
+      {result && !result.found && showRegister && (
+        <Card className="w-full max-w-md shadow-sm mt-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <UserPlus className="h-5 w-5 text-green-600" />
+              Register New Customer
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleRegister} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Phone</Label>
+                <Input value={result.phone} disabled className="bg-muted" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="reg-name">Full Name <span className="text-red-500">*</span></Label>
+                <Input
+                  id="reg-name"
+                  placeholder="Enter full name"
+                  value={regName}
+                  onChange={e => setRegName(e.target.value)}
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="reg-dob">Date of Birth <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <Input
+                  id="reg-dob"
+                  type="date"
+                  value={regDob}
+                  onChange={e => setRegDob(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Used for birthday gift eligibility</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setShowRegister(false)}
+                  disabled={registering}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="flex-1 bg-green-700 hover:bg-green-800"
+                  disabled={registering || !regName.trim()}
+                >
+                  {registering ? 'Registering...' : 'Register'}
+                </Button>
+              </div>
+            </form>
           </CardContent>
         </Card>
       )}
 
       <p className="mt-8 text-xs text-green-700/60">
-        VIP status requires a single order ≥ RM700 within the past 365 days.
+        VIP status requires a single order ≥ RM700. Valid for 1 year from latest qualifying order.
       </p>
     </div>
   )

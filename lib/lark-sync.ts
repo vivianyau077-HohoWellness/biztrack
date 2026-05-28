@@ -2,11 +2,11 @@ import { fetchLarkRecords } from './lark'
 import { createAdminClient } from './supabase/admin'
 
 const TABLES = {
-  DD:   { appToken: 'S8XXb8PT2a82ouslzQWjBaYap2g', tableId: 'tblpMwKyxbddnXNG' },
-  FIOR: { appToken: 'P5UtbJgkvaZJ73sRVm8ju1S8p6e', tableId: 'tbl0P5GOFGSbdpkZ' },
-  Juji: { appToken: 'QV2vbeAyIaDiu2skeFojbNhspnh', tableId: 'tblIb0g8xEeRGsbe' },
-  KHH:  { appToken: 'Aj8PbXTthaPPbHszkkhjSvvwpf6', tableId: 'tbllQYz92DPQ4nBU' },
-  NE:   { appToken: 'Q50NbFCftaDPTgs6sgNjzeNrpNh', tableId: 'tblCgCKSZ3zALx6t' },
+  DD:   { appToken: 'S8XXb8PT2a82ouslzQWjBaYap2g', tableId: 'tblpMwKyxbddnXNG', projectId: '369ca28c-12a2-4dcd-856d-582b9b230766' },
+  FIOR: { appToken: 'P5UtbJgkvaZJ73sRVm8ju1S8p6e', tableId: 'tbl0P5GOFGSbdpkZ', projectId: 'bf582bd7-5e8c-4425-9d90-cc7fb7f862c3' },
+  Juji: { appToken: 'QV2vbeAyIaDiu2skeFojbNhspnh', tableId: 'tblIb0g8xEeRGsbe', projectId: 'a4787a40-65fc-4e57-81d3-7f604239def9' },
+  KHH:  { appToken: 'Aj8PbXTthaPPbHszkkhjSvvwpf6', tableId: 'tbllQYz92DPQ4nBU', projectId: 'dfc62089-eb3f-4c95-b270-cdf9b3247130' },
+  NE:   { appToken: 'Q50NbFCftaDPTgs6sgNjzeNrpNh', tableId: 'tblCgCKSZ3zALx6t', projectId: 'cf90720d-1fc4-4015-ae2b-416d624757c6' },
 } as const
 
 export interface SyncResult {
@@ -77,10 +77,52 @@ function getFormulaText(val: unknown): string | null {
   return null
 }
 
+async function findOrCreateCustomer(
+  supabase: ReturnType<typeof createAdminClient>,
+  phone: string | null,
+  name: string | null
+): Promise<string | null> {
+  if (!phone) return null
+
+  const { data: existing } = await supabase
+    .from('customers')
+    .select('id')
+    .eq('phone', phone)
+    .single()
+
+  if (existing) return existing.id
+
+  const { data: newCustomer, error } = await supabase
+    .from('customers')
+    .insert({ phone, name: name || 'Lark Customer' })
+    .select('id')
+    .single()
+
+  if (error) {
+    console.error('[lark-sync] Failed to create customer:', error)
+    return null
+  }
+
+  return newCustomer.id
+}
+
 async function syncBrand(brand: keyof typeof TABLES): Promise<SyncResult> {
-  const { appToken, tableId } = TABLES[brand]
-  const records = await fetchLarkRecords(tableId, appToken)
+  const { appToken, tableId, projectId } = TABLES[brand]
   const supabase = createAdminClient()
+  const stateKey = `lark_${brand}`
+
+  // Read last sync time
+  const { data: state } = await supabase
+    .from('sync_state')
+    .select('last_synced_at')
+    .eq('id', stateKey)
+    .single()
+
+  const lastSyncedAt = state?.last_synced_at ? new Date(state.last_synced_at).getTime() : undefined
+  const syncStartedAt = new Date().toISOString()
+
+  const records = await fetchLarkRecords(tableId, appToken, lastSyncedAt)
+  console.log(`[lark-sync] ${brand}: fetched ${records.length} records${lastSyncedAt ? ' (incremental)' : ' (full)'}`)
 
   let synced = 0
   let skipped = 0
@@ -96,6 +138,13 @@ async function syncBrand(brand: keyof typeof TABLES): Promise<SyncResult> {
         continue
       }
 
+      const phone = typeof f['Phone no'] === 'string'
+        ? f['Phone no'] as string
+        : getNumber(f['Phone no'])?.toString() ?? null
+
+      const customerName = getText(f['Name'])
+      const customerId = await findOrCreateCustomer(supabase, phone, customerName)
+
       const priceDomain = getNumber(f['Price Domain'])
       const totalPriceRaw = getNumber(f['Total Price'])
       const totalPrice = priceDomain ?? totalPriceRaw ?? 0
@@ -107,16 +156,13 @@ async function syncBrand(brand: keyof typeof TABLES): Promise<SyncResult> {
       const packageName = getLinkedText(f['Package'])
       const orderNumber = getFormulaText(f['Order No Copy'])
 
-      const phone = typeof f['Phone no'] === 'string'
-        ? f['Phone no'] as string
-        : getNumber(f['Phone no'])?.toString() ?? null
-
       const row = {
         lark_record_id:   record.record_id,
         source:           'lark_sync',
-        brand:            brand,
+        project_id:       projectId,
+        customer_id:      customerId,
         order_date:       orderDate,
-        customer_name:    getText(f['Name']),
+        customer_name:    customerName,
         phone:            phone,
         channel:          typeof f['Channel'] === 'string' ? f['Channel'] as string : getSingleSelect(f['Channel']),
         total_price:      totalPrice,
@@ -143,6 +189,12 @@ async function syncBrand(brand: keyof typeof TABLES): Promise<SyncResult> {
       errors.push(`[${brand}:${record.record_id}] ${e?.message ?? String(e)}`)
     }
   }
+
+  // Update sync state with the timestamp captured before fetching
+  await supabase
+    .from('sync_state')
+    .update({ last_synced_at: syncStartedAt, last_sync_count: synced, updated_at: new Date().toISOString() })
+    .eq('id', stateKey)
 
   return { synced, skipped, errors }
 }
