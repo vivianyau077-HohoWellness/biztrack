@@ -1,12 +1,13 @@
-import { fetchLarkRecords } from './lark'
+import { fetchLarkRecords, type LarkRecord } from './lark'
 import { createAdminClient } from './supabase/admin'
 
 const TABLES = {
-  DD:   { appToken: 'S8XXb8PT2a82ouslzQWjBaYap2g', tableId: 'tblpMwKyxbddnXNG', projectId: '369ca28c-12a2-4dcd-856d-582b9b230766' },
-  FIOR: { appToken: 'P5UtbJgkvaZJ73sRVm8ju1S8p6e', tableId: 'tbl0P5GOFGSbdpkZ', projectId: 'bf582bd7-5e8c-4425-9d90-cc7fb7f862c3' },
-  Juji: { appToken: 'QV2vbeAyIaDiu2skeFojbNhspnh', tableId: 'tblIb0g8xEeRGsbe', projectId: 'a4787a40-65fc-4e57-81d3-7f604239def9' },
-  KHH:  { appToken: 'Aj8PbXTthaPPbHszkkhjSvvwpf6', tableId: 'tbllQYz92DPQ4nBU', projectId: 'dfc62089-eb3f-4c95-b270-cdf9b3247130' },
-  NE:   { appToken: 'Q50NbFCftaDPTgs6sgNjzeNrpNh', tableId: 'tblCgCKSZ3zALx6t', projectId: 'cf90720d-1fc4-4015-ae2b-416d624757c6' },
+  DD2025: { appToken: 'S8XXb8PT2a82ouslzQWjBaYap2g', tableId: 'tblEy6fdbsuXhS6L', projectId: '369ca28c-12a2-4dcd-856d-582b9b230766', brand: 'DD' },
+  DD:     { appToken: 'S8XXb8PT2a82ouslzQWjBaYap2g', tableId: 'tblpMwKyxbddnXNG', projectId: '369ca28c-12a2-4dcd-856d-582b9b230766', brand: 'DD' },
+  FIOR:   { appToken: 'P5UtbJgkvaZJ73sRVm8ju1S8p6e', tableId: 'tbl0P5GOFGSbdpkZ', projectId: 'bf582bd7-5e8c-4425-9d90-cc7fb7f862c3', brand: 'FIOR' },
+  Juji:   { appToken: 'QV2vbeAyIaDiu2skeFojbNhspnh', tableId: 'tblIb0g8xEeRGsbe', projectId: 'a4787a40-65fc-4e57-81d3-7f604239def9', brand: 'Juji' },
+  KHH:    { appToken: 'Aj8PbXTthaPPbHszkkhjSvvwpf6', tableId: 'tbllQYz92DPQ4nBU', projectId: 'dfc62089-eb3f-4c95-b270-cdf9b3247130', brand: 'KHH' },
+  NE:     { appToken: 'Q50NbFCftaDPTgs6sgNjzeNrpNh', tableId: 'tblCgCKSZ3zALx6t', projectId: 'cf90720d-1fc4-4015-ae2b-416d624757c6', brand: 'NE' },
 } as const
 
 export interface SyncResult {
@@ -77,6 +78,48 @@ function getFormulaText(val: unknown): string | null {
   return null
 }
 
+function mapDD2025Record(record: LarkRecord, projectId: string) {
+  const f = record.fields as Record<string, unknown>
+
+  const rawPhone = f['Phone number']
+  const phone = rawPhone != null
+    ? Math.round(Number(rawPhone)).toString()
+    : null
+
+  const customerName = getText(f['Name'])
+  const packageName = getText(f['Package'])
+
+  const orderType = typeof f['New/repeat'] === 'string'
+    ? f['New/repeat'] as string
+    : getSingleSelect(f['New/repeat'])
+
+  const channel = typeof f['Channel'] === 'string'
+    ? f['Channel'] as string
+    : getSingleSelect(f['Channel'])
+
+  return {
+    lark_record_id:   record.record_id,
+    source:           'lark_sync',
+    project_id:       projectId,
+    brand:            'DD',
+    order_date:       getDate(f['Date']),
+    customer_name:    customerName,
+    phone:            phone,
+    channel:          channel,
+    total_price:      getNumber(f['Price']) ?? 0,
+    order_type:       orderType,
+    purchase_reason:  typeof f['Purchase reason Copy'] === 'string'
+      ? f['Purchase reason Copy'] as string
+      : getText(f['Purchase reason Copy']),
+    package_name:     packageName,
+    product_name:     packageName ?? 'DD Order',
+    remark:           null,
+    payment_method_1: null,
+    postcode:         null,
+    order_number:     null,
+  }
+}
+
 async function findOrCreateCustomer(
   supabase: ReturnType<typeof createAdminClient>,
   phone: string | null,
@@ -119,7 +162,20 @@ async function syncBrand(brand: keyof typeof TABLES): Promise<SyncResult> {
     .single()
 
   const lastSyncedAt = state?.last_synced_at ? new Date(state.last_synced_at).getTime() : undefined
+  const isFirstSync = !state?.last_synced_at
   const syncStartedAt = new Date().toISOString()
+
+  // DD2025 first-sync cleanup: delete manual 2025 imports (no lark_record_id)
+  if (brand === 'DD2025' && isFirstSync) {
+    console.log('[lark-sync] DD2025: first sync — deleting manual 2025 imports')
+    await supabase
+      .from('orders')
+      .delete()
+      .eq('project_id', projectId)
+      .is('lark_record_id', null)
+      .gte('order_date', '2025-01-01')
+      .lte('order_date', '2025-12-31')
+  }
 
   const records = await fetchLarkRecords(tableId, appToken, lastSyncedAt)
   console.log(`[lark-sync] ${brand}: fetched ${records.length} records${lastSyncedAt ? ' (incremental)' : ' (full)'}`)
@@ -130,6 +186,26 @@ async function syncBrand(brand: keyof typeof TABLES): Promise<SyncResult> {
 
   for (const record of records) {
     try {
+      // DD2025 uses different field names — use dedicated mapper
+      if (brand === 'DD2025') {
+        const mapped = mapDD2025Record(record, projectId)
+        if (!mapped.order_date) { skipped++; continue }
+
+        const customerId = await findOrCreateCustomer(supabase, mapped.phone, mapped.customer_name)
+        const row = { ...mapped, customer_id: customerId }
+
+        const { error } = await supabase
+          .from('orders')
+          .upsert(row, { onConflict: 'lark_record_id' })
+
+        if (error) {
+          errors.push(`[${brand}:${record.record_id}] ${error.message}`)
+        } else {
+          synced++
+        }
+        continue
+      }
+
       const f = record.fields as Record<string, unknown>
 
       const orderDate = getDate(f['Date'])
@@ -201,6 +277,7 @@ async function syncBrand(brand: keyof typeof TABLES): Promise<SyncResult> {
 
 export async function runLarkSync(): Promise<SyncResult> {
   const results = await Promise.all([
+    syncBrand('DD2025'),
     syncBrand('DD'),
     syncBrand('FIOR'),
     syncBrand('Juji'),

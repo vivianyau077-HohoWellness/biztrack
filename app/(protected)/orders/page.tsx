@@ -13,15 +13,15 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { Plus, ShoppingCart, Download, FileUp, History, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Receipt, User, FileText } from 'lucide-react'
+import { Plus, ShoppingCart, Download, History, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Receipt, User, FileText } from 'lucide-react'
 import DateRangePicker from '@/components/shared/DateRangePicker'
 import type { OrderFilters, Order } from '@/lib/types'
 import { exportOrders } from '@/lib/export-utils'
 import { fetchPackageComponents } from '@/app/actions/catalog'
 import { useCleanupDialogArtifacts } from '@/lib/hooks/use-cleanup-dialog-artifacts'
 import AddOrderModal from '@/components/modules/orders/AddOrderModal'
-import ImportOrdersModal from '@/components/modules/orders/ImportOrdersModal'
 import OrderActions from '@/components/modules/orders/OrderActions'
+import SyncLarkButton from '@/components/modules/orders/SyncLarkButton'
 import { BRAND_COLORS, BRANDS } from '@/lib/constants'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -147,7 +147,6 @@ function OrdersPageInner() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [showAddModal, setShowAddModal] = useState(false)
-  const [showImportModal, setShowImportModal] = useState(false)
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set())
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set())
   const [incompleteFilter, setIncompleteFilter] = useState(false)
@@ -421,11 +420,9 @@ function OrdersPageInner() {
   return (
     <div>
       <PageHeader title="Orders" description={`Orders: ${fmtRangeHeader(dateFrom, dateTo)}`}>
+        <SyncLarkButton />
         <Button variant="outline" size="sm" onClick={handleExport}>
           <Download className="h-4 w-4 mr-1" />Export CSV
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => setShowImportModal(true)}>
-          <FileUp className="h-4 w-4 mr-1" />Import CSV
         </Button>
         <Button variant="outline" size="sm" asChild>
           <Link href="/orders/import-history"><History className="h-4 w-4 mr-1" />History</Link>
@@ -738,7 +735,6 @@ function OrdersPageInner() {
       )}
 
       <AddOrderModal open={showAddModal} onClose={() => setShowAddModal(false)} />
-      <ImportOrdersModal open={showImportModal} onClose={() => setShowImportModal(false)} />
     </div>
   )
 }
