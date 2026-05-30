@@ -334,6 +334,63 @@ export async function getLarkVIPs(): Promise<LarkVIPRecord[]> {
   }))
 }
 
+// ── VIP Eligibility (≥RM700, not yet ticked) ─────────────────────────────────
+
+export interface VIPEligibleRecord {
+  customerName: string | null
+  phone: string | null
+  totalPrice: number
+  orderDate: string | null
+  orderNumber: string | null
+}
+
+export async function getVIPEligible(): Promise<VIPEligibleRecord[]> {
+  const supabase = createAdminClient()
+  const cutoff = new Date()
+  cutoff.setFullYear(cutoff.getFullYear() - 1)
+
+  // Phones already ticked as VIP in Lark
+  const { data: existingVips } = await supabase
+    .from('orders')
+    .select('phone')
+    .eq('is_vip', true)
+    .eq('project_id', DD_PROJECT_ID)
+
+  const vipPhones = new Set((existingVips ?? []).map((r: any) => r.phone).filter(Boolean))
+
+  // Orders ≥ RM700 within past 365 days
+  const { data: eligible } = await supabase
+    .from('orders')
+    .select('customer_name, phone, total_price, order_date, order_number')
+    .eq('project_id', DD_PROJECT_ID)
+    .gte('total_price', 700)
+    .gte('order_date', cutoff.toISOString().split('T')[0])
+    .order('order_date', { ascending: false })
+
+  // Filter out already-VIP phones, then deduplicate by phone keeping highest order
+  const filtered = (eligible ?? []).filter((o: any) => !vipPhones.has(o.phone))
+
+  const seen = new Map<string, typeof filtered[0]>()
+  for (const order of filtered) {
+    const key = (order.phone ?? order.customer_name ?? '') as string
+    if (!key) continue
+    const existing = seen.get(key)
+    if (!existing || (order.total_price as number) > (existing.total_price as number)) {
+      seen.set(key, order)
+    }
+  }
+
+  return Array.from(seen.values())
+    .sort((a, b) => (b.total_price as number) - (a.total_price as number))
+    .map(o => ({
+      customerName: o.customer_name as string | null,
+      phone:        o.phone        as string | null,
+      totalPrice:   (o.total_price as number) ?? 0,
+      orderDate:    o.order_date   as string | null,
+      orderNumber:  o.order_number as string | null,
+    }))
+}
+
 export async function markBirthdayGiftClaimed(phone: string): Promise<{ success: boolean; error?: string }> {
   const supabase = createAdminClient()
   const now = new Date()
