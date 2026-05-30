@@ -16,6 +16,30 @@ export interface SyncResult {
   errors: string[]
 }
 
+const OPTION_ID_MAP: Record<string, string> = {
+  optjM3sSTm: 'New',
+  opt5RJTkyU: 'Repeat',
+  opt1A1ejf7: 'No',
+  optH5YomjI: 'New',
+  opt2pclcc6: 'Repeat',
+  optPYhf96r: 'Pending Info',
+  optRjcfi7S: 'New',
+  optLXxOAjA: 'Repeat',
+  optOqCddm9: 'Pending Info',
+  opt3CuoeNz: 'Repeat',
+  optKqqcwhY: 'New',
+  optsLE6SQa: 'No',
+  optItdDYgQ: 'New',
+  optA4gYOkm: 'Repeat',
+  optvsobWDC: 'No',
+  optUKpcd3x: 'New',
+  optz4Zg1ni: 'No',
+}
+
+function resolveOptionId(val: string): string {
+  return OPTION_ID_MAP[val] ?? val
+}
+
 function getText(val: unknown): string | null {
   if (!val) return null
   if (typeof val === 'string') return val
@@ -40,11 +64,18 @@ function getDate(val: unknown): string | null {
 
 function getSingleSelect(val: unknown): string | null {
   if (!val) return null
-  if (typeof val === 'string') return val
+  if (typeof val === 'string') return resolveOptionId(val)
+  if (typeof val === 'object' && !Array.isArray(val)) {
+    const obj = val as any
+    if (obj.value && Array.isArray(obj.value) && obj.value.length > 0) {
+      return resolveOptionId(String(obj.value[0]))
+    }
+    if (obj.text) return obj.text
+  }
   if (Array.isArray(val) && val.length > 0) {
     const first = val[0]
-    if (typeof first === 'string') return first
-    if (first?.value) return first.value
+    if (typeof first === 'string') return resolveOptionId(first)
+    if (first?.value) return resolveOptionId(String(first.value))
     if (first?.text) return first.text
   }
   return null
@@ -53,7 +84,10 @@ function getSingleSelect(val: unknown): string | null {
 function getMultiSelect(val: unknown): string | null {
   if (!val) return null
   if (Array.isArray(val)) {
-    return val.map((v: any) => v?.value ?? v?.text ?? v).filter(Boolean).join(', ') || null
+    return val.map((v: any) => {
+      const raw = v?.value ?? v?.text ?? v
+      return typeof raw === 'string' ? resolveOptionId(raw) : String(raw)
+    }).filter(Boolean).join(', ') || null
   }
   return null
 }
@@ -71,53 +105,17 @@ function getLinkedText(val: unknown): string | null {
 function getFormulaText(val: unknown): string | null {
   if (!val) return null
   if (typeof val === 'string') return val
+  if (typeof val === 'object' && !Array.isArray(val)) {
+    const obj = val as any
+    if (obj.value && Array.isArray(obj.value) && obj.value.length > 0) {
+      return String(obj.value[0])
+    }
+  }
   if (Array.isArray(val) && val.length > 0) {
     const first = val[0]
     if (first?.text) return first.text
   }
   return null
-}
-
-function mapDD2025Record(record: LarkRecord, projectId: string) {
-  const f = record.fields as Record<string, unknown>
-
-  const rawPhone = f['Phone number']
-  const phone = rawPhone != null
-    ? Math.round(Number(rawPhone)).toString()
-    : null
-
-  const customerName = getText(f['Name'])
-  const packageName = getText(f['Package'])
-
-  const orderType = typeof f['New/repeat'] === 'string'
-    ? f['New/repeat'] as string
-    : getSingleSelect(f['New/repeat'])
-
-  const channel = typeof f['Channel'] === 'string'
-    ? f['Channel'] as string
-    : getSingleSelect(f['Channel'])
-
-  return {
-    lark_record_id:   record.record_id,
-    source:           'lark_sync',
-    project_id:       projectId,
-    brand:            'DD',
-    order_date:       getDate(f['Date']),
-    customer_name:    customerName,
-    phone:            phone,
-    channel:          channel,
-    total_price:      getNumber(f['Price']) ?? 0,
-    order_type:       orderType,
-    purchase_reason:  typeof f['Purchase reason Copy'] === 'string'
-      ? f['Purchase reason Copy'] as string
-      : getText(f['Purchase reason Copy']),
-    package_name:     packageName,
-    product_name:     packageName ?? 'DD Order',
-    remark:           null,
-    payment_method_1: null,
-    postcode:         null,
-    order_number:     null,
-  }
 }
 
 async function findOrCreateCustomer(
@@ -126,48 +124,77 @@ async function findOrCreateCustomer(
   name: string | null
 ): Promise<string | null> {
   if (!phone) return null
-
   const { data: existing } = await supabase
     .from('customers')
     .select('id')
     .eq('phone', phone)
     .single()
-
   if (existing) return existing.id
-
   const { data: newCustomer, error } = await supabase
     .from('customers')
     .insert({ phone, name: name || 'Lark Customer' })
     .select('id')
     .single()
-
   if (error) {
     console.error('[lark-sync] Failed to create customer:', error)
     return null
   }
-
   return newCustomer.id
+}
+
+function mapDD2025Record(record: LarkRecord, projectId: string) {
+  const f = record.fields as Record<string, unknown>
+  const rawPhone = f['Phone number']
+  const phone = rawPhone != null ? Math.round(Number(rawPhone)).toString() : null
+  const customerName = getText(f['Name'])
+  const packageName = getText(f['Package'])
+  const orderType = typeof f['New/repeat'] === 'string'
+    ? resolveOptionId(f['New/repeat'] as string)
+    : getSingleSelect(f['New/repeat'])
+  const channel = typeof f['Channel'] === 'string'
+    ? f['Channel'] as string
+    : getSingleSelect(f['Channel'])
+  return {
+    lark_record_id: record.record_id,
+    source: 'lark_sync',
+    project_id: projectId,
+    brand: 'DD',
+    order_date: getDate(f['Date']),
+    customer_name: customerName,
+    phone,
+    channel,
+    total_price: getNumber(f['Price']) ?? 0,
+    order_type: orderType,
+    purchase_reason: typeof f['Purchase reason Copy'] === 'string'
+      ? f['Purchase reason Copy'] as string
+      : getText(f['Purchase reason Copy']),
+    package_name: packageName,
+    product_name: packageName ?? 'DD Order',
+    remark: null,
+    payment_method_1: null,
+    postcode: null,
+    order_number: null,
+    is_vip: false,
+  }
 }
 
 async function syncBrand(brand: keyof typeof TABLES): Promise<SyncResult> {
   const { appToken, tableId, projectId } = TABLES[brand]
   const supabase = createAdminClient()
-  const stateKey = `lark_${brand}`
 
-  // Read last sync time
   const { data: state } = await supabase
     .from('sync_state')
     .select('last_synced_at')
-    .eq('id', stateKey)
+    .eq('id', `lark_${brand}`)
     .single()
 
-  const lastSyncedAt = state?.last_synced_at ? new Date(state.last_synced_at).getTime() : undefined
-  const isFirstSync = !state?.last_synced_at
-  const syncStartedAt = new Date().toISOString()
+  const modifiedAfter = state?.last_synced_at
+    ? new Date(state.last_synced_at).getTime()
+    : undefined
 
-  // DD2025 first-sync cleanup: delete manual 2025 imports (no lark_record_id)
-  if (brand === 'DD2025' && isFirstSync) {
-    console.log('[lark-sync] DD2025: first sync — deleting manual 2025 imports')
+  const syncStartTime = new Date()
+
+  if (brand === 'DD2025' && !state?.last_synced_at) {
     await supabase
       .from('orders')
       .delete()
@@ -177,8 +204,7 @@ async function syncBrand(brand: keyof typeof TABLES): Promise<SyncResult> {
       .lte('order_date', '2025-12-31')
   }
 
-  const records = await fetchLarkRecords(tableId, appToken, lastSyncedAt)
-  console.log(`[lark-sync] ${brand}: fetched ${records.length} records${lastSyncedAt ? ' (incremental)' : ' (full)'}`)
+  const records = await fetchLarkRecords(tableId, appToken, modifiedAfter)
 
   let synced = 0
   let skipped = 0
@@ -186,70 +212,63 @@ async function syncBrand(brand: keyof typeof TABLES): Promise<SyncResult> {
 
   for (const record of records) {
     try {
-      // DD2025 uses different field names — use dedicated mapper
+      let row: Record<string, unknown>
+
       if (brand === 'DD2025') {
-        const mapped = mapDD2025Record(record, projectId)
-        if (!mapped.order_date) { skipped++; continue }
+        row = mapDD2025Record(record, projectId)
+      } else {
+        const f = record.fields as Record<string, unknown>
+        const orderDate = getDate(f['Date'])
+        if (!orderDate) { skipped++; continue }
 
-        const customerId = await findOrCreateCustomer(supabase, mapped.phone, mapped.customer_name)
-        const row = { ...mapped, customer_id: customerId }
+        const phone = typeof f['Phone no'] === 'string'
+          ? f['Phone no'] as string
+          : getNumber(f['Phone no'])?.toString() ?? null
 
-        const { error } = await supabase
-          .from('orders')
-          .upsert(row, { onConflict: 'lark_record_id' })
+        const customerName = getText(f['Name'])
+        const customerId = await findOrCreateCustomer(supabase, phone, customerName)
 
-        if (error) {
-          errors.push(`[${brand}:${record.record_id}] ${error.message}`)
-        } else {
-          synced++
+        const priceDomain = getNumber(f['Price Domain'])
+        const totalPriceRaw = getNumber(f['Total Price'])
+        const totalPrice = priceDomain ?? totalPriceRaw ?? 0
+
+        const manualNR = typeof f['Manual N/R'] === 'string'
+          ? resolveOptionId(f['Manual N/R'] as string)
+          : getSingleSelect(f['Manual N/R'])
+        const autoNR = getSingleSelect(f['AUTO N/R'])
+        const orderType = manualNR ?? autoNR
+
+        const packageName = getLinkedText(f['Package'])
+        const orderNumber = getFormulaText(f['Order No Copy'])
+        const isVip = typeof f['VIP'] === 'boolean' ? f['VIP'] as boolean : false
+
+        row = {
+          lark_record_id:   record.record_id,
+          source:           'lark_sync',
+          project_id:       projectId,
+          customer_id:      customerId,
+          brand:            TABLES[brand].brand,
+          order_date:       orderDate,
+          customer_name:    customerName,
+          phone,
+          channel:          typeof f['Channel'] === 'string' ? f['Channel'] as string : getSingleSelect(f['Channel']),
+          total_price:      totalPrice,
+          order_type:       orderType,
+          remark:           getText(f['Remark']),
+          payment_method_1: getSingleSelect(f['Payment method']),
+          postcode:         getText(f['Postcode']),
+          order_number:     orderNumber,
+          purchase_reason:  getMultiSelect(f['Purchase reason']),
+          package_name:     packageName,
+          product_name:     packageName ?? `${TABLES[brand].brand} Order`,
+          is_vip:           isVip,
         }
-        continue
       }
 
-      const f = record.fields as Record<string, unknown>
+      if (!row.order_date) { skipped++; continue }
 
-      const orderDate = getDate(f['Date'])
-      if (!orderDate) {
-        skipped++
-        continue
-      }
-
-      const phone = typeof f['Phone no'] === 'string'
-        ? f['Phone no'] as string
-        : getNumber(f['Phone no'])?.toString() ?? null
-
-      const customerName = getText(f['Name'])
-      const customerId = await findOrCreateCustomer(supabase, phone, customerName)
-
-      const priceDomain = getNumber(f['Price Domain'])
-      const totalPriceRaw = getNumber(f['Total Price'])
-      const totalPrice = priceDomain ?? totalPriceRaw ?? 0
-
-      const manualNR = typeof f['Manual N/R'] === 'string' ? f['Manual N/R'] as string : null
-      const autoNR = getSingleSelect(f['AUTO N/R'])
-      const orderType = manualNR ?? autoNR
-
-      const packageName = getLinkedText(f['Package'])
-      const orderNumber = getFormulaText(f['Order No Copy'])
-
-      const row = {
-        lark_record_id:   record.record_id,
-        source:           'lark_sync',
-        project_id:       projectId,
-        customer_id:      customerId,
-        order_date:       orderDate,
-        customer_name:    customerName,
-        phone:            phone,
-        channel:          typeof f['Channel'] === 'string' ? f['Channel'] as string : getSingleSelect(f['Channel']),
-        total_price:      totalPrice,
-        order_type:       orderType,
-        remark:           getText(f['Remark']),
-        payment_method_1: getSingleSelect(f['Payment method']),
-        postcode:         getText(f['Postcode']),
-        order_number:     orderNumber,
-        purchase_reason:  getMultiSelect(f['Purchase reason']),
-        package_name:     packageName,
-        product_name:     packageName ?? `${brand} Order`,
+      if (brand === 'DD2025' && row.phone) {
+        row.customer_id = await findOrCreateCustomer(supabase, row.phone as string, row.customer_name as string)
       }
 
       const { error } = await supabase
@@ -266,11 +285,14 @@ async function syncBrand(brand: keyof typeof TABLES): Promise<SyncResult> {
     }
   }
 
-  // Update sync state with the timestamp captured before fetching
   await supabase
     .from('sync_state')
-    .update({ last_synced_at: syncStartedAt, last_sync_count: synced, updated_at: new Date().toISOString() })
-    .eq('id', stateKey)
+    .upsert({
+      id: `lark_${brand}`,
+      last_synced_at: syncStartTime.toISOString(),
+      last_sync_count: synced,
+      updated_at: new Date().toISOString(),
+    })
 
   return { synced, skipped, errors }
 }
