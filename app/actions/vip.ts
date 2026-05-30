@@ -239,6 +239,101 @@ export async function getExternalVIPs(filters: {
   return results
 }
 
+// ── DD VIP checkbox (is_vip=true) stats ──────────────────────────────────────
+
+const DD_PROJECT_ID = '369ca28c-12a2-4dcd-856d-582b9b230766'
+
+export interface VIPStats {
+  totalVIPs: number
+  newVIPsThisMonth: number
+  newVIPsLastMonth: number
+  newCustomersThisMonth: number
+  registrationRate: number | null  // %
+}
+
+export interface LarkVIPRecord {
+  id: string
+  customerName: string | null
+  phone: string | null
+  orderDate: string | null
+  totalPrice: number
+  brand: string | null
+}
+
+export async function getVIPStats(): Promise<VIPStats> {
+  const supabase = createAdminClient()
+  const now = new Date()
+
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const lastMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0)
+
+  const [
+    { count: totalVIPs },
+    { count: newVIPsThisMonth },
+    { count: newVIPsLastMonth },
+    { count: newCustomersThisMonth },
+  ] = await Promise.all([
+    supabase
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_vip', true)
+      .eq('project_id', DD_PROJECT_ID),
+
+    supabase
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_vip', true)
+      .eq('project_id', DD_PROJECT_ID)
+      .gte('order_date', toISODate(thisMonthStart)),
+
+    supabase
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_vip', true)
+      .eq('project_id', DD_PROJECT_ID)
+      .gte('order_date', toISODate(lastMonthStart))
+      .lte('order_date', toISODate(lastMonthEnd)),
+
+    supabase
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .ilike('order_type', 'new')
+      .eq('project_id', DD_PROJECT_ID)
+      .gte('order_date', toISODate(thisMonthStart)),
+  ])
+
+  const total      = totalVIPs           ?? 0
+  const newThis    = newVIPsThisMonth    ?? 0
+  const newLast    = newVIPsLastMonth    ?? 0
+  const newCust    = newCustomersThisMonth ?? 0
+  const registrationRate = newCust === 0 ? null : Math.round((newThis / newCust) * 100)
+
+  return { totalVIPs: total, newVIPsThisMonth: newThis, newVIPsLastMonth: newLast, newCustomersThisMonth: newCust, registrationRate }
+}
+
+export async function getLarkVIPs(): Promise<LarkVIPRecord[]> {
+  const supabase = createAdminClient()
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select('id, customer_name, phone, order_date, total_price, brand')
+    .eq('is_vip', true)
+    .eq('project_id', DD_PROJECT_ID)
+    .order('order_date', { ascending: false })
+
+  if (error) throw new Error(error.message)
+
+  return (data ?? []).map(o => ({
+    id:           o.id           as string,
+    customerName: o.customer_name as string | null,
+    phone:        o.phone        as string | null,
+    orderDate:    o.order_date   as string | null,
+    totalPrice:   (o.total_price as number) ?? 0,
+    brand:        o.brand        as string | null,
+  }))
+}
+
 export async function markBirthdayGiftClaimed(phone: string): Promise<{ success: boolean; error?: string }> {
   const supabase = createAdminClient()
   const now = new Date()
