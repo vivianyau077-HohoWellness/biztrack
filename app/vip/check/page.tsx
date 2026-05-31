@@ -81,10 +81,9 @@ function DetailRow({ label, value, highlight }: { label: string; value: React.Re
 interface BirthdaySectionProps {
   result: LookupResult
   onClaimSuccess: (claimedAt: string, membershipYear: number, nextClaimDate: string) => void
-  onOpenEditProfile: () => void
 }
 
-function BirthdaySection({ result, onClaimSuccess, onOpenEditProfile }: BirthdaySectionProps) {
+function BirthdaySection({ result, onClaimSuccess }: BirthdaySectionProps) {
   const [showConfirm, setShowConfirm] = useState(false)
   const [claimedBy, setClaimedBy]     = useState('')
   const [claiming, setClaiming]       = useState(false)
@@ -122,26 +121,6 @@ function BirthdaySection({ result, onClaimSuccess, onOpenEditProfile }: Birthday
       <div className="border-t pt-3">
         <SectionLabel />
         <p className="text-sm text-gray-400">— Not eligible (not a VIP member)</p>
-      </div>
-    )
-  }
-
-  // ── VIP but no DOB ───────────────────────────────────────────────────────────
-  if (!result.date_of_birth) {
-    return (
-      <div className="border-t pt-3">
-        <SectionLabel />
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-amber-700">⚠️ No date of birth on file</p>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 text-xs text-amber-700 hover:bg-amber-50 px-2"
-            onClick={onOpenEditProfile}
-          >
-            Add DOB
-          </Button>
-        </div>
       </div>
     )
   }
@@ -533,7 +512,6 @@ export default function VIPCheckPage() {
               <BirthdaySection
                 result={result}
                 onClaimSuccess={handleClaimSuccess}
-                onOpenEditProfile={openEditProfile}
               />
             </CardContent>
           </Card>

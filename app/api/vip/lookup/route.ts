@@ -133,9 +133,8 @@ export async function POST(req: NextRequest) {
       address,
       giftClaimedAt,
       giftClaimYear,
-      giftAvailable:   false,
-      lastOrderDate:   null,
-      // Membership year fields — null when not VIP
+      giftAvailable:           false,  // no orders → not VIP → not eligible
+      lastOrderDate:           null,
       current_membership_year: null,
       gift_claimed_this_year:  false,
       next_claim_date:         null,
@@ -190,7 +189,7 @@ export async function POST(req: NextRequest) {
     ? membershipYearFields(vipSince, giftClaimedAt, now)
     : { currentMembershipYear: null, giftClaimedThisYear: false, nextClaimDate: null }
 
-  const giftAvailable = !!dateOfBirth && isVip && !memberYear.giftClaimedThisYear
+  const giftAvailable = isVip && !memberYear.giftClaimedThisYear
 
   return NextResponse.json({
     phone,
