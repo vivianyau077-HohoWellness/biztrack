@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
   // Fetch customer
   const { data: customer } = await supabase
     .from('customers')
-    .select('id, name, date_of_birth, birthday_gift_claimed_at, birthday_gift_claim_year')
+    .select('id, name, date_of_birth, birthday_gift_claimed_at, birthday_gift_claim_year, vip_member_number')
     .eq('phone', phone)
     .maybeSingle()
 
@@ -122,7 +122,8 @@ export async function POST(req: NextRequest) {
   }
 
   const customerName   = customer?.name ?? phone
-  const dob            = customer?.date_of_birth as string | null | undefined
+  const dob            = customer?.date_of_birth   as string | null | undefined
+  const memberNumber   = customer?.vip_member_number as string | null | undefined
   const claimTimestamp = now.toISOString()
 
   // Update Supabase customers table
@@ -152,6 +153,7 @@ export async function POST(req: NextRequest) {
             fld5XXINtY: membershipYear,
             fldJqQFoHw: claimedBy,
             fldOCJ0Eb4: new Date(vipSince).getTime(),
+            fldBHOanbe: memberNumber ?? '',
           },
         }),
       },

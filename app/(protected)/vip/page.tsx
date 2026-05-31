@@ -194,6 +194,7 @@ export default function VIPManagementPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Member No</TableHead>
                 <TableHead>Customer Name</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>VIP Order Date</TableHead>
@@ -204,19 +205,22 @@ export default function VIPManagementPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
                     Loading…
                   </TableCell>
                 </TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
                     No VIP records found.
                   </TableCell>
                 </TableRow>
               ) : (
                 filtered.map(v => (
                   <TableRow key={v.id}>
+                    <TableCell className="font-mono text-xs text-yellow-700">
+                      {v.vipMemberNumber ?? '—'}
+                    </TableCell>
                     <TableCell className="font-medium max-w-[160px] truncate">
                       {v.customerName ?? '—'}
                     </TableCell>

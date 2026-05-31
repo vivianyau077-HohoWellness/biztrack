@@ -32,6 +32,7 @@ interface LookupResult {
   current_membership_year: number | null
   gift_claimed_this_year: boolean
   next_claim_date: string | null
+  vip_member_number: string | null
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -474,6 +475,11 @@ export default function VIPCheckPage() {
                   </Button>
                 </div>
                 <StatusBadge status={result.status} />
+                {result.vip_member_number && (
+                  <p className="text-xs font-mono text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-2 py-1 w-fit">
+                    👑 {result.vip_member_number}
+                  </p>
+                )}
               </div>
 
               {/* VIP details */}

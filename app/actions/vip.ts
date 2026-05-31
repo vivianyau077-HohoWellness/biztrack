@@ -258,6 +258,7 @@ export interface LarkVIPRecord {
   orderDate: string | null
   totalPrice: number
   brand: string | null
+  vipMemberNumber: string | null
 }
 
 export async function getVIPStats(): Promise<VIPStats> {
@@ -317,7 +318,7 @@ export async function getLarkVIPs(): Promise<LarkVIPRecord[]> {
 
   const { data, error } = await supabase
     .from('orders')
-    .select('id, customer_name, phone, order_date, total_price, brand')
+    .select('id, customer_name, phone, order_date, total_price, brand, customers(vip_member_number)')
     .eq('is_vip', true)
     .eq('project_id', DD_PROJECT_ID)
     .order('order_date', { ascending: false })
@@ -325,12 +326,13 @@ export async function getLarkVIPs(): Promise<LarkVIPRecord[]> {
   if (error) throw new Error(error.message)
 
   return (data ?? []).map(o => ({
-    id:           o.id           as string,
-    customerName: o.customer_name as string | null,
-    phone:        o.phone        as string | null,
-    orderDate:    o.order_date   as string | null,
-    totalPrice:   (o.total_price as number) ?? 0,
-    brand:        o.brand        as string | null,
+    id:              o.id            as string,
+    customerName:    o.customer_name as string | null,
+    phone:           o.phone         as string | null,
+    orderDate:       o.order_date    as string | null,
+    totalPrice:      (o.total_price  as number) ?? 0,
+    brand:           o.brand         as string | null,
+    vipMemberNumber: (o.customers as any)?.vip_member_number ?? null,
   }))
 }
 

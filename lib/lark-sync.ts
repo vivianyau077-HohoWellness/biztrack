@@ -118,6 +118,36 @@ function getFormulaText(val: unknown): string | null {
   return null
 }
 
+async function assignVipMemberNumber(
+  supabase: ReturnType<typeof createAdminClient>,
+  customerId: string,
+): Promise<void> {
+  const { data: customer } = await supabase
+    .from('customers')
+    .select('vip_member_number')
+    .eq('id', customerId)
+    .single()
+
+  if (customer?.vip_member_number) return
+
+  const { data: seqData, error: seqErr } = await supabase.rpc('next_vip_member_number')
+  if (seqErr || seqData == null) {
+    console.error('[lark-sync] Failed to get next VIP member number:', seqErr)
+    return
+  }
+
+  const memberNumber = `DD-VIP-${String(seqData).padStart(4, '0')}`
+
+  const { error } = await supabase
+    .from('customers')
+    .update({ vip_member_number: memberNumber })
+    .eq('id', customerId)
+
+  if (error) {
+    console.error('[lark-sync] Failed to save VIP member number:', error)
+  }
+}
+
 async function findOrCreateCustomer(
   supabase: ReturnType<typeof createAdminClient>,
   phone: string | null,
@@ -279,6 +309,10 @@ async function syncBrand(brand: keyof typeof TABLES): Promise<SyncResult> {
         errors.push(`[${brand}:${record.record_id}] ${error.message}`)
       } else {
         synced++
+        // Assign VIP member number on first is_vip sync for DD 2026
+        if (brand === 'DD' && row.is_vip && row.customer_id) {
+          await assignVipMemberNumber(supabase, row.customer_id as string)
+        }
       }
     } catch (e: any) {
       errors.push(`[${brand}:${record.record_id}] ${e?.message ?? String(e)}`)

@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
   // Fetch customer record
   const { data: customer } = await supabase
     .from('customers')
-    .select('id, name, date_of_birth, address, birthday_gift_claimed_at, birthday_gift_claim_year')
+    .select('id, name, date_of_birth, address, birthday_gift_claimed_at, birthday_gift_claim_year, vip_member_number')
     .eq('phone', phone)
     .maybeSingle()
 
@@ -117,10 +117,11 @@ export async function POST(req: NextRequest) {
     (allOrders.find(o => o.customer_name)?.customer_name as string | null) ??
     null
 
-  const dateOfBirth   = customer?.date_of_birth   ?? null
-  const address       = customer?.address          ?? null
-  const giftClaimedAt = customer?.birthday_gift_claimed_at ?? null
-  const giftClaimYear = customer?.birthday_gift_claim_year ?? null
+  const dateOfBirth      = customer?.date_of_birth      ?? null
+  const address          = customer?.address             ?? null
+  const giftClaimedAt    = customer?.birthday_gift_claimed_at ?? null
+  const giftClaimYear    = customer?.birthday_gift_claim_year ?? null
+  const vipMemberNumber  = customer?.vip_member_number   ?? null
 
   if (allOrders.length === 0) {
     return NextResponse.json({
@@ -138,6 +139,7 @@ export async function POST(req: NextRequest) {
       current_membership_year: null,
       gift_claimed_this_year:  false,
       next_claim_date:         null,
+      vip_member_number:       null,
     })
   }
 
@@ -211,5 +213,6 @@ export async function POST(req: NextRequest) {
     current_membership_year: memberYear.currentMembershipYear,
     gift_claimed_this_year:  memberYear.giftClaimedThisYear,
     next_claim_date:         memberYear.nextClaimDate,
+    vip_member_number:       vipMemberNumber,
   })
 }
