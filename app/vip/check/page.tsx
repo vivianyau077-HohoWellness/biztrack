@@ -1,12 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Leaf, Crown, UserPlus, Pencil, CheckCircle2, X } from 'lucide-react'
+import { Leaf, Crown, UserPlus, Pencil, CheckCircle2, X, Gift } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -20,15 +19,19 @@ interface LookupResult {
   status: VIPStatusCode
   customerName: string | null
   brand: string | null
-  vipSince?: string
-  expiryDate?: string
-  daysUntilExpiry?: number
+  vipSince?: string | null
+  expiryDate?: string | null
+  daysUntilExpiry?: number | null
   lastOrderDate?: string | null
   date_of_birth: string | null
   address: string | null
   giftClaimedAt: string | null
   giftClaimYear: number | null
   giftAvailable: boolean
+  // Membership year fields
+  current_membership_year: number | null
+  gift_claimed_this_year: boolean
+  next_claim_date: string | null
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -45,12 +48,12 @@ function normalizePhone(raw: string): string {
   return digits
 }
 
-const STATUS_CONFIG: Record<VIPStatusCode, { icon: string; label: string; badgeClass: string; textClass: string }> = {
-  active:   { icon: '🟢', label: 'Active VIP Member',          badgeClass: 'bg-green-100 text-green-800 border-green-300',  textClass: 'text-green-700' },
-  expiring: { icon: '🟡', label: 'Expiring Soon',              badgeClass: 'bg-yellow-100 text-yellow-800 border-yellow-300', textClass: 'text-yellow-700' },
-  expired:  { icon: '🔴', label: 'VIP Membership Expired',     badgeClass: 'bg-red-100 text-red-800 border-red-300',         textClass: 'text-red-600' },
-  inactive: { icon: '⚫', label: 'Inactive — no recent orders', badgeClass: 'bg-gray-100 text-gray-700 border-gray-300',      textClass: 'text-gray-500' },
-  not_vip:  { icon: '⚪', label: 'Not a VIP Member',           badgeClass: 'bg-gray-100 text-gray-600 border-gray-300',      textClass: 'text-gray-500' },
+const STATUS_CONFIG: Record<VIPStatusCode, { icon: string; label: string; badgeClass: string }> = {
+  active:   { icon: '🟢', label: 'Active VIP Member',           badgeClass: 'bg-green-100 text-green-800 border-green-300' },
+  expiring: { icon: '🟡', label: 'Expiring Soon',               badgeClass: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+  expired:  { icon: '🔴', label: 'VIP Membership Expired',      badgeClass: 'bg-red-100 text-red-800 border-red-300' },
+  inactive: { icon: '⚫', label: 'Inactive — no recent orders', badgeClass: 'bg-gray-100 text-gray-700 border-gray-300' },
+  not_vip:  { icon: '⚪', label: 'Not a VIP Member',            badgeClass: 'bg-gray-100 text-gray-600 border-gray-300' },
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -69,6 +72,190 @@ function DetailRow({ label, value, highlight }: { label: string; value: React.Re
     <div className="flex justify-between items-center py-1.5 border-b border-gray-100 last:border-0">
       <span className="text-sm text-gray-500">{label}</span>
       <span className={`text-sm font-medium ${highlight ? 'text-yellow-700' : 'text-gray-900'}`}>{value}</span>
+    </div>
+  )
+}
+
+// ── Birthday Gift Section ─────────────────────────────────────────────────────
+
+interface BirthdaySectionProps {
+  result: LookupResult
+  onClaimSuccess: (claimedAt: string, membershipYear: number, nextClaimDate: string) => void
+  onOpenEditProfile: () => void
+}
+
+function BirthdaySection({ result, onClaimSuccess, onOpenEditProfile }: BirthdaySectionProps) {
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [claimedBy, setClaimedBy]     = useState('')
+  const [claiming, setClaiming]       = useState(false)
+
+  const isVip = ['active', 'expiring', 'expired'].includes(result.status)
+
+  async function handleConfirmClaim() {
+    setClaiming(true)
+    try {
+      const res = await fetch('/api/vip/claim-birthday', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: result.phone, claimed_by: claimedBy.trim() || undefined }),
+      })
+
+      if (res.status === 429) { toast.error('Too many requests. Please wait.'); return }
+
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Failed to claim gift'); return }
+
+      toast.success(`Birthday gift claimed — Year ${data.membershipYear}!`)
+      setShowConfirm(false)
+      setClaimedBy('')
+      onClaimSuccess(data.claimedAt, data.membershipYear, data.nextClaimDate)
+    } catch {
+      toast.error('Network error. Please try again.')
+    } finally {
+      setClaiming(false)
+    }
+  }
+
+  // ── Not VIP ──────────────────────────────────────────────────────────────────
+  if (!isVip) {
+    return (
+      <div className="border-t pt-3">
+        <SectionLabel />
+        <p className="text-sm text-gray-400">— Not eligible (not a VIP member)</p>
+      </div>
+    )
+  }
+
+  // ── VIP but no DOB ───────────────────────────────────────────────────────────
+  if (!result.date_of_birth) {
+    return (
+      <div className="border-t pt-3">
+        <SectionLabel />
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-amber-700">⚠️ No date of birth on file</p>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs text-amber-700 hover:bg-amber-50 px-2"
+            onClick={onOpenEditProfile}
+          >
+            Add DOB
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  const yr = result.current_membership_year
+
+  // ── Already claimed this membership year ─────────────────────────────────────
+  if (result.gift_claimed_this_year) {
+    return (
+      <div className="border-t pt-3 space-y-2">
+        <SectionLabel membershipYear={yr} />
+        <div className="flex items-center gap-2 text-sm text-green-700">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <span>Claimed on {formatDate(result.giftClaimedAt)}</span>
+        </div>
+        {result.next_claim_date && (
+          <p className="text-xs text-gray-400">
+            Next claim available: {formatDate(result.next_claim_date)}
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  // ── Available to claim ───────────────────────────────────────────────────────
+  if (!showConfirm) {
+    return (
+      <div className="border-t pt-3 space-y-2">
+        <SectionLabel membershipYear={yr} />
+        <p className="text-sm text-gray-600">🎂 Available to claim</p>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setShowConfirm(true)}
+          className="w-full h-10 border-green-600 text-green-700 hover:bg-green-50 gap-2"
+        >
+          <Gift className="h-3.5 w-3.5" />
+          Claim Birthday Gift
+        </Button>
+      </div>
+    )
+  }
+
+  // ── Confirm dialog (inline) ──────────────────────────────────────────────────
+  return (
+    <div className="border-t pt-3 space-y-3">
+      <SectionLabel membershipYear={yr} />
+      <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 space-y-3">
+        <p className="text-sm font-semibold text-green-900 flex items-center gap-2">
+          <Gift className="h-4 w-4" />
+          Confirm Gift Claim
+        </p>
+        <div className="text-sm text-gray-700 space-y-1">
+          <div className="flex justify-between">
+            <span className="text-gray-500">Customer</span>
+            <span className="font-medium">{result.customerName ?? result.phone}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Phone</span>
+            <span className="font-mono">{result.phone}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Membership Year</span>
+            <span className="font-medium">Year {yr}</span>
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="claimed-by" className="text-xs text-gray-600">
+            Claimed By <span className="text-gray-400">(optional — defaults to "CS")</span>
+          </Label>
+          <Input
+            id="claimed-by"
+            placeholder="Your name"
+            value={claimedBy}
+            onChange={e => setClaimedBy(e.target.value)}
+            className="h-9 text-sm"
+            autoComplete="off"
+          />
+        </div>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="flex-1 h-9"
+            onClick={() => { setShowConfirm(false); setClaimedBy('') }}
+            disabled={claiming}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="flex-1 h-9 bg-green-700 hover:bg-green-800"
+            onClick={handleConfirmClaim}
+            disabled={claiming}
+          >
+            {claiming ? 'Confirming...' : 'Confirm Claim'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SectionLabel({ membershipYear }: { membershipYear?: number | null }) {
+  return (
+    <div className="flex items-center justify-between mb-2">
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Birthday Gift</p>
+      {membershipYear != null && (
+        <span className="text-xs text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">
+          Year {membershipYear}
+        </span>
+      )}
     </div>
   )
 }
@@ -92,9 +279,6 @@ export default function VIPCheckPage() {
   const [editDob, setEditDob]               = useState('')
   const [editAddress, setEditAddress]       = useState('')
   const [savingProfile, setSavingProfile]   = useState(false)
-
-  // Gift claim
-  const [claiming, setClaiming] = useState(false)
 
   // ── Lookup ──────────────────────────────────────────────────────────────────
 
@@ -128,6 +312,15 @@ export default function VIPCheckPage() {
     }
   }
 
+  async function refreshLookup(phone: string) {
+    const res = await fetch('/api/vip/lookup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    })
+    if (res.ok) setResult(await res.json())
+  }
+
   // ── Register ────────────────────────────────────────────────────────────────
 
   async function handleRegister(e: React.FormEvent) {
@@ -142,7 +335,7 @@ export default function VIPCheckPage() {
         body: JSON.stringify({
           phone:   result.phone,
           name:    regName.trim(),
-          dob:     regDob   || undefined,
+          dob:     regDob || undefined,
           address: regAddress.trim() || undefined,
         }),
       })
@@ -155,14 +348,7 @@ export default function VIPCheckPage() {
       toast.success('Customer registered!')
       setShowRegister(false)
       setRegName(''); setRegDob(''); setRegAddress('')
-
-      // Re-lookup to show updated record
-      const lookupRes = await fetch('/api/vip/lookup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: result.phone }),
-      })
-      if (lookupRes.ok) setResult(await lookupRes.json())
+      await refreshLookup(result.phone)
     } catch {
       toast.error('Network error. Please try again.')
     } finally {
@@ -189,7 +375,7 @@ export default function VIPCheckPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           phone:         result.phone,
-          date_of_birth: editDob     || undefined,
+          date_of_birth: editDob || undefined,
           address:       editAddress.trim() || undefined,
         }),
       })
@@ -212,36 +398,26 @@ export default function VIPCheckPage() {
     }
   }
 
-  // ── Gift claim ──────────────────────────────────────────────────────────────
+  // ── Birthday claim success callback ─────────────────────────────────────────
 
-  async function handleClaimGift() {
-    if (!result) return
-    setClaiming(true)
-    try {
-      const res = await fetch('/api/vip/claim-gift', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: result.phone }),
-      })
-      const data = await res.json()
-      if (!res.ok) { toast.error(data.error ?? 'Failed to mark gift as claimed'); return }
-      toast.success('Birthday gift marked as claimed!')
-      setResult(prev => prev
-        ? { ...prev, giftClaimedAt: new Date().toISOString(), giftClaimYear: new Date().getFullYear(), giftAvailable: false }
-        : null,
-      )
-    } catch {
-      toast.error('Network error. Please try again.')
-    } finally {
-      setClaiming(false)
-    }
+  function handleClaimSuccess(claimedAt: string, membershipYear: number, nextClaimDate: string) {
+    setResult(prev => prev
+      ? {
+          ...prev,
+          giftClaimedAt:           claimedAt,
+          giftClaimYear:           membershipYear,
+          giftAvailable:           false,
+          gift_claimed_this_year:  true,
+          next_claim_date:         nextClaimDate,
+        }
+      : null,
+    )
   }
 
   // ── Derived state ───────────────────────────────────────────────────────────
 
-  const isVIPStatus = result && ['active', 'expiring', 'expired'].includes(result.status)
+  const isVIPStatus       = result && ['active', 'expiring', 'expired'].includes(result.status)
   const profileIncomplete = result?.found && (!result.date_of_birth || !result.address)
-  const currentYear = new Date().getFullYear()
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center py-10 px-4">
@@ -301,7 +477,7 @@ export default function VIPCheckPage() {
           {/* Status Card */}
           <Card className="shadow-sm">
             <CardContent className="px-5 pt-5 pb-4 space-y-4">
-              {/* Name + status */}
+              {/* Name + edit button */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-start justify-between gap-2">
                   <div>
@@ -325,8 +501,8 @@ export default function VIPCheckPage() {
               {isVIPStatus && (
                 <div className="bg-gray-50 rounded-lg px-4 py-3 space-y-0.5">
                   {result.brand && <DetailRow label="Brand" value={result.brand} />}
-                  <DetailRow label="VIP Since"    value={formatDate(result.vipSince)} />
-                  <DetailRow label="Valid Until"   value={formatDate(result.expiryDate)}
+                  <DetailRow label="VIP Since"   value={formatDate(result.vipSince)} />
+                  <DetailRow label="Valid Until"  value={formatDate(result.expiryDate)}
                     highlight={result.status === 'expiring'} />
                   {result.daysUntilExpiry != null && result.daysUntilExpiry >= 0 && (
                     <DetailRow label="Days Remaining"
@@ -353,33 +529,12 @@ export default function VIPCheckPage() {
                 </p>
               )}
 
-              {/* Birthday Gift */}
-              <div className="border-t pt-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Birthday Gift</p>
-                {!result.date_of_birth ? (
-                  <p className="text-sm text-gray-400">— No date of birth on file</p>
-                ) : result.giftClaimYear === currentYear ? (
-                  <div className="flex items-center gap-2 text-sm text-green-700">
-                    <CheckCircle2 className="h-4 w-4" />
-                    <span>Claimed on {formatDate(result.giftClaimedAt)}</span>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-sm text-gray-600">🎂 Not yet claimed this year</p>
-                    {result.giftAvailable && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={handleClaimGift}
-                        disabled={claiming}
-                        className="w-full h-10 border-green-600 text-green-700 hover:bg-green-50"
-                      >
-                        {claiming ? 'Marking...' : 'Mark Birthday Gift as Claimed'}
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
+              {/* Birthday Gift Section */}
+              <BirthdaySection
+                result={result}
+                onClaimSuccess={handleClaimSuccess}
+                onOpenEditProfile={openEditProfile}
+              />
             </CardContent>
           </Card>
 
@@ -454,7 +609,10 @@ export default function VIPCheckPage() {
         <div className="w-full max-w-md mt-4 space-y-3">
           <Card className="shadow-sm border-dashed">
             <CardContent className="px-5 py-5 text-center space-y-4">
-              <p className="text-gray-500">No customer found for <span className="font-mono font-medium text-gray-700">{normalizePhone(phoneInput)}</span></p>
+              <p className="text-gray-500">
+                No customer found for{' '}
+                <span className="font-mono font-medium text-gray-700">{normalizePhone(phoneInput)}</span>
+              </p>
               {!showRegister && (
                 <Button
                   variant="outline"
@@ -551,7 +709,7 @@ export default function VIPCheckPage() {
       )}
 
       <p className="mt-10 text-xs text-gray-400 text-center">
-        VIP status requires at least one order ≥ RM700. Valid for 1 year from latest qualifying order.
+        VIP status is set by CS in Lark. Birthday gift can be claimed once per membership year.
       </p>
     </div>
   )

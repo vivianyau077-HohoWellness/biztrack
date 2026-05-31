@@ -3,6 +3,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 export const dynamic = 'force-dynamic'
 
+const MS_PER_YEAR = 365 * 24 * 60 * 60 * 1000
+
 // ── Rate limiter (in-memory, resets on cold start) ────────────────────────────
 
 const rlMap = new Map<string, number[]>()
@@ -28,13 +30,31 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000)
 
-// ── Phone normalization ───────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function normalizePhone(raw: string): string {
   let digits = raw.replace(/\D/g, '')
   if (digits.startsWith('0')) digits = digits.slice(1)
   if (!digits.startsWith('60')) digits = '60' + digits
   return digits
+}
+
+function membershipYearFields(vipSince: string, claimedAt: string | null | undefined, now: Date) {
+  const sinceMs  = new Date(vipSince).getTime()
+  const elapsed  = Math.floor((now.getTime() - sinceMs) / MS_PER_YEAR)
+  const yearNum  = elapsed + 1
+  const yearStartMs = sinceMs + elapsed * MS_PER_YEAR
+  const yearEndMs   = yearStartMs + MS_PER_YEAR
+
+  let giftClaimedThisYear = false
+  if (claimedAt) {
+    const claimedMs = new Date(claimedAt).getTime()
+    giftClaimedThisYear = claimedMs >= yearStartMs && claimedMs < yearEndMs
+  }
+
+  const nextClaimDate = new Date(yearEndMs).toISOString().split('T')[0]
+
+  return { currentMembershipYear: yearNum, giftClaimedThisYear, nextClaimDate }
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -71,7 +91,7 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminClient()
   const now = new Date()
 
-  // Fetch all orders for this phone — need is_vip, order_date, and brand
+  // Fetch all orders for this phone — need is_vip, order_date, brand
   const { data: orders, error } = await supabase
     .from('orders')
     .select('order_date, total_price, is_vip, brand, customer_name')
@@ -97,26 +117,28 @@ export async function POST(req: NextRequest) {
     (allOrders.find(o => o.customer_name)?.customer_name as string | null) ??
     null
 
-  const currentYear   = now.getFullYear()
-  const dateOfBirth   = customer?.date_of_birth ?? null
-  const address       = customer?.address ?? null
+  const dateOfBirth   = customer?.date_of_birth   ?? null
+  const address       = customer?.address          ?? null
   const giftClaimedAt = customer?.birthday_gift_claimed_at ?? null
   const giftClaimYear = customer?.birthday_gift_claim_year ?? null
-  const giftAvailable = !!dateOfBirth && giftClaimYear !== currentYear
 
   if (allOrders.length === 0) {
     return NextResponse.json({
       phone,
-      found: !!customer,
-      customer_id: customer?.id ?? null,
-      status: 'not_vip',
+      found:           !!customer,
+      customer_id:     customer?.id ?? null,
+      status:          'not_vip',
       customerName,
-      date_of_birth: dateOfBirth,
+      date_of_birth:   dateOfBirth,
       address,
       giftClaimedAt,
       giftClaimYear,
-      giftAvailable,
-      lastOrderDate: null,
+      giftAvailable:   false,
+      lastOrderDate:   null,
+      // Membership year fields — null when not VIP
+      current_membership_year: null,
+      gift_claimed_this_year:  false,
+      next_claim_date:         null,
     })
   }
 
@@ -131,24 +153,21 @@ export async function POST(req: NextRequest) {
 
   // VIP status comes ONLY from is_vip = true orders
   const vipOrders = allOrders.filter(o => o.is_vip === true)
-  const isVip = vipOrders.length > 0
+  const isVip     = vipOrders.length > 0
 
-  // vipSince = earliest is_vip order; expiry rolls from latest is_vip order
-  const vipOrdersSortedAsc  = [...vipOrders].sort((a, b) =>
+  const vipOrdersAsc  = [...vipOrders].sort((a, b) =>
     new Date(a.order_date as string).getTime() - new Date(b.order_date as string).getTime(),
   )
-  const vipOrdersSortedDesc = [...vipOrders].sort((a, b) =>
+  const vipOrdersDesc = [...vipOrders].sort((a, b) =>
     new Date(b.order_date as string).getTime() - new Date(a.order_date as string).getTime(),
   )
 
-  const vipSince      = isVip ? (vipOrdersSortedAsc[0].order_date  as string) : null
-  const latestVipDate = isVip ? (vipOrdersSortedDesc[0].order_date as string) : null
-  const brand         = isVip ? (vipOrdersSortedDesc[0].brand      as string | null) : null
+  const vipSince      = isVip ? (vipOrdersAsc[0].order_date  as string) : null
+  const latestVipDate = isVip ? (vipOrdersDesc[0].order_date as string) : null
+  const brand         = isVip ? (vipOrdersDesc[0].brand      as string | null) : null
 
-  const expiryMs      = latestVipDate
-    ? new Date(latestVipDate).getTime() + 365 * 24 * 60 * 60 * 1000
-    : null
-  const expiryDate    = expiryMs ? new Date(expiryMs).toISOString().split('T')[0] : null
+  const expiryMs        = latestVipDate ? new Date(latestVipDate).getTime() + MS_PER_YEAR : null
+  const expiryDate      = expiryMs ? new Date(expiryMs).toISOString().split('T')[0] : null
   const daysUntilExpiry = expiryMs
     ? Math.floor((expiryMs - now.getTime()) / (1000 * 60 * 60 * 24))
     : null
@@ -166,10 +185,17 @@ export async function POST(req: NextRequest) {
     status = 'active'
   }
 
+  // Membership year fields — only meaningful when VIP
+  const memberYear = vipSince
+    ? membershipYearFields(vipSince, giftClaimedAt, now)
+    : { currentMembershipYear: null, giftClaimedThisYear: false, nextClaimDate: null }
+
+  const giftAvailable = !!dateOfBirth && isVip && !memberYear.giftClaimedThisYear
+
   return NextResponse.json({
     phone,
-    found: true,
-    customer_id: customer?.id ?? null,
+    found:           true,
+    customer_id:     customer?.id ?? null,
     status,
     customerName,
     brand,
@@ -177,10 +203,14 @@ export async function POST(req: NextRequest) {
     expiryDate,
     daysUntilExpiry,
     lastOrderDate,
-    date_of_birth: dateOfBirth,
+    date_of_birth:   dateOfBirth,
     address,
     giftClaimedAt,
     giftClaimYear,
     giftAvailable,
+    // Membership year fields
+    current_membership_year: memberYear.currentMembershipYear,
+    gift_claimed_this_year:  memberYear.giftClaimedThisYear,
+    next_claim_date:         memberYear.nextClaimDate,
   })
 }
