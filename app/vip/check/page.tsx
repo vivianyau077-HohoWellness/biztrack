@@ -1,7 +1,10 @@
 'use client'
 
-import { useState } from 'react'
-import { Leaf, Crown, UserPlus, Pencil, CheckCircle2, X, Gift } from 'lucide-react'
+import { useRef, useState } from 'react'
+import {
+  Leaf, Crown, UserPlus, Pencil, CheckCircle2, X, Gift,
+  FileText, ChevronDown, ChevronUp, Upload, Loader2, TriangleAlert,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -28,11 +31,20 @@ interface LookupResult {
   giftClaimedAt: string | null
   giftClaimYear: number | null
   giftAvailable: boolean
-  // Membership year fields
   current_membership_year: number | null
   gift_claimed_this_year: boolean
   next_claim_date: string | null
   vip_member_number: string | null
+}
+
+interface ReceiptData {
+  receipt_number: string | null
+  receipt_date: string | null
+  receipt_amount: number | null
+  supplier_name: string | null
+  confidence: number
+  duplicate: boolean
+  ai_failed?: boolean
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -99,12 +111,9 @@ function BirthdaySection({ result, onClaimSuccess }: BirthdaySectionProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: result.phone, claimed_by: claimedBy.trim() || undefined }),
       })
-
       if (res.status === 429) { toast.error('Too many requests. Please wait.'); return }
-
       const data = await res.json()
       if (!res.ok) { toast.error(data.error ?? 'Failed to claim gift'); return }
-
       toast.success(`Birthday gift claimed — Year ${data.membershipYear}!`)
       setShowConfirm(false)
       setClaimedBy('')
@@ -116,11 +125,10 @@ function BirthdaySection({ result, onClaimSuccess }: BirthdaySectionProps) {
     }
   }
 
-  // ── Not VIP ──────────────────────────────────────────────────────────────────
   if (!isVip) {
     return (
       <div className="border-t pt-3">
-        <SectionLabel />
+        <GiftLabel />
         <p className="text-sm text-gray-400">— Not eligible (not a VIP member)</p>
       </div>
     )
@@ -128,33 +136,28 @@ function BirthdaySection({ result, onClaimSuccess }: BirthdaySectionProps) {
 
   const yr = result.current_membership_year
 
-  // ── Already claimed this membership year ─────────────────────────────────────
   if (result.gift_claimed_this_year) {
     return (
       <div className="border-t pt-3 space-y-2">
-        <SectionLabel membershipYear={yr} />
+        <GiftLabel membershipYear={yr} />
         <div className="flex items-center gap-2 text-sm text-green-700">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           <span>Claimed on {formatDate(result.giftClaimedAt)}</span>
         </div>
         {result.next_claim_date && (
-          <p className="text-xs text-gray-400">
-            Next claim available: {formatDate(result.next_claim_date)}
-          </p>
+          <p className="text-xs text-gray-400">Next claim available: {formatDate(result.next_claim_date)}</p>
         )}
       </div>
     )
   }
 
-  // ── Available to claim ───────────────────────────────────────────────────────
   if (!showConfirm) {
     return (
       <div className="border-t pt-3 space-y-2">
-        <SectionLabel membershipYear={yr} />
+        <GiftLabel membershipYear={yr} />
         <p className="text-sm text-gray-600">🎂 Available to claim</p>
         <Button
-          size="sm"
-          variant="outline"
+          size="sm" variant="outline"
           onClick={() => setShowConfirm(true)}
           className="w-full h-10 border-green-600 text-green-700 hover:bg-green-50 gap-2"
         >
@@ -165,14 +168,12 @@ function BirthdaySection({ result, onClaimSuccess }: BirthdaySectionProps) {
     )
   }
 
-  // ── Confirm dialog (inline) ──────────────────────────────────────────────────
   return (
     <div className="border-t pt-3 space-y-3">
-      <SectionLabel membershipYear={yr} />
+      <GiftLabel membershipYear={yr} />
       <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 space-y-3">
         <p className="text-sm font-semibold text-green-900 flex items-center gap-2">
-          <Gift className="h-4 w-4" />
-          Confirm Gift Claim
+          <Gift className="h-4 w-4" />Confirm Gift Claim
         </p>
         <div className="text-sm text-gray-700 space-y-1">
           <div className="flex justify-between">
@@ -192,33 +193,16 @@ function BirthdaySection({ result, onClaimSuccess }: BirthdaySectionProps) {
           <Label htmlFor="claimed-by" className="text-xs text-gray-600">
             Claimed By <span className="text-gray-400">(optional — defaults to "CS")</span>
           </Label>
-          <Input
-            id="claimed-by"
-            placeholder="Your name"
-            value={claimedBy}
-            onChange={e => setClaimedBy(e.target.value)}
-            className="h-9 text-sm"
-            autoComplete="off"
-          />
+          <Input id="claimed-by" placeholder="Your name" value={claimedBy}
+            onChange={e => setClaimedBy(e.target.value)} className="h-9 text-sm" autoComplete="off" />
         </div>
         <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="flex-1 h-9"
-            onClick={() => { setShowConfirm(false); setClaimedBy('') }}
-            disabled={claiming}
-          >
+          <Button type="button" variant="outline" size="sm" className="flex-1 h-9"
+            onClick={() => { setShowConfirm(false); setClaimedBy('') }} disabled={claiming}>
             Cancel
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            className="flex-1 h-9 bg-green-700 hover:bg-green-800"
-            onClick={handleConfirmClaim}
-            disabled={claiming}
-          >
+          <Button type="button" size="sm" className="flex-1 h-9 bg-green-700 hover:bg-green-800"
+            onClick={handleConfirmClaim} disabled={claiming}>
             {claiming ? 'Confirming...' : 'Confirm Claim'}
           </Button>
         </div>
@@ -227,15 +211,306 @@ function BirthdaySection({ result, onClaimSuccess }: BirthdaySectionProps) {
   )
 }
 
-function SectionLabel({ membershipYear }: { membershipYear?: number | null }) {
+function GiftLabel({ membershipYear }: { membershipYear?: number | null }) {
   return (
     <div className="flex items-center justify-between mb-2">
       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Birthday Gift</p>
       {membershipYear != null && (
-        <span className="text-xs text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">
-          Year {membershipYear}
-        </span>
+        <span className="text-xs text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">Year {membershipYear}</span>
       )}
+    </div>
+  )
+}
+
+// ── Receipt Section ───────────────────────────────────────────────────────────
+
+type ReceiptState = 'collapsed' | 'upload' | 'processing' | 'review' | 'success'
+
+interface ReceiptSectionProps {
+  phone: string
+  customerName: string | null
+}
+
+function ReceiptSection({ phone, customerName }: ReceiptSectionProps) {
+  const [state, setState]           = useState<ReceiptState>('collapsed')
+  const [file, setFile]             = useState<File | null>(null)
+  const [extracted, setExtracted]   = useState<ReceiptData | null>(null)
+  const [aiFailed, setAiFailed]     = useState(false)
+  const fileInputRef                = useRef<HTMLInputElement>(null)
+
+  // Editable review fields
+  const [recNum,  setRecNum]   = useState('')
+  const [recDate, setRecDate]  = useState('')
+  const [recAmt,  setRecAmt]   = useState('')
+  const [recType, setRecType]  = useState('Offline Purchase - DD')
+  const [claimedBy, setClaimedBy] = useState('')
+  const [saving, setSaving]    = useState(false)
+
+  // Saved receipt summary for success state
+  const [savedReceipt, setSavedReceipt] = useState<{ number: string; date: string; amount: string } | null>(null)
+
+  function handleFileChange(f: File | null) {
+    setFile(f)
+  }
+
+  function resetUpload() {
+    setFile(null)
+    setExtracted(null)
+    setAiFailed(false)
+    setState('upload')
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  async function handleReadReceipt() {
+    if (!file) return
+    setState('processing')
+
+    const fd = new FormData()
+    fd.append('image', file)
+
+    try {
+      const res = await fetch('/api/vip/read-receipt', { method: 'POST', body: fd })
+      if (res.status === 429) { toast.error('Too many requests. Please wait.'); setState('upload'); return }
+      const data: ReceiptData & { ai_failed?: boolean } = await res.json()
+      if (!res.ok) { toast.error((data as any).error ?? 'Failed to read receipt'); setState('upload'); return }
+
+      setExtracted(data)
+      setAiFailed(!!data.ai_failed)
+      // Pre-fill review fields
+      setRecNum(data.receipt_number ?? '')
+      setRecDate(data.receipt_date ?? '')
+      setRecAmt(data.receipt_amount != null ? String(data.receipt_amount) : '')
+      setState('review')
+    } catch {
+      toast.error('Network error. Please try again.')
+      setState('upload')
+    }
+  }
+
+  async function handleSave() {
+    if (!recNum.trim()) { toast.error('Receipt number is required'); return }
+    setSaving(true)
+    try {
+      const res = await fetch('/api/vip/save-receipt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone,
+          customer_name:  customerName ?? '',
+          receipt_number: recNum.trim(),
+          receipt_date:   recDate || undefined,
+          receipt_amount: recAmt ? Number(recAmt) : undefined,
+          receipt_type:   recType.trim() || 'Offline Purchase - DD',
+          claimed_by:     claimedBy.trim() || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (res.status === 409) { toast.error('Receipt number already recorded.'); return }
+      if (!res.ok) { toast.error(data.error ?? 'Failed to save receipt'); return }
+
+      setSavedReceipt({
+        number: recNum.trim(),
+        date:   recDate,
+        amount: recAmt ? `RM ${Number(recAmt).toLocaleString('en-MY')}` : '—',
+      })
+      toast.success('Receipt recorded in Lark!')
+      setState('success')
+    } catch {
+      toast.error('Network error. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const confidenceLabel = extracted && !aiFailed
+    ? extracted.confidence >= 0.8
+      ? { text: '🟢 High confidence', cls: 'text-green-700' }
+      : extracted.confidence >= 0.5
+        ? { text: '🟡 Medium — please verify', cls: 'text-yellow-700' }
+        : { text: '🔴 Low — please check carefully', cls: 'text-red-600' }
+    : null
+
+  // ── Collapsed header ────────────────────────────────────────────────────────
+  if (state === 'collapsed') {
+    return (
+      <div className="border-t pt-3">
+        <button
+          onClick={() => setState('upload')}
+          className="flex items-center justify-between w-full text-left"
+        >
+          <span className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+            <FileText className="h-3.5 w-3.5" />
+            Upload Receipt (Offline Purchase)
+          </span>
+          <ChevronDown className="h-4 w-4 text-gray-400" />
+        </button>
+      </div>
+    )
+  }
+
+  // ── Upload ──────────────────────────────────────────────────────────────────
+  if (state === 'upload') {
+    return (
+      <div className="border-t pt-3 space-y-3">
+        <button
+          onClick={() => setState('collapsed')}
+          className="flex items-center justify-between w-full text-left"
+        >
+          <span className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+            <FileText className="h-3.5 w-3.5" />
+            Upload Receipt (Offline Purchase)
+          </span>
+          <ChevronUp className="h-4 w-4 text-gray-400" />
+        </button>
+
+        <div
+          className="border-2 border-dashed border-gray-200 rounded-lg px-4 py-6 text-center cursor-pointer hover:border-green-400 hover:bg-green-50/30 transition-colors"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <Upload className="h-6 w-6 text-gray-300 mx-auto mb-2" />
+          <p className="text-sm text-gray-500">
+            {file ? file.name : 'Tap to select or capture receipt photo'}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP, HEIC · Max 5 MB</p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={e => handleFileChange(e.target.files?.[0] ?? null)}
+          />
+        </div>
+
+        <Button
+          className="w-full h-10 bg-green-700 hover:bg-green-800 gap-2"
+          disabled={!file}
+          onClick={handleReadReceipt}
+        >
+          <FileText className="h-4 w-4" />
+          Read Receipt
+        </Button>
+      </div>
+    )
+  }
+
+  // ── Processing ──────────────────────────────────────────────────────────────
+  if (state === 'processing') {
+    return (
+      <div className="border-t pt-3 space-y-3">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-2">
+          <FileText className="h-3.5 w-3.5" />Upload Receipt (Offline Purchase)
+        </p>
+        <div className="flex items-center justify-center gap-3 py-6 text-gray-500">
+          <Loader2 className="h-5 w-5 animate-spin text-green-600" />
+          <span className="text-sm">Reading receipt with AI...</span>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Review ──────────────────────────────────────────────────────────────────
+  if (state === 'review') {
+    return (
+      <div className="border-t pt-3 space-y-3">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-2">
+          <FileText className="h-3.5 w-3.5" />Upload Receipt (Offline Purchase)
+        </p>
+
+        {/* AI failed banner */}
+        {aiFailed && (
+          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            <TriangleAlert className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+            <p className="text-xs text-amber-800">AI couldn't read this receipt — please fill in manually</p>
+          </div>
+        )}
+
+        {/* Confidence indicator */}
+        {confidenceLabel && (
+          <p className={`text-xs font-medium ${confidenceLabel.cls}`}>{confidenceLabel.text}</p>
+        )}
+
+        {/* Duplicate warning */}
+        {extracted?.duplicate && (
+          <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <TriangleAlert className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
+            <p className="text-xs text-red-800 font-medium">⚠️ Receipt number already recorded. Cannot save duplicate.</p>
+          </div>
+        )}
+
+        <div className="space-y-2.5">
+          <div className="space-y-1">
+            <Label className="text-xs">Receipt Number <span className="text-red-500">*</span></Label>
+            <Input value={recNum} onChange={e => setRecNum(e.target.value)} className="h-10 text-sm" placeholder="e.g. INV-00123" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Receipt Date</Label>
+            <Input type="date" value={recDate} onChange={e => setRecDate(e.target.value)} className="h-10 text-sm" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Amount (RM)</Label>
+            <Input type="number" step="0.01" value={recAmt} onChange={e => setRecAmt(e.target.value)} className="h-10 text-sm" placeholder="0.00" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Receipt Type</Label>
+            <Input value={recType} onChange={e => setRecType(e.target.value)} className="h-10 text-sm" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Claimed By <span className="text-gray-400">(optional)</span></Label>
+            <Input value={claimedBy} onChange={e => setClaimedBy(e.target.value)} className="h-10 text-sm" placeholder="Your name" autoComplete="off" />
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" size="sm" className="flex-1 h-10"
+            onClick={resetUpload} disabled={saving}>
+            Re-upload
+          </Button>
+          <Button
+            type="button" size="sm"
+            className="flex-1 h-10 bg-green-700 hover:bg-green-800"
+            disabled={saving || !recNum.trim() || !!extracted?.duplicate}
+            onClick={handleSave}
+          >
+            {saving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Saving...</> : 'Confirm & Save to Lark'}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Success ─────────────────────────────────────────────────────────────────
+  return (
+    <div className="border-t pt-3 space-y-3">
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-2">
+        <FileText className="h-3.5 w-3.5" />Upload Receipt (Offline Purchase)
+      </p>
+      <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 space-y-2">
+        <div className="flex items-center gap-2 text-green-700">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <span className="text-sm font-semibold">Receipt recorded</span>
+        </div>
+        {savedReceipt && (
+          <div className="text-sm text-gray-700 space-y-0.5">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Receipt No</span>
+              <span className="font-mono font-medium">{savedReceipt.number}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Date</span>
+              <span>{formatDate(savedReceipt.date)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Amount</span>
+              <span className="font-medium">{savedReceipt.amount}</span>
+            </div>
+          </div>
+        )}
+      </div>
+      <Button type="button" variant="outline" size="sm" className="w-full h-10"
+        onClick={resetUpload}>
+        Upload Another Receipt
+      </Button>
     </div>
   )
 }
@@ -247,49 +522,37 @@ export default function VIPCheckPage() {
   const [loading, setLoading]       = useState(false)
   const [result, setResult]         = useState<LookupResult | null>(null)
 
-  // Registration form
   const [showRegister, setShowRegister] = useState(false)
   const [regName, setRegName]           = useState('')
   const [regDob, setRegDob]             = useState('')
   const [regAddress, setRegAddress]     = useState('')
   const [registering, setRegistering]   = useState(false)
 
-  // Inline profile edit
   const [editingProfile, setEditingProfile] = useState(false)
   const [editDob, setEditDob]               = useState('')
   const [editAddress, setEditAddress]       = useState('')
   const [savingProfile, setSavingProfile]   = useState(false)
 
-  // ── Lookup ──────────────────────────────────────────────────────────────────
-
   async function handleLookup(e: React.FormEvent) {
     e.preventDefault()
     const raw = phoneInput.trim()
     if (!raw) return
-
     setLoading(true)
     setResult(null)
     setShowRegister(false)
     setEditingProfile(false)
-
     try {
       const res = await fetch('/api/vip/lookup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: raw }),
       })
-
       if (res.status === 429) { toast.error('Too many lookups. Please wait before trying again.'); return }
-
       const data = await res.json()
       if (!res.ok) { toast.error(data.error ?? 'Lookup failed'); return }
-
       setResult(data)
-    } catch {
-      toast.error('Network error. Please try again.')
-    } finally {
-      setLoading(false)
-    }
+    } catch { toast.error('Network error. Please try again.') }
+    finally { setLoading(false) }
   }
 
   async function refreshLookup(phone: string) {
@@ -301,42 +564,29 @@ export default function VIPCheckPage() {
     if (res.ok) setResult(await res.json())
   }
 
-  // ── Register ────────────────────────────────────────────────────────────────
-
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault()
     if (!regName.trim() || !result) return
-
     setRegistering(true)
     try {
       const res = await fetch('/api/vip/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          phone:   result.phone,
-          name:    regName.trim(),
-          dob:     regDob || undefined,
-          address: regAddress.trim() || undefined,
+          phone: result.phone, name: regName.trim(),
+          dob: regDob || undefined, address: regAddress.trim() || undefined,
         }),
       })
-
       if (res.status === 429) { toast.error('Too many requests. Please wait.'); return }
-
       const data = await res.json()
       if (!res.ok) { toast.error(data.error ?? 'Registration failed'); return }
-
       toast.success('Customer registered!')
       setShowRegister(false)
       setRegName(''); setRegDob(''); setRegAddress('')
       await refreshLookup(result.phone)
-    } catch {
-      toast.error('Network error. Please try again.')
-    } finally {
-      setRegistering(false)
-    }
+    } catch { toast.error('Network error. Please try again.') }
+    finally { setRegistering(false) }
   }
-
-  // ── Profile update ──────────────────────────────────────────────────────────
 
   function openEditProfile() {
     setEditDob(result?.date_of_birth ?? '')
@@ -347,54 +597,35 @@ export default function VIPCheckPage() {
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault()
     if (!result) return
-
     setSavingProfile(true)
     try {
       const res = await fetch('/api/vip/update-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          phone:         result.phone,
+          phone: result.phone,
           date_of_birth: editDob || undefined,
-          address:       editAddress.trim() || undefined,
+          address: editAddress.trim() || undefined,
         }),
       })
-
       if (res.status === 429) { toast.error('Too many requests. Please wait.'); return }
-
       const data = await res.json()
       if (!res.ok) { toast.error(data.error ?? 'Failed to update profile'); return }
-
       toast.success('Profile updated!')
       setResult(prev => prev
         ? { ...prev, date_of_birth: editDob || null, address: editAddress.trim() || null }
-        : null,
-      )
+        : null)
       setEditingProfile(false)
-    } catch {
-      toast.error('Network error. Please try again.')
-    } finally {
-      setSavingProfile(false)
-    }
+    } catch { toast.error('Network error. Please try again.') }
+    finally { setSavingProfile(false) }
   }
-
-  // ── Birthday claim success callback ─────────────────────────────────────────
 
   function handleClaimSuccess(claimedAt: string, membershipYear: number, nextClaimDate: string) {
     setResult(prev => prev
-      ? {
-          ...prev,
-          giftClaimedAt:           claimedAt,
-          giftClaimYear:           membershipYear,
-          giftAvailable:           false,
-          gift_claimed_this_year:  true,
-          next_claim_date:         nextClaimDate,
-        }
-      : null,
-    )
+      ? { ...prev, giftClaimedAt: claimedAt, giftClaimYear: membershipYear,
+          giftAvailable: false, gift_claimed_this_year: true, next_claim_date: nextClaimDate }
+      : null)
   }
-
-  // ── Derived state ───────────────────────────────────────────────────────────
 
   const isVIPStatus       = result && ['active', 'expiring', 'expired'].includes(result.status)
   const profileIncomplete = result?.found && (!result.date_of_birth || !result.address)
@@ -427,24 +658,15 @@ export default function VIPCheckPage() {
                   +60
                 </span>
                 <Input
-                  id="phone"
-                  type="tel"
-                  inputMode="numeric"
-                  placeholder="112345678"
-                  value={phoneInput}
-                  onChange={e => setPhoneInput(e.target.value)}
-                  className="flex-1 text-base h-11"
-                  autoComplete="off"
-                  autoFocus
+                  id="phone" type="tel" inputMode="numeric" placeholder="112345678"
+                  value={phoneInput} onChange={e => setPhoneInput(e.target.value)}
+                  className="flex-1 text-base h-11" autoComplete="off" autoFocus
                 />
               </div>
               <p className="text-xs text-gray-400">With or without country code — e.g. 0112345678 or 60112345678</p>
             </div>
-            <Button
-              type="submit"
-              className="w-full h-11 bg-green-700 hover:bg-green-800 text-base"
-              disabled={loading || !phoneInput.trim()}
-            >
+            <Button type="submit" className="w-full h-11 bg-green-700 hover:bg-green-800 text-base"
+              disabled={loading || !phoneInput.trim()}>
               {loading ? 'Checking...' : 'Check Customer'}
             </Button>
           </form>
@@ -454,7 +676,6 @@ export default function VIPCheckPage() {
       {/* ── Result: Customer Found ────────────────────────────────────────── */}
       {result?.found && (
         <div className="w-full max-w-md mt-4 space-y-3">
-          {/* Status Card */}
           <Card className="shadow-sm">
             <CardContent className="px-5 pt-5 pb-4 space-y-4">
               {/* Name + edit button */}
@@ -464,13 +685,9 @@ export default function VIPCheckPage() {
                     <p className="text-lg font-bold text-gray-900">{result.customerName ?? result.phone}</p>
                     <p className="text-sm text-gray-400 font-mono">{result.phone}</p>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
+                  <Button size="sm" variant="ghost"
                     className="h-8 px-2 text-gray-400 hover:text-gray-700 shrink-0 mt-0.5"
-                    onClick={openEditProfile}
-                    title="Edit profile"
-                  >
+                    onClick={openEditProfile} title="Edit profile">
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -486,12 +703,11 @@ export default function VIPCheckPage() {
               {isVIPStatus && (
                 <div className="bg-gray-50 rounded-lg px-4 py-3 space-y-0.5">
                   {result.brand && <DetailRow label="Brand" value={result.brand} />}
-                  <DetailRow label="VIP Since"   value={formatDate(result.vipSince)} />
-                  <DetailRow label="Valid Until"  value={formatDate(result.expiryDate)}
+                  <DetailRow label="VIP Since"     value={formatDate(result.vipSince)} />
+                  <DetailRow label="Valid Until"    value={formatDate(result.expiryDate)}
                     highlight={result.status === 'expiring'} />
                   {result.daysUntilExpiry != null && result.daysUntilExpiry >= 0 && (
-                    <DetailRow label="Days Remaining"
-                      value={`${result.daysUntilExpiry}d`}
+                    <DetailRow label="Days Remaining" value={`${result.daysUntilExpiry}d`}
                       highlight={result.status === 'expiring'} />
                   )}
                   {result.lastOrderDate && (
@@ -500,25 +716,21 @@ export default function VIPCheckPage() {
                 </div>
               )}
 
-              {/* Non-VIP last order */}
               {!isVIPStatus && result.lastOrderDate && (
                 <div className="bg-gray-50 rounded-lg px-4 py-3">
                   <DetailRow label="Last Order" value={formatDate(result.lastOrderDate)} />
                 </div>
               )}
 
-              {/* Inactive note */}
               {result.status === 'inactive' && (
                 <p className="text-xs text-gray-500 bg-gray-100 rounded px-3 py-2">
                   No orders in past 365 days.
                 </p>
               )}
 
-              {/* Birthday Gift Section */}
-              <BirthdaySection
-                result={result}
-                onClaimSuccess={handleClaimSuccess}
-              />
+              <BirthdaySection result={result} onClaimSuccess={handleClaimSuccess} />
+
+              <ReceiptSection phone={result.phone} customerName={result.customerName} />
             </CardContent>
           </Card>
 
@@ -526,16 +738,11 @@ export default function VIPCheckPage() {
           {profileIncomplete && !editingProfile && (
             <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
               <p className="text-sm text-amber-800">
-                {!result.date_of_birth
-                  ? 'Add DOB to enable birthday gift tracking'
-                  : 'Profile missing address'}
+                {!result.date_of_birth ? 'Add DOB to enable birthday gift tracking' : 'Profile missing address'}
               </p>
-              <Button
-                size="sm"
-                variant="ghost"
+              <Button size="sm" variant="ghost"
                 className="h-8 text-xs text-amber-700 hover:bg-amber-100 shrink-0 ml-2"
-                onClick={openEditProfile}
-              >
+                onClick={openEditProfile}>
                 Update
               </Button>
             </div>
@@ -556,29 +763,16 @@ export default function VIPCheckPage() {
                 <form onSubmit={handleSaveProfile} className="space-y-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="edit-dob">Date of Birth</Label>
-                    <Input
-                      id="edit-dob"
-                      type="date"
-                      value={editDob}
-                      onChange={e => setEditDob(e.target.value)}
-                      className="h-11"
-                    />
+                    <Input id="edit-dob" type="date" value={editDob}
+                      onChange={e => setEditDob(e.target.value)} className="h-11" />
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="edit-address">Address</Label>
-                    <Input
-                      id="edit-address"
-                      placeholder="e.g. Jalan ABC, Kuala Lumpur"
-                      value={editAddress}
-                      onChange={e => setEditAddress(e.target.value)}
-                      className="h-11"
-                    />
+                    <Input id="edit-address" placeholder="e.g. Jalan ABC, Kuala Lumpur"
+                      value={editAddress} onChange={e => setEditAddress(e.target.value)} className="h-11" />
                   </div>
-                  <Button
-                    type="submit"
-                    className="w-full h-11 bg-green-700 hover:bg-green-800"
-                    disabled={savingProfile}
-                  >
+                  <Button type="submit" className="w-full h-11 bg-green-700 hover:bg-green-800"
+                    disabled={savingProfile}>
                     {savingProfile ? 'Saving...' : 'Save Profile'}
                   </Button>
                 </form>
@@ -598,11 +792,8 @@ export default function VIPCheckPage() {
                 <span className="font-mono font-medium text-gray-700">{normalizePhone(phoneInput)}</span>
               </p>
               {!showRegister && (
-                <Button
-                  variant="outline"
-                  className="w-full h-11 border-green-600 text-green-700 hover:bg-green-50 gap-2"
-                  onClick={() => setShowRegister(true)}
-                >
+                <Button variant="outline" className="w-full h-11 border-green-600 text-green-700 hover:bg-green-50 gap-2"
+                  onClick={() => setShowRegister(true)}>
                   <UserPlus className="h-4 w-4" />
                   Register New Customer
                 </Button>
@@ -615,8 +806,7 @@ export default function VIPCheckPage() {
               <CardHeader className="pb-2 pt-4 px-5">
                 <CardTitle className="text-sm font-semibold flex items-center justify-between">
                   <span className="flex items-center gap-2">
-                    <UserPlus className="h-4 w-4 text-green-600" />
-                    Register New Customer
+                    <UserPlus className="h-4 w-4 text-green-600" />Register New Customer
                   </span>
                   <button onClick={() => setShowRegister(false)} className="text-gray-400 hover:text-gray-600">
                     <X className="h-4 w-4" />
@@ -630,58 +820,28 @@ export default function VIPCheckPage() {
                     <Input value={normalizePhone(phoneInput)} disabled className="bg-gray-50 font-mono h-11" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="reg-name">
-                      Full Name <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      id="reg-name"
-                      placeholder="Customer full name"
-                      value={regName}
-                      onChange={e => setRegName(e.target.value)}
-                      className="h-11"
-                      autoComplete="off"
-                    />
+                    <Label htmlFor="reg-name">Full Name <span className="text-red-500">*</span></Label>
+                    <Input id="reg-name" placeholder="Customer full name" value={regName}
+                      onChange={e => setRegName(e.target.value)} className="h-11" autoComplete="off" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="reg-dob">
-                      Date of Birth <span className="text-xs text-gray-400">(optional)</span>
-                    </Label>
-                    <Input
-                      id="reg-dob"
-                      type="date"
-                      value={regDob}
-                      onChange={e => setRegDob(e.target.value)}
-                      className="h-11"
-                    />
+                    <Label htmlFor="reg-dob">Date of Birth <span className="text-xs text-gray-400">(optional)</span></Label>
+                    <Input id="reg-dob" type="date" value={regDob}
+                      onChange={e => setRegDob(e.target.value)} className="h-11" />
                     <p className="text-xs text-gray-400">Used for birthday gift eligibility</p>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="reg-address">
-                      Address <span className="text-xs text-gray-400">(optional)</span>
-                    </Label>
-                    <Input
-                      id="reg-address"
-                      placeholder="e.g. Jalan ABC, Kuala Lumpur"
-                      value={regAddress}
-                      onChange={e => setRegAddress(e.target.value)}
-                      className="h-11"
-                    />
+                    <Label htmlFor="reg-address">Address <span className="text-xs text-gray-400">(optional)</span></Label>
+                    <Input id="reg-address" placeholder="e.g. Jalan ABC, Kuala Lumpur"
+                      value={regAddress} onChange={e => setRegAddress(e.target.value)} className="h-11" />
                   </div>
                   <div className="flex gap-2 pt-1">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="flex-1 h-11"
-                      onClick={() => setShowRegister(false)}
-                      disabled={registering}
-                    >
+                    <Button type="button" variant="outline" className="flex-1 h-11"
+                      onClick={() => setShowRegister(false)} disabled={registering}>
                       Cancel
                     </Button>
-                    <Button
-                      type="submit"
-                      className="flex-1 h-11 bg-green-700 hover:bg-green-800"
-                      disabled={registering || !regName.trim()}
-                    >
+                    <Button type="submit" className="flex-1 h-11 bg-green-700 hover:bg-green-800"
+                      disabled={registering || !regName.trim()}>
                       {registering ? 'Registering...' : 'Register'}
                     </Button>
                   </div>
