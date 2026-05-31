@@ -37,18 +37,6 @@ function normalizePhone(raw: string): string {
   return digits
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function toISODate(d: Date): string {
-  return d.toISOString().split('T')[0]
-}
-
-function addDays(dateStr: string, days: number): Date {
-  const d = new Date(dateStr)
-  d.setDate(d.getDate() + days)
-  return d
-}
-
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -82,12 +70,11 @@ export async function POST(req: NextRequest) {
 
   const supabase = createAdminClient()
   const now = new Date()
-  const cutoff365 = toISODate(addDays(toISODate(now), -365))
 
-  // Fetch all orders for this phone (any amount) — needed for inactive detection
+  // Fetch all orders for this phone — need is_vip, order_date, and brand
   const { data: orders, error } = await supabase
     .from('orders')
-    .select('total_price, order_date, brand, customer_name')
+    .select('order_date, total_price, is_vip, brand, customer_name')
     .eq('phone', phone)
     .order('order_date', { ascending: false })
     .limit(500)
@@ -105,36 +92,6 @@ export async function POST(req: NextRequest) {
     .eq('phone', phone)
     .maybeSingle()
 
-  if (allOrders.length === 0) {
-    return NextResponse.json({
-      phone,
-      found: !!customer,
-      customer_id: customer?.id ?? null,
-      status: 'not_vip',
-      customerName: customer?.name ?? null,
-      date_of_birth: customer?.date_of_birth ?? null,
-      address: customer?.address ?? null,
-      giftClaimedAt: customer?.birthday_gift_claimed_at ?? null,
-      giftClaimYear: customer?.birthday_gift_claim_year ?? null,
-      giftAvailable: false,
-      lastOrderDate: null,
-    })
-  }
-
-  // Most recent order — for inactive detection
-  const lastOrderDate = allOrders[0].order_date as string
-  const isInactive = lastOrderDate < cutoff365
-
-  // Qualifying orders: ≥RM700, sorted desc
-  const qualifyingOrders = allOrders
-    .filter(o => (o.total_price as number) >= 700)
-    .sort((a, b) => new Date(b.order_date as string).getTime() - new Date(a.order_date as string).getTime())
-
-  const latestQualifying = qualifyingOrders[0] ?? null
-  const latestQualifyingWithin365 = qualifyingOrders.find(
-    o => (o.order_date as string) >= cutoff365,
-  ) ?? null
-
   const customerName =
     customer?.name ??
     (allOrders.find(o => o.customer_name)?.customer_name as string | null) ??
@@ -147,42 +104,67 @@ export async function POST(req: NextRequest) {
   const giftClaimYear = customer?.birthday_gift_claim_year ?? null
   const giftAvailable = !!dateOfBirth && giftClaimYear !== currentYear
 
-  if (!latestQualifying) {
+  if (allOrders.length === 0) {
     return NextResponse.json({
       phone,
-      found: true,
+      found: !!customer,
       customer_id: customer?.id ?? null,
-      status: isInactive ? 'inactive' : 'not_vip',
+      status: 'not_vip',
       customerName,
-      lastOrderDate,
       date_of_birth: dateOfBirth,
       address,
       giftClaimedAt,
       giftClaimYear,
       giftAvailable,
+      lastOrderDate: null,
     })
   }
 
-  const vipSince = latestQualifyingWithin365
-    ? (latestQualifyingWithin365.order_date as string)
-    : (latestQualifying.order_date as string)
+  // Most recent order date (orders already sorted desc)
+  const lastOrderDate = allOrders[0].order_date as string
 
-  const expiry = addDays(vipSince, 365)
-  const expiryDate = toISODate(expiry)
-  const daysUntilExpiry = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+  // Inactive = no order of any amount in past 365 days
+  const daysSinceLastOrder = Math.floor(
+    (now.getTime() - new Date(lastOrderDate).getTime()) / (1000 * 60 * 60 * 24),
+  )
+  const isInactive = daysSinceLastOrder > 365
 
-  let status: string
+  // VIP status comes ONLY from is_vip = true orders
+  const vipOrders = allOrders.filter(o => o.is_vip === true)
+  const isVip = vipOrders.length > 0
+
+  // vipSince = earliest is_vip order; expiry rolls from latest is_vip order
+  const vipOrdersSortedAsc  = [...vipOrders].sort((a, b) =>
+    new Date(a.order_date as string).getTime() - new Date(b.order_date as string).getTime(),
+  )
+  const vipOrdersSortedDesc = [...vipOrders].sort((a, b) =>
+    new Date(b.order_date as string).getTime() - new Date(a.order_date as string).getTime(),
+  )
+
+  const vipSince      = isVip ? (vipOrdersSortedAsc[0].order_date  as string) : null
+  const latestVipDate = isVip ? (vipOrdersSortedDesc[0].order_date as string) : null
+  const brand         = isVip ? (vipOrdersSortedDesc[0].brand      as string | null) : null
+
+  const expiryMs      = latestVipDate
+    ? new Date(latestVipDate).getTime() + 365 * 24 * 60 * 60 * 1000
+    : null
+  const expiryDate    = expiryMs ? new Date(expiryMs).toISOString().split('T')[0] : null
+  const daysUntilExpiry = expiryMs
+    ? Math.floor((expiryMs - now.getTime()) / (1000 * 60 * 60 * 24))
+    : null
+
+  let status: 'active' | 'expiring' | 'expired' | 'inactive' | 'not_vip'
   if (isInactive) {
     status = 'inactive'
-  } else if (daysUntilExpiry < 0) {
+  } else if (!isVip) {
+    status = 'not_vip'
+  } else if (daysUntilExpiry !== null && daysUntilExpiry < 0) {
     status = 'expired'
-  } else if (daysUntilExpiry < 30) {
+  } else if (daysUntilExpiry !== null && daysUntilExpiry < 30) {
     status = 'expiring'
   } else {
     status = 'active'
   }
-
-  const brand = (latestQualifyingWithin365 ?? latestQualifying).brand
 
   return NextResponse.json({
     phone,
