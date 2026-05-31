@@ -98,68 +98,71 @@ export async function POST(req: NextRequest) {
 
   const allOrders = orders ?? []
 
-  if (allOrders.length === 0) {
-    // Check if the customer exists without orders
-    const { data: customer } = await supabase
-      .from('customers')
-      .select('name, date_of_birth')
-      .eq('phone', phone)
-      .maybeSingle()
+  // Fetch customer record
+  const { data: customer } = await supabase
+    .from('customers')
+    .select('id, name, date_of_birth, address, birthday_gift_claimed_at, birthday_gift_claim_year')
+    .eq('phone', phone)
+    .maybeSingle()
 
+  if (allOrders.length === 0) {
     return NextResponse.json({
       phone,
       found: !!customer,
+      customer_id: customer?.id ?? null,
       status: 'not_vip',
       customerName: customer?.name ?? null,
+      date_of_birth: customer?.date_of_birth ?? null,
+      address: customer?.address ?? null,
+      giftClaimedAt: customer?.birthday_gift_claimed_at ?? null,
+      giftClaimYear: customer?.birthday_gift_claim_year ?? null,
+      giftAvailable: false,
+      lastOrderDate: null,
     })
   }
 
-  // Most recent order of any amount — for inactive detection
-  const lastOrder = allOrders[0]  // already sorted desc
-  const lastOrderDate = lastOrder.order_date as string
+  // Most recent order — for inactive detection
+  const lastOrderDate = allOrders[0].order_date as string
   const isInactive = lastOrderDate < cutoff365
 
-  // Qualifying orders: ≥RM700, ordered desc (most recent first for rolling expiry)
+  // Qualifying orders: ≥RM700, sorted desc
   const qualifyingOrders = allOrders
     .filter(o => (o.total_price as number) >= 700)
     .sort((a, b) => new Date(b.order_date as string).getTime() - new Date(a.order_date as string).getTime())
 
-  // Latest qualifying order determines rolling expiry anchor
   const latestQualifying = qualifyingOrders[0] ?? null
   const latestQualifyingWithin365 = qualifyingOrders.find(
-    o => (o.order_date as string) >= cutoff365
+    o => (o.order_date as string) >= cutoff365,
   ) ?? null
 
-  // Fetch customer record for birthday gift data + name
-  const { data: customer } = await supabase
-    .from('customers')
-    .select('name, date_of_birth, birthday_gift_claimed_at, birthday_gift_claim_year')
-    .eq('phone', phone)
-    .maybeSingle()
+  const customerName =
+    customer?.name ??
+    (allOrders.find(o => o.customer_name)?.customer_name as string | null) ??
+    null
 
-  const customerName = customer?.name ?? (allOrders.find(o => o.customer_name)?.customer_name as string | null) ?? null
-  const currentYear = now.getFullYear()
-  const dateOfBirth = customer?.date_of_birth ?? null
+  const currentYear   = now.getFullYear()
+  const dateOfBirth   = customer?.date_of_birth ?? null
+  const address       = customer?.address ?? null
   const giftClaimedAt = customer?.birthday_gift_claimed_at ?? null
   const giftClaimYear = customer?.birthday_gift_claim_year ?? null
   const giftAvailable = !!dateOfBirth && giftClaimYear !== currentYear
 
   if (!latestQualifying) {
-    // Has orders but none qualify for VIP
     return NextResponse.json({
       phone,
       found: true,
+      customer_id: customer?.id ?? null,
       status: isInactive ? 'inactive' : 'not_vip',
       customerName,
       lastOrderDate,
-      dateOfBirth,
+      date_of_birth: dateOfBirth,
+      address,
       giftClaimedAt,
       giftClaimYear,
       giftAvailable,
     })
   }
 
-  // Determine VIP status based on most recent qualifying order (rolling expiry)
   const vipSince = latestQualifyingWithin365
     ? (latestQualifyingWithin365.order_date as string)
     : (latestQualifying.order_date as string)
@@ -184,6 +187,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     phone,
     found: true,
+    customer_id: customer?.id ?? null,
     status,
     customerName,
     brand,
@@ -191,7 +195,8 @@ export async function POST(req: NextRequest) {
     expiryDate,
     daysUntilExpiry,
     lastOrderDate,
-    dateOfBirth,
+    date_of_birth: dateOfBirth,
+    address,
     giftClaimedAt,
     giftClaimYear,
     giftAvailable,
