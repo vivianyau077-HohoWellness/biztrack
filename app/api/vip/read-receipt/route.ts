@@ -1,142 +1,188 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { larkFetch } from '@/lib/lark'
-
-export const dynamic = 'force-dynamic'
+import { NextResponse } from 'next/server'
+import { larkFetch, getTenantAccessToken } from '@/lib/lark'
 
 const LARK_APP_TOKEN = 'S8XXb8PT2a82ouslzQWjBaYap2g'
-const LARK_TABLE_ID  = 'tblYU2qhtVqzMnEF'
-const MAX_BYTES      = 5 * 1024 * 1024  // 5 MB
+const LARK_TABLE_ID = 'tblYU2qhtVqzMnEF'
 
-// ── Rate limiter ──────────────────────────────────────────────────────────────
-
-const rlMap = new Map<string, number[]>()
-const RL_WINDOW_MS = 60 * 60 * 1000
-const RL_LIMIT = 10
-
-function isRateLimited(ip: string): boolean {
+const ipMap = new Map<string, { count: number; reset: number }>()
+function checkRateLimit(ip: string, max: number): boolean {
   const now = Date.now()
-  const timestamps = rlMap.get(ip) ?? []
-  const recent = timestamps.filter(t => now - t < RL_WINDOW_MS)
-  if (recent.length >= RL_LIMIT) return true
-  recent.push(now)
-  rlMap.set(ip, recent)
-  return false
+  const entry = ipMap.get(ip)
+  if (!entry || now > entry.reset) {
+    ipMap.set(ip, { count: 1, reset: now + 3600000 })
+    return true
+  }
+  if (entry.count >= max) return false
+  entry.count++
+  return true
 }
 
-// ── Handler ───────────────────────────────────────────────────────────────────
-
-export async function POST(req: NextRequest) {
-  const ip =
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    req.headers.get('x-real-ip') ??
-    'unknown'
-
-  if (isRateLimited(ip)) {
-    return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
+function extractReceiptNumber(text: string): string | null {
+  const patterns = [
+    // Specific format like 1656-01-1028218 (NNNN-NN-NNNNNNN)
+    /\b(\d{4}-\d{2}-\d{6,})\b/,
+    // Receipt/Invoice labels
+    /(?:receipt\s*no\.?|invoice\s*no\.?|OR\s*no\.?)[:\s#]*([A-Z0-9\-\/]+)/i,
+    /\b(INV[-\/]?\d{4,})\b/i,
+    /\b(REC[-\/]?\d{4,})\b/i,
+  ]
+  for (const pattern of patterns) {
+    const match = text.match(pattern)
+    if (match) return match[1].trim()
   }
+  return null
+}
 
-  let formData: FormData
-  try {
-    formData = await req.formData()
-  } catch {
-    return NextResponse.json({ error: 'Invalid form data' }, { status: 400 })
+function extractDate(text: string): string | null {
+  // Look for date near "Date" label first
+  const dateLabel = text.match(/Date\s*[:\s]*([\d\/\-:]+\s*(?:AM|PM)?)/i)
+  if (dateLabel) {
+    const raw = dateLabel[1].trim()
+    // Format: 29/05/2026
+    const m1 = raw.match(/(\d{1,2})[\/](\d{1,2})[\/](\d{4})/)
+    if (m1) return `${m1[3]}-${m1[2].padStart(2,'0')}-${m1[1].padStart(2,'0')}`
   }
+  // Fallback: find any DD/MM/YYYY
+  const m2 = text.match(/(\d{1,2})[\/](\d{1,2})[\/](\d{4})/)
+  if (m2) return `${m2[3]}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`
+  // YYYY-MM-DD
+  const m3 = text.match(/(\d{4})-(\d{2})-(\d{2})/)
+  if (m3) return `${m3[1]}-${m3[2]}-${m3[3]}`
+  return null
+}
 
-  const file = formData.get('image') as File | null
-  if (!file) {
-    return NextResponse.json({ error: 'No image provided' }, { status: 400 })
+function extractAmount(text: string): number | null {
+  // Look for Nett Total first (most reliable)
+  const nett = text.match(/Nett\s*Total[\s\S]{0,20}?(\d+\.\d{2})/i)
+  if (nett) {
+    const num = parseFloat(nett[1])
+    if (!isNaN(num) && num > 0) return num
   }
-
-  const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
-  if (!allowed.includes(file.type) && !file.name.match(/\.(jpg|jpeg|png|webp|heic|heif)$/i)) {
-    return NextResponse.json({ error: 'Unsupported file type. Use JPG, PNG, WEBP, or HEIC.' }, { status: 400 })
+  // Gross Total
+  const gross = text.match(/Gross\s*Total[\s\S]{0,20}?(\d+\.\d{2})/i)
+  if (gross) {
+    const num = parseFloat(gross[1])
+    if (!isNaN(num) && num > 0) return num
   }
-
-  const buffer = Buffer.from(await file.arrayBuffer())
-  if (buffer.byteLength > MAX_BYTES) {
-    return NextResponse.json({ error: 'File too large. Maximum 5 MB.' }, { status: 400 })
+  // Total Amount
+  const total = text.match(/Total\s*Amount[:\s]*(\d+\.\d{2})/i)
+  if (total) {
+    const num = parseFloat(total[1])
+    if (!isNaN(num) && num > 0) return num
   }
+  return null
+}
 
-  // ── Call Mindee v2 ──────────────────────────────────────────────────────────
-
-  const mindeeForm = new FormData()
-  const blob = new Blob([buffer], { type: file.type || 'image/jpeg' })
-  mindeeForm.append('document', blob, file.name || 'receipt.jpg')
-
-  let mindeeData: any = null
-  try {
-    const mindeeRes = await fetch(
-      `https://api-v2.mindee.net/v2/predict/${process.env.MINDEE_MODEL_ID}`,
-      {
-        method: 'POST',
-        headers: { Authorization: `Token ${process.env.MINDEE_API_KEY}` },
-        body: mindeeForm,
-      },
-    )
-    mindeeData = await mindeeRes.json()
-  } catch (e) {
-    console.error('[read-receipt] Mindee fetch error:', e)
-    // Return empty extraction — UI falls back to manual entry
-    return NextResponse.json({
-      receipt_number: null, receipt_date: null, receipt_amount: null,
-      supplier_name: null, confidence: 0, duplicate: false, raw: null,
-      ai_failed: true,
-    })
-  }
-
-  // ── Parse Mindee response ───────────────────────────────────────────────────
-
-  const fields =
-    mindeeData?.result?.fields ??
-    mindeeData?.document?.inference?.prediction ??
-    {}
-
-  const receiptNumber = fields?.receipt_number?.value ??
-                        fields?.invoice_number?.value ?? null
-  const receiptDate   = fields?.date?.value ??
-                        fields?.receipt_date?.value ?? null
-  const receiptAmount = fields?.total_amount?.value ??
-                        fields?.total?.value ??
-                        fields?.amount?.value ?? null
-  const supplierName  = fields?.supplier_name?.value ??
-                        fields?.merchant_name?.value ?? null
-  const confidence    = mindeeData?.result?.confidence ??
-                        mindeeData?.document?.inference?.confidence ?? 0
-
-  // ── Duplicate check in Lark ─────────────────────────────────────────────────
-
-  let duplicate = false
-  if (receiptNumber) {
-    try {
-      const searchResult = await larkFetch(
-        `/bitable/v1/apps/${LARK_APP_TOKEN}/tables/${LARK_TABLE_ID}/records/search`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            filter: {
-              conjunction: 'and',
-              conditions: [{
-                field_name: 'Receipt Number',
-                operator: 'is',
-                value: [receiptNumber],
-              }],
-            },
-          }),
-        },
-      )
-      duplicate = (searchResult.data?.total ?? 0) > 0
-    } catch (e) {
-      console.error('[read-receipt] Lark duplicate check error:', e)
+function extractSupplier(text: string): string | null {
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 3)
+  for (const line of lines.slice(0, 5)) {
+    if (/^[A-Z]/.test(line) && !/^(date|time|cashier|receipt|invoice|total|tax)/i.test(line)) {
+      return line
     }
   }
+  return null
+}
 
-  return NextResponse.json({
-    receipt_number: receiptNumber,
-    receipt_date:   receiptDate,
-    receipt_amount: receiptAmount != null ? Number(receiptAmount) : null,
-    supplier_name:  supplierName,
-    confidence:     typeof confidence === 'number' ? confidence : 0,
-    duplicate,
-    raw:            mindeeData,
-  })
+export async function POST(req: Request) {
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
+  if (!checkRateLimit(ip, 10)) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
+  }
+
+  if (!process.env.OCR_SPACE_API_KEY) {
+    return NextResponse.json({ error: 'OCR_SPACE_API_KEY not configured' }, { status: 500 })
+  }
+
+  try {
+    const formData = await req.formData()
+    const file = formData.get('image') as File | null
+    if (!file) {
+      return NextResponse.json({ error: 'No image provided' }, { status: 400 })
+    }
+
+    const arrayBuffer = await file.arrayBuffer()
+    const base64 = Buffer.from(arrayBuffer).toString('base64')
+    const mimeType = file.type || 'image/jpeg'
+
+    // Call OCR.space API
+    const ocrForm = new FormData()
+    ocrForm.append('base64Image', `data:${mimeType};base64,${base64}`)
+    ocrForm.append('language', 'eng')
+    ocrForm.append('isOverlayRequired', 'false')
+    ocrForm.append('detectOrientation', 'true')
+    ocrForm.append('scale', 'true')
+    ocrForm.append('OCREngine', '2')
+
+    const ocrRes = await fetch('https://api.ocr.space/parse/image', {
+      method: 'POST',
+      headers: { 'apikey': process.env.OCR_SPACE_API_KEY! },
+      body: ocrForm,
+    })
+
+    const ocrData = await ocrRes.json()
+    console.log('[read-receipt] OCR response:', JSON.stringify(ocrData, null, 2))
+
+    const parsedText = ocrData?.ParsedResults?.[0]?.ParsedText ?? ''
+    console.log('[read-receipt] Extracted text:', parsedText)
+
+    if (!parsedText) {
+      return NextResponse.json({
+        receipt_number: null, receipt_date: null,
+        receipt_amount: null, supplier_name: null,
+        confidence: 0, duplicate: false, ai_failed: true,
+      })
+    }
+
+    const receiptNumber = extractReceiptNumber(parsedText)
+    const receiptDate = extractDate(parsedText)
+    const receiptAmount = extractAmount(parsedText)
+    const supplierName = extractSupplier(parsedText)
+
+    const fieldsFound = [receiptNumber, receiptDate, receiptAmount].filter(Boolean).length
+    const confidence = fieldsFound >= 3 ? 0.9 : fieldsFound >= 2 ? 0.6 : 0.3
+
+    let duplicate = false
+    if (receiptNumber) {
+      try {
+        await getTenantAccessToken()
+        const searchResult = await larkFetch(
+          `/bitable/v1/apps/${LARK_APP_TOKEN}/tables/${LARK_TABLE_ID}/records/search`,
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              filter: {
+                conjunction: 'and',
+                conditions: [{
+                  field_name: 'Receipt Number',
+                  operator: 'is',
+                  value: [receiptNumber]
+                }]
+              }
+            })
+          }
+        )
+        duplicate = (searchResult.data?.total ?? 0) > 0
+      } catch (e) {
+        console.error('[read-receipt] Lark duplicate check error:', e)
+      }
+    }
+
+    return NextResponse.json({
+      receipt_number: receiptNumber,
+      receipt_date: receiptDate,
+      receipt_amount: receiptAmount,
+      supplier_name: supplierName,
+      confidence,
+      duplicate,
+      ai_failed: false,
+    })
+
+  } catch (e: any) {
+    console.error('[read-receipt] Error:', e)
+    return NextResponse.json({
+      receipt_number: null, receipt_date: null,
+      receipt_amount: null, supplier_name: null,
+      confidence: 0, duplicate: false, ai_failed: true,
+    })
+  }
 }
