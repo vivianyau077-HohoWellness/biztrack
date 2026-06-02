@@ -245,12 +245,28 @@ function ReceiptSection({ phone, customerName }: ReceiptSectionProps) {
   const [recType, setRecType]  = useState('Offline Purchase - DD')
   const [claimedBy, setClaimedBy] = useState('')
   const [saving, setSaving]    = useState(false)
+  const [copied, setCopied]    = useState(false)
 
   // Saved receipt summary for success state
   const [savedReceipt, setSavedReceipt] = useState<{ number: string; date: string; amount: string } | null>(null)
 
   function handleFileChange(f: File | null) {
     setFile(f)
+  }
+
+  function handleCopyToClipboard() {
+    const lines = [
+      `Receipt No: ${recNum}`,
+      `Date: ${recDate}`,
+      `Amount: RM ${recAmt}`,
+      `Type: ${recType}`,
+      `Customer: ${customerName ?? phone}`,
+      `Phone: ${phone}`,
+    ]
+    if (claimedBy.trim()) lines.push(`Claimed By: ${claimedBy.trim()}`)
+    navigator.clipboard.writeText(lines.join('\n'))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   function resetUpload() {
@@ -467,14 +483,21 @@ function ReceiptSection({ phone, customerName }: ReceiptSectionProps) {
             Re-upload
           </Button>
           <Button
-            type="button" size="sm"
-            className="flex-1 h-10 bg-green-700 hover:bg-green-800"
-            disabled={saving || !recNum.trim() || !!extracted?.duplicate}
-            onClick={handleSave}
+            type="button" variant="outline" size="sm" className="flex-1 h-10"
+            disabled={!recNum.trim()}
+            onClick={handleCopyToClipboard}
           >
-            {saving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Saving...</> : 'Confirm & Save to Lark'}
+            {copied ? '✅ Copied!' : 'Copy to Clipboard'}
           </Button>
         </div>
+        <Button
+          type="button" size="sm"
+          className="w-full h-10 bg-green-700 hover:bg-green-800"
+          disabled={saving || !recNum.trim() || !!extracted?.duplicate}
+          onClick={handleSave}
+        >
+          {saving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Saving...</> : 'Confirm & Save to Lark'}
+        </Button>
       </div>
     )
   }
