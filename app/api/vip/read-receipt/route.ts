@@ -20,16 +20,17 @@ function checkRateLimit(ip: string, max: number): boolean {
 
 function extractReceiptNumber(text: string): string | null {
   const patterns = [
-    // Specific format like 1656-01-1028218 (NNNN-NN-NNNNNNN)
+    // Invoice No : CPBL02-1060201 format
+    /(?:invoice\s*no|receipt\s*no|OR\s*no)[\s:]*([A-Z0-9][A-Z0-9\-\/]{3,})/i,
+    // Specific numeric format like 1656-01-1028218
     /\b(\d{4}-\d{2}-\d{6,})\b/,
-    // Receipt/Invoice labels
-    /(?:receipt\s*no\.?|invoice\s*no\.?|OR\s*no\.?)[:\s#]*([A-Z0-9\-\/]+)/i,
     /\b(INV[-\/]?\d{4,})\b/i,
     /\b(REC[-\/]?\d{4,})\b/i,
+    /\b([A-Z]{2,6}\d{2}-\d{7,})\b/,
   ]
   for (const pattern of patterns) {
     const match = text.match(pattern)
-    if (match) return match[1].trim()
+    if (match && match[1] !== 'Date' && match[1] !== 'Cashier') return match[1].trim()
   }
   return null
 }
@@ -53,31 +54,53 @@ function extractDate(text: string): string | null {
 }
 
 function extractAmount(text: string): number | null {
-  // Look for Nett Total first (most reliable)
-  const nett = text.match(/Nett\s*Total[\s\S]{0,20}?(\d+\.\d{2})/i)
-  if (nett) {
-    const num = parseFloat(nett[1])
-    if (!isNaN(num) && num > 0) return num
+  const normalized = text.replace(/\n/g, ' ')
+
+  // Try labeled total patterns first
+  const patterns = [
+    /Nett\s*Total\s+(?:RM\s*)?(\d{1,3}(?:,\d{3})*\.\d{2})/i,
+    /Gross\s*Total\s+(?:RM\s*)?(\d{1,3}(?:,\d{3})*\.\d{2})/i,
+    /TOTAL\s*:\s*(?:RM\s*)?(\d{1,3}(?:,\d{3})*\.\d{2})/i,
+    /Rounding\s*Adjustment[:\s]+(?:RM\s*)?(\d{1,3}(?:,\d{3})*\.\d{2})/i,
+    /Total\s*Sales\s+(?:RM\s*)?(\d{1,3}(?:,\d{3})*\.\d{2})/i,
+  ]
+
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern)
+    if (match) {
+      const num = parseFloat(match[1].replace(/,/g, ''))
+      if (!isNaN(num) && num > 0) return num
+    }
   }
-  // Gross Total
-  const gross = text.match(/Gross\s*Total[\s\S]{0,20}?(\d+\.\d{2})/i)
-  if (gross) {
-    const num = parseFloat(gross[1])
-    if (!isNaN(num) && num > 0) return num
+
+  // Fallback: find all amounts and return the largest
+  // (total is usually the largest number on a receipt)
+  const allAmounts = Array.from(normalized.matchAll(/(\d{1,3}(?:,\d{3})*\.\d{2})/g))
+    .map(m => parseFloat(m[1].replace(/,/g, '')))
+    .filter(n => !isNaN(n) && n > 0 && n < 100000)
+
+  if (allAmounts.length > 0) {
+    // Return largest amount (most likely the total)
+    return Math.max(...allAmounts)
   }
-  // Total Amount
-  const total = text.match(/Total\s*Amount[:\s]*(\d+\.\d{2})/i)
-  if (total) {
-    const num = parseFloat(total[1])
-    if (!isNaN(num) && num > 0) return num
-  }
+
   return null
 }
 
 function extractSupplier(text: string): string | null {
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 3)
+  const skipPatterns = /^(date|time|cashier|receipt|invoice|total|tax|cash|roc|business|hour|mon|sat|sun|description|qty|member|thank|please|goods)/i
+  
+  // Prefer longer company names (SDN BHD, BHD, etc.)
+  for (const line of lines.slice(0, 8)) {
+    if (/SDN\s*BHD|\bBHD\b|PHARMACY|TRADING|ENTERPRISE/i.test(line)) {
+      return line
+    }
+  }
+  
+  // Fallback: first meaningful line
   for (const line of lines.slice(0, 5)) {
-    if (/^[A-Z]/.test(line) && !/^(date|time|cashier|receipt|invoice|total|tax)/i.test(line)) {
+    if (/^[A-Z]/.test(line) && !skipPatterns.test(line) && line.length > 5) {
       return line
     }
   }
