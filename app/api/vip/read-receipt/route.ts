@@ -97,11 +97,20 @@ function extractProducts(text: string): ExtractedProduct[] {
   const products: ExtractedProduct[] = []
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
 
+  const skipPatterns = [
+    /^(date|time|cashier|receipt|invoice|total|tax|thank|goods|saving|rounding|nett|gross|credit|approval|tid|subtotal|cash|change|member|point|business|hour|mon|tue|wed|thu|fri|sat|sun|description|qty|unit|price|amt|tel|whatsapp|address|jalan|puchong|selangor|kuala|lumpur|penang)/i,
+    /^\*+/,
+    /^[:\-\s]+$/,
+    /^\d+\.\d{2}$/,
+    /^\([\d\.]+\)$/,
+    /^[A-Z0-9]{8,13}$/,
+    /^\d+$/,
+  ]
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
-    if (/^(date|time|cashier|receipt|invoice|total|tax|thank|goods|saving|rounding|nett|gross|credit|approval|tid|subtotal)/i.test(line)) continue
-    if (/^\d+\.\d{2}$/.test(line)) continue
     if (line.length < 3) continue
+    if (skipPatterns.some(p => p.test(line))) continue
 
     if (/[A-Za-z]{3,}/.test(line) && !/^[0-9\-]+$/.test(line)) {
       const nextLine = lines[i + 1] ?? ''
