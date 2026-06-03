@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import {
   Leaf, Crown, UserPlus, Pencil, CheckCircle2, X, Gift,
-  FileText, ChevronDown, ChevronUp, Upload, Loader2, TriangleAlert,
+  FileText, ChevronDown, ChevronUp, Upload, Loader2, TriangleAlert, ScanLine,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -538,6 +538,200 @@ function ReceiptSection({ phone, customerName }: ReceiptSectionProps) {
   )
 }
 
+// ── Quick Receipt Scan ────────────────────────────────────────────────────────
+
+type QuickScanState = 'collapsed' | 'upload' | 'processing' | 'result'
+
+function QuickReceiptScan() {
+  const [state, setState]         = useState<QuickScanState>('collapsed')
+  const [file, setFile]           = useState<File | null>(null)
+  const [extracted, setExtracted] = useState<ReceiptData | null>(null)
+  const [aiFailed, setAiFailed]   = useState(false)
+  const [copied, setCopied]       = useState(false)
+  const fileInputRef              = useRef<HTMLInputElement>(null)
+
+  function reset() {
+    setFile(null)
+    setExtracted(null)
+    setAiFailed(false)
+    setState('upload')
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  async function handleScan() {
+    if (!file) return
+    setState('processing')
+    const fd = new FormData()
+    fd.append('image', file)
+    try {
+      const res = await fetch('/api/vip/read-receipt', { method: 'POST', body: fd })
+      if (res.status === 429) { toast.error('Too many requests. Please wait.'); setState('upload'); return }
+      const data: ReceiptData & { ai_failed?: boolean } = await res.json()
+      if (!res.ok) { toast.error((data as any).error ?? 'Failed to read receipt'); setState('upload'); return }
+      setExtracted(data)
+      setAiFailed(!!data.ai_failed)
+      setState('result')
+    } catch {
+      toast.error('Network error. Please try again.')
+      setState('upload')
+    }
+  }
+
+  function handleCopy() {
+    if (!extracted) return
+    const lines = [
+      extracted.supplier_name  ? `Supplier: ${extracted.supplier_name}`               : null,
+      extracted.receipt_number ? `Receipt No: ${extracted.receipt_number}`             : null,
+      extracted.receipt_date   ? `Date: ${extracted.receipt_date}`                    : null,
+      extracted.receipt_amount != null ? `Amount: RM ${extracted.receipt_amount}` : null,
+    ].filter(Boolean) as string[]
+    navigator.clipboard.writeText(lines.join('\n'))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const confidenceLabel = extracted && !aiFailed
+    ? extracted.confidence >= 0.8
+      ? { text: '🟢 High confidence',            cls: 'text-green-700' }
+      : extracted.confidence >= 0.5
+        ? { text: '🟡 Medium — please verify',    cls: 'text-yellow-700' }
+        : { text: '🔴 Low — please check carefully', cls: 'text-red-600' }
+    : null
+
+  const headerButton = (expanded: boolean) => (
+    <button
+      onClick={() => setState(expanded ? 'collapsed' : 'upload')}
+      className="flex items-center justify-between w-full text-left"
+    >
+      <span className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+        <ScanLine className="h-4 w-4 text-blue-500" />
+        Quick Receipt Scan
+        <span className="text-xs font-normal text-gray-400">· Any brand</span>
+      </span>
+      {expanded
+        ? <ChevronUp className="h-4 w-4 text-gray-400" />
+        : <ChevronDown className="h-4 w-4 text-gray-400" />}
+    </button>
+  )
+
+  // ── Collapsed ───────────────────────────────────────────────────────────────
+  if (state === 'collapsed') {
+    return (
+      <Card className="w-full max-w-md shadow-sm">
+        <CardContent className="px-5 py-4">
+          {headerButton(false)}
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // ── Upload ──────────────────────────────────────────────────────────────────
+  if (state === 'upload') {
+    return (
+      <Card className="w-full max-w-md shadow-sm">
+        <CardContent className="px-5 pt-4 pb-5 space-y-3">
+          {headerButton(true)}
+          <p className="text-xs text-gray-400">Scan any receipt to extract info — no customer lookup needed.</p>
+          <div
+            className="border-2 border-dashed border-gray-200 rounded-lg px-4 py-6 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-colors"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="h-6 w-6 text-gray-300 mx-auto mb-2" />
+            <p className="text-sm text-gray-500">
+              {file ? file.name : 'Tap to select or capture receipt photo'}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP, HEIC · Max 5 MB</p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={e => setFile(e.target.files?.[0] ?? null)}
+            />
+          </div>
+          <Button
+            className="w-full h-10 bg-blue-600 hover:bg-blue-700 gap-2"
+            disabled={!file}
+            onClick={handleScan}
+          >
+            <ScanLine className="h-4 w-4" />
+            Scan Receipt
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // ── Processing ──────────────────────────────────────────────────────────────
+  if (state === 'processing') {
+    return (
+      <Card className="w-full max-w-md shadow-sm">
+        <CardContent className="px-5 py-4 space-y-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+            <ScanLine className="h-4 w-4 text-blue-500" />
+            Quick Receipt Scan
+          </div>
+          <div className="flex items-center justify-center gap-3 py-6 text-gray-500">
+            <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+            <span className="text-sm">Reading receipt with AI...</span>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // ── Result ──────────────────────────────────────────────────────────────────
+  return (
+    <Card className="w-full max-w-md shadow-sm border-blue-100">
+      <CardContent className="px-5 pt-4 pb-5 space-y-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+          <ScanLine className="h-4 w-4 text-blue-500" />
+          Quick Receipt Scan
+        </div>
+
+        {aiFailed && (
+          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            <TriangleAlert className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+            <p className="text-xs text-amber-800">AI couldn't read this receipt clearly</p>
+          </div>
+        )}
+
+        {confidenceLabel && (
+          <p className={`text-xs font-medium ${confidenceLabel.cls}`}>{confidenceLabel.text}</p>
+        )}
+
+        <div className="bg-gray-50 rounded-lg px-4 py-3 space-y-0.5">
+          {extracted?.supplier_name && (
+            <DetailRow label="Supplier"   value={extracted.supplier_name} />
+          )}
+          <DetailRow label="Receipt No"  value={extracted?.receipt_number  ?? '—'} />
+          <DetailRow label="Date"        value={formatDate(extracted?.receipt_date)} />
+          <DetailRow label="Amount"      value={
+            extracted?.receipt_amount != null
+              ? `RM ${Number(extracted.receipt_amount).toLocaleString('en-MY', { minimumFractionDigits: 2 })}`
+              : '—'
+          } />
+        </div>
+
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" size="sm" className="flex-1 h-10"
+            onClick={reset}>
+            Scan Another
+          </Button>
+          <Button
+            type="button" variant="outline" size="sm"
+            className="flex-1 h-10 border-blue-400 text-blue-700 hover:bg-blue-50"
+            onClick={handleCopy}
+          >
+            {copied ? '✅ Copied!' : 'Copy Info'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function VIPCheckPage() {
@@ -664,8 +858,11 @@ export default function VIPCheckPage() {
         <p className="text-green-700 text-sm font-medium">CS — VIP Registration & Lookup</p>
       </div>
 
+      {/* ── Quick Receipt Scan ───────────────────────────────────────────── */}
+      <QuickReceiptScan />
+
       {/* ── Phone Lookup Form ─────────────────────────────────────────────── */}
-      <Card className="w-full max-w-md shadow-sm">
+      <Card className="w-full max-w-md shadow-sm mt-4">
         <CardHeader className="pb-3 pt-5 px-5">
           <CardTitle className="flex items-center gap-2 text-base">
             <Crown className="h-4 w-4 text-yellow-500" />
