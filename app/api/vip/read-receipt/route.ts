@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { larkFetch, getTenantAccessToken } from '@/lib/lark'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 const LARK_APP_TOKEN = 'S8XXb8PT2a82ouslzQWjBaYap2g'
 const LARK_TABLE_ID = 'tblYU2qhtVqzMnEF'
@@ -83,6 +84,105 @@ function extractSupplier(text: string): string | null {
   return null
 }
 
+// ── Product extraction ────────────────────────────────────────────────────────
+
+interface ExtractedProduct {
+  name: string
+  sku: string | null
+  quantity: number | null
+  price: number | null
+}
+
+function extractProducts(text: string): ExtractedProduct[] {
+  const products: ExtractedProduct[] = []
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (/^(date|time|cashier|receipt|invoice|total|tax|thank|goods|saving|rounding|nett|gross|credit|approval|tid|subtotal)/i.test(line)) continue
+    if (/^\d+\.\d{2}$/.test(line)) continue
+    if (line.length < 3) continue
+
+    if (/[A-Za-z]{3,}/.test(line) && !/^[0-9\-]+$/.test(line)) {
+      const nextLine = lines[i + 1] ?? ''
+      const sku = /^\d{8,13}$/.test(nextLine) ? nextLine : null
+
+      const priceMatch = line.match(/(\d+\.\d{2})$/) ?? lines[i + 2]?.match(/^(\d+\.\d{2})$/)
+      const price = priceMatch ? parseFloat(priceMatch[1]) : null
+
+      const qtyMatch = line.match(/^\s*(\d+)\s+/)
+      const quantity = qtyMatch ? parseInt(qtyMatch[1]) : 1
+
+      products.push({
+        name: line.replace(/^\d+\s+/, '').replace(/\s+\d+\.\d{2}$/, '').trim(),
+        sku,
+        quantity,
+        price,
+      })
+
+      if (sku) i++
+    }
+  }
+
+  return products.slice(0, 20)
+}
+
+// ── Product matching ──────────────────────────────────────────────────────────
+
+interface ProductMatch {
+  extracted_name: string
+  extracted_sku: string | null
+  matched_product_name: string | null
+  matched_sku: string | null
+  matched_price: number | null
+  matched_brand: string | null
+  match_type: 'sku' | 'name' | null
+}
+
+async function matchProducts(extractedProducts: ExtractedProduct[]): Promise<ProductMatch[]> {
+  const supabase = createAdminClient()
+  const matches: ProductMatch[] = []
+
+  for (const product of extractedProducts) {
+    let match: { name: string; sku: string; selling_price: number | null; brand: string | null; match_type: 'sku' | 'name' } | null = null
+
+    if (product.sku) {
+      const { data } = await supabase
+        .from('products')
+        .select('name, sku, selling_price, brand')
+        .ilike('sku', `%${product.sku}%`)
+        .limit(1)
+        .single()
+      if (data) match = { ...data, match_type: 'sku' }
+    }
+
+    if (!match && product.name.length > 5) {
+      const words = product.name.split(' ').filter(w => w.length > 3).slice(0, 3)
+      for (const word of words) {
+        const { data } = await supabase
+          .from('products')
+          .select('name, sku, selling_price, brand')
+          .ilike('name', `%${word}%`)
+          .limit(1)
+          .single()
+        if (data) { match = { ...data, match_type: 'name' }; break }
+      }
+    }
+
+    matches.push({
+      extracted_name: product.name,
+      extracted_sku: product.sku,
+      matched_product_name: match?.name ?? null,
+      matched_sku: match?.sku ?? null,
+      matched_price: match?.selling_price ?? null,
+      matched_brand: match?.brand ?? null,
+      match_type: match?.match_type ?? null,
+    })
+  }
+
+  return matches
+}
+
 export async function POST(req: Request) {
   const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
   if (!checkRateLimit(ip, 10)) {
@@ -129,7 +229,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         receipt_number: null, receipt_date: null,
         receipt_amount: null, supplier_name: null,
-        confidence: 0, duplicate: false, ai_failed: true,
+        confidence: 0, duplicate: false, ai_failed: true, products: [],
       })
     }
 
@@ -167,6 +267,9 @@ export async function POST(req: Request) {
       }
     }
 
+    const extractedProducts = extractProducts(parsedText)
+    const products = extractedProducts.length > 0 ? await matchProducts(extractedProducts) : []
+
     return NextResponse.json({
       receipt_number: receiptNumber,
       receipt_date: receiptDate,
@@ -175,6 +278,7 @@ export async function POST(req: Request) {
       confidence,
       duplicate,
       ai_failed: false,
+      products,
     })
 
   } catch (e: any) {
@@ -182,7 +286,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       receipt_number: null, receipt_date: null,
       receipt_amount: null, supplier_name: null,
-      confidence: 0, duplicate: false, ai_failed: true,
+      confidence: 0, duplicate: false, ai_failed: true, products: [],
     })
   }
 }

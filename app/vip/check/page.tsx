@@ -37,6 +37,16 @@ interface LookupResult {
   vip_member_number: string | null
 }
 
+interface ProductMatch {
+  extracted_name: string
+  extracted_sku: string | null
+  matched_product_name: string | null
+  matched_sku: string | null
+  matched_price: number | null
+  matched_brand: string | null
+  match_type: 'sku' | 'name' | null
+}
+
 interface ReceiptData {
   receipt_number: string | null
   receipt_date: string | null
@@ -45,6 +55,7 @@ interface ReceiptData {
   confidence: number
   duplicate: boolean
   ai_failed?: boolean
+  products?: ProductMatch[]
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -264,7 +275,8 @@ function ReceiptSection({ phone, customerName }: ReceiptSectionProps) {
       `Phone: ${phone}`,
     ]
     if (claimedBy.trim()) lines.push(`Claimed By: ${claimedBy.trim()}`)
-    navigator.clipboard.writeText(lines.join('\n'))
+    const text = lines.join('\n') + productMatchesToCopyText(extracted?.products ?? [])
+    navigator.clipboard.writeText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -477,6 +489,10 @@ function ReceiptSection({ phone, customerName }: ReceiptSectionProps) {
           </div>
         </div>
 
+        {extracted?.products && extracted.products.length > 0 && (
+          <ProductMatchList products={extracted.products} />
+        )}
+
         <div className="flex gap-2">
           <Button type="button" variant="outline" size="sm" className="flex-1 h-10"
             onClick={resetUpload} disabled={saving}>
@@ -538,6 +554,53 @@ function ReceiptSection({ phone, customerName }: ReceiptSectionProps) {
   )
 }
 
+// ── Product Match List ────────────────────────────────────────────────────────
+
+function ProductMatchList({ products }: { products: ProductMatch[] }) {
+  if (products.length === 0) return null
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+        📦 Products Detected
+      </p>
+      <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 overflow-hidden">
+        {products.map((p, i) => (
+          <div key={i} className={`px-3 py-2 text-xs ${p.match_type ? 'bg-white' : 'bg-yellow-50'}`}>
+            <div className="flex items-start gap-2">
+              <span className="mt-0.5 shrink-0">{p.match_type ? '✅' : '⚠️'}</span>
+              <div className="flex-1 min-w-0">
+                {p.match_type ? (
+                  <>
+                    <p className="font-medium text-gray-900 truncate">{p.matched_product_name}</p>
+                    <p className="text-gray-400 truncate">
+                      {p.matched_sku && <span className="font-mono mr-2">{p.matched_sku}</span>}
+                      {p.matched_price != null && <span className="text-green-700 font-medium">RM {Number(p.matched_price).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</span>}
+                      {p.matched_brand && <span className="ml-2 text-gray-400">[{p.matched_brand}]</span>}
+                      {p.match_type === 'name' && <span className="ml-2 italic text-gray-400">(name match)</span>}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-yellow-800 truncate">{p.extracted_name} — <span className="italic">no match in catalog</span></p>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function productMatchesToCopyText(products: ProductMatch[]): string {
+  if (products.length === 0) return ''
+  const lines = products.map(p =>
+    p.match_type
+      ? `${p.matched_product_name}${p.matched_sku ? ` (SKU: ${p.matched_sku})` : ''} RM ${p.matched_price ?? '?'}`
+      : `${p.extracted_name} (no match)`
+  )
+  return `\n📦 Products:\n${lines.join('\n')}`
+}
+
 // ── Quick Receipt Scan ────────────────────────────────────────────────────────
 
 type QuickScanState = 'collapsed' | 'upload' | 'processing' | 'result'
@@ -580,12 +643,13 @@ function QuickReceiptScan() {
   function handleCopy() {
     if (!extracted) return
     const lines = [
-      extracted.supplier_name  ? `Supplier: ${extracted.supplier_name}`               : null,
-      extracted.receipt_number ? `Receipt No: ${extracted.receipt_number}`             : null,
-      extracted.receipt_date   ? `Date: ${extracted.receipt_date}`                    : null,
+      extracted.supplier_name  ? `Supplier: ${extracted.supplier_name}`           : null,
+      extracted.receipt_number ? `Receipt No: ${extracted.receipt_number}`         : null,
+      extracted.receipt_date   ? `Date: ${extracted.receipt_date}`                : null,
       extracted.receipt_amount != null ? `Amount: RM ${extracted.receipt_amount}` : null,
     ].filter(Boolean) as string[]
-    navigator.clipboard.writeText(lines.join('\n'))
+    const text = lines.join('\n') + productMatchesToCopyText(extracted.products ?? [])
+    navigator.clipboard.writeText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -713,6 +777,10 @@ function QuickReceiptScan() {
               : '—'
           } />
         </div>
+
+        {extracted?.products && extracted.products.length > 0 && (
+          <ProductMatchList products={extracted.products} />
+        )}
 
         <div className="flex gap-2">
           <Button type="button" variant="outline" size="sm" className="flex-1 h-10"
