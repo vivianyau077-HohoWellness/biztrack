@@ -128,14 +128,31 @@ function extractProducts(text: string): ExtractedProduct[] {
     /^\([\d\.]+\)$/,
     /^[A-Z0-9]{8,13}$/,
     /^\d+$/,
+    /^roc[:\s]/i,
+    /^:\s/,
+    /^\d{6,}-[A-Z]/,
+    /please\s+come/i,
+    /goods\s+sold/i,
+    /^member/i,
+    /^point/i,
+    /sdn\s+bhd/i,
+    /pro\s+pharmacy/i,
+    /^\([0-9]/,
   ]
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
     if (line.length < 3) continue
+    if (!/[A-Za-z]/.test(line) && line.length < 8) continue
     if (skipPatterns.some(p => p.test(line))) continue
 
     if (/[A-Za-z]{3,}/.test(line) && !/^[0-9\-]+$/.test(line)) {
+      // Merge continuation lines: starts with ( and previous product exists
+      if (line.startsWith('(') && products.length > 0) {
+        products[products.length - 1].name += ' ' + line.replace(/\s+\d+\.\d{2}$/, '').trim()
+        continue
+      }
+
       const nextLine = lines[i + 1] ?? ''
       const sku = /^\d{8,13}$/.test(nextLine) ? nextLine : null
 
