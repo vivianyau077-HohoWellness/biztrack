@@ -711,12 +711,12 @@ export async function fetchCustomerInsights(
 
   // ── Orders in date range for new-vs-repeat trend — paginated ───────────────
   const ORD_PAGE = 100
-  const orders: Array<{ order_date: string; is_new_customer: boolean | null; customer_id: string | null; total_price: number | null }> = []
+  const orders: Array<{ order_date: string; is_new_customer: boolean | null; customer_id: string | null; total_price: number | null; phone: string | null }> = []
   let ordPage = 0
   while (true) {
     let q = sb
       .from('orders')
-      .select('order_date, is_new_customer, customer_id, total_price')
+      .select('order_date, is_new_customer, customer_id, total_price, phone')
       .gte('order_date', dateFrom)
       .lte('order_date', dateTo)
       .neq('status', 'cancelled')
@@ -816,23 +816,38 @@ export async function fetchCustomerInsights(
     }))
     .slice(0, 20)
 
-  // ── New Customer AOV: avg total_spent for single-order customers ─────────────
-  const singleOrderCustomers = all.filter(c => (c.total_orders ?? 0) === 1)
-  const newCustomerAov = singleOrderCustomers.length > 0
-    ? singleOrderCustomers.reduce((s, c) => s + Number(c.total_spent ?? 0), 0) / singleOrderCustomers.length
+  // ── New Customer AOV: avg order value for new-customer orders in period ───────
+  // Uses is_new_customer flag on orders — avoids relying on customer_id linkage
+  const newOrders = orders.filter(o => o.is_new_customer)
+  const newCustomerAov = newOrders.length > 0
+    ? newOrders.reduce((s, o) => s + Number(o.total_price ?? 0), 0) / newOrders.length
     : 0
 
-  // ── Repeat Customer AOV: revenue from repeat customers in period ÷ their order count
-  // Repeat customer = has 2+ all-time orders (from customers table, same as repeatCount above)
-  const repeatCustomerIdSet = new Set(all.filter(c => (c.total_orders ?? 0) >= 2).map(c => c.id))
-  const repeatPeriodOrders = orders.filter(o => o.customer_id && repeatCustomerIdSet.has(o.customer_id))
+  // ── Repeat Customer AOV: orders from customers with 2+ orders in period ───────
+  // Group by phone (fallback to customer_id) — never skips null-customer_id orders
+  const ordersByCustomer = new Map<string, typeof orders>()
+  for (const o of orders) {
+    const key = o.phone ?? o.customer_id ?? null
+    if (!key) continue
+    if (!ordersByCustomer.has(key)) ordersByCustomer.set(key, [])
+    ordersByCustomer.get(key)!.push(o)
+  }
+  const repeatPeriodOrders = Array.from(ordersByCustomer.values())
+    .filter(cos => cos.length >= 2)
+    .flat()
   const repeatCustomerAov = repeatPeriodOrders.length > 0
     ? repeatPeriodOrders.reduce((s, o) => s + Number(o.total_price ?? 0), 0) / repeatPeriodOrders.length
     : 0
 
-  // ── Customer LTV: average total_spent across all customers ───────────────────
-  const customerLtv = total > 0
-    ? all.reduce((s, c) => s + Number(c.total_spent ?? 0), 0) / total
+  // ── Customer LTV: avg spend per unique customer (phone-keyed) in period ───────
+  const ltvMap = new Map<string, number>()
+  for (const o of orders) {
+    const key = o.phone ?? o.customer_id ?? null
+    if (!key) continue
+    ltvMap.set(key, (ltvMap.get(key) ?? 0) + Number(o.total_price ?? 0))
+  }
+  const customerLtv = ltvMap.size > 0
+    ? Array.from(ltvMap.values()).reduce((a, b) => a + b, 0) / ltvMap.size
     : 0
 
   // ── Retention Rate: returning customers (first order BEFORE period) ÷ total in period
