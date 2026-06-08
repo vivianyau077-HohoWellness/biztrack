@@ -631,30 +631,53 @@ function ReceiptSection({ phone, customerName }: ReceiptSectionProps) {
 
 // ── Product Match List ────────────────────────────────────────────────────────
 
+function isNoiseLine(name: string): boolean {
+  return (
+    /\d{5,}/.test(name) ||
+    /jalan|bandar|selangor|puchong|kuala/i.test(name) ||
+    /credit\s*card|gredit/i.test(name) ||
+    /purchase\s*in|original\s*condition/i.test(name) ||
+    /no\s*exchange|not\s*refundable/i.test(name) ||
+    /terms\s*and\s*conditions/i.test(name) ||
+    /service\s*provider|compression/i.test(name) ||
+    /erve\s*portal/i.test(name) ||
+    name.length < 5
+  )
+}
+
 function ProductMatchList({ products }: { products: ProductMatch[] }) {
-  const matched = products.filter(p => p.match_type)
-  if (matched.length === 0) return null
+  const visible = products.filter(p => !isNoiseLine(p.extracted_name))
+  if (visible.length === 0) return null
   return (
     <div className="space-y-1.5">
       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
         📦 Products Detected
       </p>
       <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 overflow-hidden">
-        {matched.map((p, i) => (
-          <div key={i} className="px-3 py-2 text-xs bg-white">
-            <div className="flex items-start gap-2">
-              <span className="mt-0.5 shrink-0">✅</span>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-900 truncate">{p.matched_product_name}</p>
-                <p className="text-gray-400 truncate">
-                  {p.matched_sku && <span className="font-mono mr-2">{p.matched_sku}</span>}
-                  {p.matched_price != null && <span className="text-green-700 font-medium">RM {Number(p.matched_price).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</span>}
-                  {p.matched_brand && <span className="ml-2">[{p.matched_brand}]</span>}
-                  {p.match_type === 'name' && <span className="ml-2 italic">(name match)</span>}
-                </p>
+        {visible.map((p, i) => (
+          p.match_type ? (
+            <div key={i} className="px-3 py-2 text-xs bg-white">
+              <div className="flex items-start gap-2">
+                <span className="mt-0.5 shrink-0">✅</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 truncate">{p.matched_product_name}</p>
+                  <p className="text-gray-400 truncate">
+                    {p.matched_sku && <span className="font-mono mr-2">{p.matched_sku}</span>}
+                    {p.matched_price != null && <span className="text-green-700 font-medium">RM {Number(p.matched_price).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</span>}
+                    {p.matched_brand && <span className="ml-2">[{p.matched_brand}]</span>}
+                    {p.match_type === 'name' && <span className="ml-2 italic">(name match)</span>}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div key={i} className="px-3 py-2 text-xs bg-white">
+              <div className="flex items-center gap-2 text-gray-500">
+                <span className="shrink-0">📦</span>
+                <span className="truncate">{p.extracted_name}</span>
+              </div>
+            </div>
+          )
         ))}
       </div>
     </div>
