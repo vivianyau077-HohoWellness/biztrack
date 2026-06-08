@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Leaf, Crown, UserPlus, Pencil, CheckCircle2, X, Gift,
   FileText, ChevronDown, ChevronUp, Upload, Loader2, TriangleAlert, ScanLine,
@@ -257,12 +257,15 @@ function ReceiptSection({ phone, customerName }: ReceiptSectionProps) {
   const [claimedBy, setClaimedBy] = useState('')
   const [saving, setSaving]    = useState(false)
   const [copied, setCopied]    = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   // Saved receipt summary for success state
   const [savedReceipt, setSavedReceipt] = useState<{ number: string; date: string; amount: string } | null>(null)
 
   function handleFileChange(f: File | null) {
     setFile(f)
+    if (f) setPreviewUrl(URL.createObjectURL(f))
   }
 
   function handleCopyToClipboard() {
@@ -286,6 +289,7 @@ function ReceiptSection({ phone, customerName }: ReceiptSectionProps) {
     setExtracted(null)
     setAiFailed(false)
     setState('upload')
+    setPreviewUrl(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -314,6 +318,67 @@ function ReceiptSection({ phone, customerName }: ReceiptSectionProps) {
       setState('upload')
     }
   }
+
+  const handleAutoScan = useCallback(async (f: File) => {
+    if (f.size > 5 * 1024 * 1024) { toast.error('File too large (max 5 MB)'); return }
+    setFile(f)
+    setPreviewUrl(URL.createObjectURL(f))
+    setState('processing')
+    const fd = new FormData()
+    fd.append('image', f)
+    try {
+      const res = await fetch('/api/vip/read-receipt', { method: 'POST', body: fd })
+      if (res.status === 429) { toast.error('Too many requests. Please wait.'); setState('upload'); return }
+      const data: ReceiptData & { ai_failed?: boolean } = await res.json()
+      if (!res.ok) { toast.error((data as any).error ?? 'Failed to read receipt'); setState('upload'); return }
+      setExtracted(data)
+      setAiFailed(!!data.ai_failed)
+      setRecNum(data.receipt_number ?? '')
+      setRecDate(data.receipt_date ?? '')
+      setRecAmt(data.receipt_amount != null ? String(data.receipt_amount) : '')
+      setState('review')
+    } catch {
+      toast.error('Network error. Please try again.')
+      setState('upload')
+    }
+  }, [])
+
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          const f = item.getAsFile()
+          if (f) {
+            e.stopImmediatePropagation()
+            handleAutoScan(f)
+          }
+          break
+        }
+      }
+    }
+    document.addEventListener('paste', handlePaste, { capture: true })
+    return () => document.removeEventListener('paste', handlePaste, { capture: true })
+  }, [handleAutoScan])
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+    const f = e.dataTransfer.files?.[0]
+    if (f && f.type.startsWith('image/')) { handleAutoScan(f); return }
+    const imageUrl = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain')
+    if (imageUrl && imageUrl.startsWith('http')) {
+      fetch(imageUrl)
+        .then(r => r.blob())
+        .then(blob => handleAutoScan(new File([blob], 'receipt.jpg', { type: blob.type || 'image/jpeg' })))
+        .catch(() => console.warn('Could not fetch dragged image'))
+    }
+  }
+
+  function handleDragOver(e: React.DragEvent) { e.preventDefault(); e.stopPropagation(); setIsDragging(true) }
+  function handleDragLeave(e: React.DragEvent) { e.preventDefault(); setIsDragging(false) }
 
   async function handleSave() {
     if (!recNum.trim()) { toast.error('Receipt number is required'); return }
@@ -392,14 +457,21 @@ function ReceiptSection({ phone, customerName }: ReceiptSectionProps) {
         </button>
 
         <div
-          className="border-2 border-dashed border-gray-200 rounded-lg px-4 py-6 text-center cursor-pointer hover:border-green-400 hover:bg-green-50/30 transition-colors"
+          className={`border-2 border-dashed rounded-lg px-4 py-6 text-center cursor-pointer transition-colors ${isDragging ? 'border-green-500 bg-green-50/50' : 'border-gray-200 hover:border-green-400 hover:bg-green-50/30'}`}
           onClick={() => fileInputRef.current?.click()}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
         >
-          <Upload className="h-6 w-6 text-gray-300 mx-auto mb-2" />
+          {previewUrl
+            ? <img src={previewUrl} className="w-24 h-24 object-cover rounded mx-auto mb-2" alt="Receipt preview" />
+            : <Upload className="h-6 w-6 text-gray-300 mx-auto mb-2" />
+          }
           <p className="text-sm text-gray-500">
-            {file ? file.name : 'Tap to select or capture receipt photo'}
+            {file ? file.name : 'Drag receipt here, or tap to select'}
           </p>
           <p className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP, HEIC · Max 5 MB</p>
+          <p className="text-xs text-gray-400 mt-0.5">Also supports: paste (Cmd+V) · drag from WhatsApp · drag from Photos</p>
           <input
             ref={fileInputRef}
             type="file"
@@ -429,7 +501,10 @@ function ReceiptSection({ phone, customerName }: ReceiptSectionProps) {
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-2">
           <FileText className="h-3.5 w-3.5" />Upload Receipt (Offline Purchase)
         </p>
-        <div className="flex items-center justify-center gap-3 py-6 text-gray-500">
+        {previewUrl && (
+          <img src={previewUrl} className="w-24 h-24 object-cover rounded mx-auto" alt="Receipt preview" />
+        )}
+        <div className="flex items-center justify-center gap-3 py-4 text-gray-500">
           <Loader2 className="h-5 w-5 animate-spin text-green-600" />
           <span className="text-sm">Reading receipt with AI...</span>
         </div>
@@ -614,6 +689,8 @@ function QuickReceiptScan() {
   const [extracted, setExtracted] = useState<ReceiptData | null>(null)
   const [aiFailed, setAiFailed]   = useState(false)
   const [copied, setCopied]       = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const fileInputRef              = useRef<HTMLInputElement>(null)
 
   function reset() {
@@ -621,6 +698,7 @@ function QuickReceiptScan() {
     setExtracted(null)
     setAiFailed(false)
     setState('upload')
+    setPreviewUrl(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -642,6 +720,64 @@ function QuickReceiptScan() {
       setState('upload')
     }
   }
+
+  const handleAutoScan = useCallback(async (f: File) => {
+    if (f.size > 5 * 1024 * 1024) { toast.error('File too large (max 5 MB)'); return }
+    setFile(f)
+    setPreviewUrl(URL.createObjectURL(f))
+    setState('processing')
+    const fd = new FormData()
+    fd.append('image', f)
+    try {
+      const res = await fetch('/api/vip/read-receipt', { method: 'POST', body: fd })
+      if (res.status === 429) { toast.error('Too many requests. Please wait.'); setState('upload'); return }
+      const data: ReceiptData & { ai_failed?: boolean } = await res.json()
+      if (!res.ok) { toast.error((data as any).error ?? 'Failed to read receipt'); setState('upload'); return }
+      setExtracted(data)
+      setAiFailed(!!data.ai_failed)
+      setState('result')
+    } catch {
+      toast.error('Network error. Please try again.')
+      setState('upload')
+    }
+  }, [])
+
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          const f = item.getAsFile()
+          if (f) {
+            setState(s => s === 'collapsed' ? 'upload' : s)
+            handleAutoScan(f)
+          }
+          break
+        }
+      }
+    }
+    document.addEventListener('paste', handlePaste)
+    return () => document.removeEventListener('paste', handlePaste)
+  }, [handleAutoScan])
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+    const f = e.dataTransfer.files?.[0]
+    if (f && f.type.startsWith('image/')) { handleAutoScan(f); return }
+    const imageUrl = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain')
+    if (imageUrl && imageUrl.startsWith('http')) {
+      fetch(imageUrl)
+        .then(r => r.blob())
+        .then(blob => handleAutoScan(new File([blob], 'receipt.jpg', { type: blob.type || 'image/jpeg' })))
+        .catch(() => console.warn('Could not fetch dragged image'))
+    }
+  }
+
+  function handleDragOver(e: React.DragEvent) { e.preventDefault(); e.stopPropagation(); setIsDragging(true) }
+  function handleDragLeave(e: React.DragEvent) { e.preventDefault(); setIsDragging(false) }
 
   function handleCopy() {
     if (!extracted) return
@@ -700,21 +836,32 @@ function QuickReceiptScan() {
           {headerButton(true)}
           <p className="text-xs text-gray-400">Scan any receipt to extract info — no customer lookup needed.</p>
           <div
-            className="border-2 border-dashed border-gray-200 rounded-lg px-4 py-6 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-colors"
+            className={`border-2 border-dashed rounded-lg px-4 py-6 text-center cursor-pointer transition-colors ${isDragging ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200 hover:border-blue-400 hover:bg-blue-50/30'}`}
             onClick={() => fileInputRef.current?.click()}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
           >
-            <Upload className="h-6 w-6 text-gray-300 mx-auto mb-2" />
+            {previewUrl
+              ? <img src={previewUrl} className="w-24 h-24 object-cover rounded mx-auto mb-2" alt="Receipt preview" />
+              : <Upload className="h-6 w-6 text-gray-300 mx-auto mb-2" />
+            }
             <p className="text-sm text-gray-500">
-              {file ? file.name : 'Tap to select or capture receipt photo'}
+              {file ? file.name : 'Drag receipt here, or tap to select'}
             </p>
             <p className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP, HEIC · Max 5 MB</p>
+            <p className="text-xs text-gray-400 mt-0.5">Also supports: paste (Cmd+V) · drag from WhatsApp · drag from Photos</p>
             <input
               ref={fileInputRef}
               type="file"
               accept="image/*"
               capture="environment"
               className="hidden"
-              onChange={e => setFile(e.target.files?.[0] ?? null)}
+              onChange={e => {
+                const f = e.target.files?.[0] ?? null
+                setFile(f)
+                if (f) setPreviewUrl(URL.createObjectURL(f))
+              }}
             />
           </div>
           <Button
@@ -739,7 +886,10 @@ function QuickReceiptScan() {
             <ScanLine className="h-4 w-4 text-blue-500" />
             Quick Receipt Scan
           </div>
-          <div className="flex items-center justify-center gap-3 py-6 text-gray-500">
+          {previewUrl && (
+            <img src={previewUrl} className="w-24 h-24 object-cover rounded mx-auto" alt="Receipt preview" />
+          )}
+          <div className="flex items-center justify-center gap-3 py-4 text-gray-500">
             <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
             <span className="text-sm">Reading receipt with AI...</span>
           </div>
@@ -809,6 +959,7 @@ export default function VIPCheckPage() {
   const [phoneInput, setPhoneInput] = useState('')
   const [loading, setLoading]       = useState(false)
   const [result, setResult]         = useState<LookupResult | null>(null)
+  const [pageIsDragTarget, setPageIsDragTarget] = useState(false)
 
   const [showRegister, setShowRegister] = useState(false)
   const [regName, setRegName]           = useState('')
@@ -820,6 +971,20 @@ export default function VIPCheckPage() {
   const [editDob, setEditDob]               = useState('')
   const [editAddress, setEditAddress]       = useState('')
   const [savingProfile, setSavingProfile]   = useState(false)
+
+  useEffect(() => {
+    const onDragEnter = () => setPageIsDragTarget(true)
+    const onDragLeave = (e: DragEvent) => { if (e.relatedTarget === null) setPageIsDragTarget(false) }
+    const onDrop = () => setPageIsDragTarget(false)
+    document.addEventListener('dragenter', onDragEnter)
+    document.addEventListener('dragleave', onDragLeave)
+    document.addEventListener('drop', onDrop)
+    return () => {
+      document.removeEventListener('dragenter', onDragEnter)
+      document.removeEventListener('dragleave', onDragLeave)
+      document.removeEventListener('drop', onDrop)
+    }
+  }, [])
 
   async function handleLookup(e: React.FormEvent) {
     e.preventDefault()
@@ -920,6 +1085,11 @@ export default function VIPCheckPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center py-10 px-4">
+      {pageIsDragTarget && (
+        <div className="fixed inset-0 z-50 bg-green-500/20 border-4 border-dashed border-green-500 flex items-center justify-center pointer-events-none">
+          <p className="text-green-700 text-2xl font-bold">Drop receipt here</p>
+        </div>
+      )}
       {/* ── Branding ──────────────────────────────────────────────────────── */}
       <div className="flex flex-col items-center gap-2 mb-8">
         <div className="bg-green-700 rounded-xl p-3 shadow-sm">
