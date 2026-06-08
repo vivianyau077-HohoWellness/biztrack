@@ -58,7 +58,7 @@ function getNumber(val: unknown): number | null {
 function getDate(val: unknown): string | null {
   if (val == null) return null
   const ms = typeof val === 'number' ? val : Number(val)
-  if (isNaN(ms)) return null
+  if (isNaN(ms) || ms === 0) return null
   return new Date(ms).toISOString().split('T')[0]
 }
 
@@ -118,36 +118,6 @@ function getFormulaText(val: unknown): string | null {
   return null
 }
 
-async function assignVipMemberNumber(
-  supabase: ReturnType<typeof createAdminClient>,
-  customerId: string,
-): Promise<void> {
-  const { data: customer } = await supabase
-    .from('customers')
-    .select('vip_member_number')
-    .eq('id', customerId)
-    .single()
-
-  if (customer?.vip_member_number) return
-
-  const { data: seqData, error: seqErr } = await supabase.rpc('next_vip_member_number')
-  if (seqErr || seqData == null) {
-    console.error('[lark-sync] Failed to get next VIP member number:', seqErr)
-    return
-  }
-
-  const memberNumber = `DD-VIP-${String(seqData).padStart(4, '0')}`
-
-  const { error } = await supabase
-    .from('customers')
-    .update({ vip_member_number: memberNumber })
-    .eq('id', customerId)
-
-  if (error) {
-    console.error('[lark-sync] Failed to save VIP member number:', error)
-  }
-}
-
 async function findOrCreateCustomer(
   supabase: ReturnType<typeof createAdminClient>,
   phone: string | null,
@@ -184,12 +154,14 @@ function mapDD2025Record(record: LarkRecord, projectId: string) {
   const channel = typeof f['Channel'] === 'string'
     ? f['Channel'] as string
     : getSingleSelect(f['Channel'])
+  const orderDate = getDate(f['Date'])
+
   return {
     lark_record_id: record.record_id,
     source: 'lark_sync',
     project_id: projectId,
     brand: 'DD',
-    order_date: getDate(f['Date']),
+    order_date: orderDate,
     customer_name: customerName,
     phone,
     channel,
@@ -248,14 +220,20 @@ async function syncBrand(brand: keyof typeof TABLES): Promise<SyncResult> {
         row = mapDD2025Record(record, projectId)
       } else {
         const f = record.fields as Record<string, unknown>
-        const orderDate = getDate(f['Date'])
-        if (!orderDate) { skipped++; continue }
 
+        const orderDate = getDate(f['Date'])
+        const customerName = getText(f['Name'])
         const phone = typeof f['Phone no'] === 'string'
           ? f['Phone no'] as string
           : getNumber(f['Phone no'])?.toString() ?? null
 
-        const customerName = getText(f['Name'])
+        // Only skip if BOTH date AND (name AND phone) are missing
+        // This ensures we never skip real orders
+        if (!orderDate && !customerName && !phone) {
+          skipped++
+          continue
+        }
+
         const customerId = await findOrCreateCustomer(supabase, phone, customerName)
 
         const priceDomain = getNumber(f['Price Domain'])
@@ -278,7 +256,7 @@ async function syncBrand(brand: keyof typeof TABLES): Promise<SyncResult> {
           project_id:       projectId,
           customer_id:      customerId,
           brand:            TABLES[brand].brand,
-          order_date:       orderDate,
+          order_date:       orderDate ?? new Date().toISOString().split('T')[0],
           customer_name:    customerName,
           phone,
           channel:          typeof f['Channel'] === 'string' ? f['Channel'] as string : getSingleSelect(f['Channel']),
@@ -295,10 +273,18 @@ async function syncBrand(brand: keyof typeof TABLES): Promise<SyncResult> {
         }
       }
 
-      if (!row.order_date) { skipped++; continue }
+      // For DD2025, fill order_date if missing
+      if (!row.order_date) {
+        row.order_date = new Date().toISOString().split('T')[0]
+      }
 
+      // Find or create customer for DD2025
       if (brand === 'DD2025' && row.phone) {
-        row.customer_id = await findOrCreateCustomer(supabase, row.phone as string, row.customer_name as string)
+        row.customer_id = await findOrCreateCustomer(
+          supabase,
+          row.phone as string,
+          row.customer_name as string
+        )
       }
 
       const { error } = await supabase
@@ -309,10 +295,6 @@ async function syncBrand(brand: keyof typeof TABLES): Promise<SyncResult> {
         errors.push(`[${brand}:${record.record_id}] ${error.message}`)
       } else {
         synced++
-        // Assign VIP member number on first is_vip sync for DD 2026
-        if (brand === 'DD' && row.is_vip && row.customer_id) {
-          await assignVipMemberNumber(supabase, row.customer_id as string)
-        }
       }
     } catch (e: any) {
       errors.push(`[${brand}:${record.record_id}] ${e?.message ?? String(e)}`)
