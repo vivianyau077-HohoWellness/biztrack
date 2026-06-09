@@ -58,6 +58,16 @@ interface ReceiptData {
   products?: ProductMatch[]
 }
 
+interface QuickSubmitResult {
+  success: boolean
+  is_vip_eligible: boolean
+  is_new_vip: boolean
+  member_number: string | null
+  customer_name: string
+  duplicate: boolean
+  message: string
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatDate(iso: string | undefined | null): string {
@@ -696,17 +706,22 @@ function productMatchesToCopyText(products: ProductMatch[]): string {
 
 // ── Quick Receipt Scan ────────────────────────────────────────────────────────
 
-type QuickScanState = 'collapsed' | 'upload' | 'processing' | 'result'
+type QuickScanState = 'collapsed' | 'upload' | 'processing' | 'details' | 'submitted'
 
 function QuickReceiptScan() {
-  const [state, setState]         = useState<QuickScanState>('collapsed')
-  const [file, setFile]           = useState<File | null>(null)
-  const [extracted, setExtracted] = useState<ReceiptData | null>(null)
-  const [aiFailed, setAiFailed]   = useState(false)
-  const [copied, setCopied]       = useState(false)
+  const [state, setState]           = useState<QuickScanState>('collapsed')
+  const [file, setFile]             = useState<File | null>(null)
+  const [extracted, setExtracted]   = useState<ReceiptData | null>(null)
+  const [aiFailed, setAiFailed]     = useState(false)
+  const [copied, setCopied]         = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const fileInputRef              = useRef<HTMLInputElement>(null)
+  const [detailsName, setDetailsName]           = useState('')
+  const [detailsPhone, setDetailsPhone]         = useState('')
+  const [detailsClaimedBy, setDetailsClaimedBy] = useState('')
+  const [submitting, setSubmitting]             = useState(false)
+  const [submitResult, setSubmitResult]         = useState<QuickSubmitResult | null>(null)
+  const fileInputRef                = useRef<HTMLInputElement>(null)
 
   function reset() {
     setFile(null)
@@ -714,6 +729,10 @@ function QuickReceiptScan() {
     setAiFailed(false)
     setState('upload')
     setPreviewUrl(null)
+    setDetailsName('')
+    setDetailsPhone('')
+    setDetailsClaimedBy('')
+    setSubmitResult(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -729,7 +748,7 @@ function QuickReceiptScan() {
       if (!res.ok) { toast.error((data as any).error ?? 'Failed to read receipt'); setState('upload'); return }
       setExtracted(data)
       setAiFailed(!!data.ai_failed)
-      setState('result')
+      setState('details')
     } catch {
       toast.error('Network error. Please try again.')
       setState('upload')
@@ -750,7 +769,7 @@ function QuickReceiptScan() {
       if (!res.ok) { toast.error((data as any).error ?? 'Failed to read receipt'); setState('upload'); return }
       setExtracted(data)
       setAiFailed(!!data.ai_failed)
-      setState('result')
+      setState('details')
     } catch {
       toast.error('Network error. Please try again.')
       setState('upload')
@@ -795,26 +814,56 @@ function QuickReceiptScan() {
   function handleDragLeave(e: React.DragEvent) { e.preventDefault(); setIsDragging(false) }
 
   function handleCopy() {
-    if (!extracted) return
+    if (!submitResult || !extracted) return
+    const phone = normalizePhone('60' + detailsPhone)
     const lines = [
-      extracted.supplier_name  ? `Supplier: ${extracted.supplier_name}`           : null,
-      extracted.receipt_number ? `Receipt No: ${extracted.receipt_number}`         : null,
-      extracted.receipt_date   ? `Date: ${extracted.receipt_date}`                : null,
-      extracted.receipt_amount != null ? `Amount: RM ${extracted.receipt_amount}` : null,
-    ].filter(Boolean) as string[]
-    const text = lines.join('\n') + productMatchesToCopyText(extracted.products ?? [])
-    navigator.clipboard.writeText(text)
+      '📋 Receipt Record',
+      '──────────────────────',
+      `Customer: ${submitResult.customer_name}`,
+      `Phone: +${phone}`,
+      `Member No: ${submitResult.member_number ?? 'N/A'}`,
+      '──────────────────────',
+      `Receipt No: ${extracted.receipt_number ?? 'N/A'}`,
+      `Date: ${formatDate(extracted.receipt_date)}`,
+      `Amount: RM ${extracted.receipt_amount != null ? Number(extracted.receipt_amount).toLocaleString('en-MY', { minimumFractionDigits: 2 }) : 'N/A'}`,
+      `Store: ${extracted.supplier_name ?? 'N/A'}`,
+      `VIP Status: ${submitResult.is_vip_eligible ? 'Eligible ✅' : 'Not eligible ❌'}`,
+      `Recorded by: ${detailsClaimedBy.trim() || 'CS'}`,
+    ]
+    navigator.clipboard.writeText(lines.join('\n'))
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const confidenceLabel = extracted && !aiFailed
-    ? extracted.confidence >= 0.8
-      ? { text: '🟢 High confidence',            cls: 'text-green-700' }
-      : extracted.confidence >= 0.5
-        ? { text: '🟡 Medium — please verify',    cls: 'text-yellow-700' }
-        : { text: '🔴 Low — please check carefully', cls: 'text-red-600' }
-    : null
+  async function handleSubmitDetails() {
+    if (!detailsName.trim() || !detailsPhone.trim()) return
+    setSubmitting(true)
+    const phone = '60' + detailsPhone.replace(/\D/g, '')
+    try {
+      const res = await fetch('/api/vip/save-quick-receipt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone,
+          customer_name: detailsName.trim(),
+          receipt_number: extracted?.receipt_number ?? null,
+          receipt_date: extracted?.receipt_date ?? null,
+          receipt_amount: extracted?.receipt_amount ?? null,
+          supplier_name: extracted?.supplier_name ?? null,
+          claimed_by: detailsClaimedBy.trim() || undefined,
+        }),
+      })
+      if (res.status === 429) { toast.error('Too many requests. Please wait.'); return }
+      const data: QuickSubmitResult = await res.json()
+      if (!res.ok) { toast.error((data as any).error ?? 'Failed to save receipt'); return }
+      setSubmitResult(data)
+      setState('submitted')
+    } catch {
+      toast.error('Network error. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   const headerButton = (expanded: boolean) => (
     <button
@@ -913,42 +962,171 @@ function QuickReceiptScan() {
     )
   }
 
-  // ── Result ──────────────────────────────────────────────────────────────────
+  // ── Details ──────────────────────────────────────────────────────────────────
+  if (state === 'details') {
+    const canSubmit = detailsName.trim() && detailsPhone.trim()
+    return (
+      <Card className="w-full max-w-md shadow-sm">
+        <CardContent className="px-5 pt-4 pb-5 space-y-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+            <ScanLine className="h-4 w-4 text-blue-500" />
+            Quick Receipt Scan
+          </div>
+
+          {extracted && (
+            <div className="bg-gray-50 rounded-lg px-4 py-3 space-y-0.5">
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Receipt Info</p>
+              {extracted.supplier_name && <DetailRow label="Store"      value={extracted.supplier_name} />}
+              <DetailRow label="Receipt No" value={extracted.receipt_number ?? '—'} />
+              <DetailRow label="Date"       value={formatDate(extracted.receipt_date)} />
+              <DetailRow label="Amount"     value={
+                extracted.receipt_amount != null
+                  ? `RM ${Number(extracted.receipt_amount).toLocaleString('en-MY', { minimumFractionDigits: 2 })}`
+                  : '—'
+              } />
+            </div>
+          )}
+
+          {aiFailed && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              <TriangleAlert className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+              <p className="text-xs text-amber-800">AI couldn&apos;t read this receipt clearly — please verify the info above</p>
+            </div>
+          )}
+
+          {extracted?.duplicate && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              <TriangleAlert className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+              <p className="text-xs text-amber-800">This receipt may already be recorded</p>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Customer Details</p>
+            <div>
+              <Label className="text-xs text-gray-500 mb-1 block">
+                Name <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                value={detailsName}
+                onChange={e => setDetailsName(e.target.value)}
+                placeholder="Customer name"
+                className="h-9 text-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500 mb-1 block">
+                Phone <span className="text-red-500">*</span>
+              </Label>
+              <div className="flex">
+                <span className="flex items-center px-3 bg-gray-100 border border-r-0 border-input rounded-l-md text-sm text-gray-600 shrink-0">
+                  +60
+                </span>
+                <Input
+                  value={detailsPhone}
+                  onChange={e => setDetailsPhone(e.target.value)}
+                  placeholder="112345678"
+                  type="tel"
+                  className="h-9 text-sm rounded-l-none"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500 mb-1 block">Claimed By</Label>
+              <Input
+                value={detailsClaimedBy}
+                onChange={e => setDetailsClaimedBy(e.target.value)}
+                placeholder="CS name (optional)"
+                className="h-9 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <Button type="button" variant="outline" size="sm" className="flex-1 h-10"
+              onClick={reset}>
+              Cancel
+            </Button>
+            <Button
+              type="button" size="sm"
+              className="flex-1 h-10 bg-blue-600 hover:bg-blue-700"
+              disabled={!canSubmit || submitting}
+              onClick={handleSubmitDetails}
+            >
+              {submitting
+                ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving...</>
+                : 'Check & Submit'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // ── Submitted ─────────────────────────────────────────────────────────────────
+  if (!submitResult) return null
+
+  if (submitResult.duplicate) {
+    return (
+      <Card className="w-full max-w-md shadow-sm border-amber-200">
+        <CardContent className="px-5 pt-4 pb-5 space-y-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+            <ScanLine className="h-4 w-4 text-blue-500" />
+            Quick Receipt Scan
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-4 space-y-1">
+            <p className="font-semibold text-amber-800">⚠️ Duplicate Receipt</p>
+            <p className="text-sm text-amber-700">This receipt number has already been recorded.</p>
+          </div>
+          <Button type="button" variant="outline" size="sm" className="w-full h-10"
+            onClick={reset}>
+            Scan Another
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
-    <Card className="w-full max-w-md shadow-sm border-blue-100">
+    <Card className={`w-full max-w-md shadow-sm ${submitResult.is_vip_eligible ? 'border-green-200' : 'border-gray-200'}`}>
       <CardContent className="px-5 pt-4 pb-5 space-y-3">
         <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
           <ScanLine className="h-4 w-4 text-blue-500" />
           Quick Receipt Scan
         </div>
 
-        {aiFailed && (
-          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            <TriangleAlert className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-            <p className="text-xs text-amber-800">AI couldn't read this receipt clearly</p>
+        <div className={`rounded-lg px-4 py-3 space-y-2 ${submitResult.is_vip_eligible ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}>
+          <p className="font-semibold text-sm text-gray-900">
+            {submitResult.is_vip_eligible ? '✅ Receipt Recorded — VIP Eligible!' : '✅ Receipt Recorded'}
+          </p>
+          <div className="space-y-0.5">
+            <DetailRow label="Customer" value={submitResult.customer_name} />
+            <DetailRow label="Phone"    value={`+${normalizePhone('60' + detailsPhone)}`} />
+            {submitResult.is_vip_eligible && (
+              <DetailRow
+                label="Member No"
+                value={submitResult.member_number ?? 'Pending — sync required'}
+                highlight
+              />
+            )}
+            <DetailRow
+              label="Receipt"
+              value={[
+                extracted?.receipt_number,
+                extracted?.receipt_amount != null
+                  ? `RM ${Number(extracted.receipt_amount).toLocaleString('en-MY', { minimumFractionDigits: 2 })}`
+                  : null,
+                formatDate(extracted?.receipt_date),
+              ].filter(Boolean).join(' · ')}
+            />
+            {extracted?.supplier_name && (
+              <DetailRow label="Store" value={extracted.supplier_name} />
+            )}
           </div>
-        )}
-
-        {confidenceLabel && (
-          <p className={`text-xs font-medium ${confidenceLabel.cls}`}>{confidenceLabel.text}</p>
-        )}
-
-        <div className="bg-gray-50 rounded-lg px-4 py-3 space-y-0.5">
-          {extracted?.supplier_name && (
-            <DetailRow label="Supplier"   value={extracted.supplier_name} />
+          {!submitResult.is_vip_eligible && (
+            <p className="text-xs text-gray-500">Amount below VIP threshold (RM 700)</p>
           )}
-          <DetailRow label="Receipt No"  value={extracted?.receipt_number  ?? '—'} />
-          <DetailRow label="Date"        value={formatDate(extracted?.receipt_date)} />
-          <DetailRow label="Amount"      value={
-            extracted?.receipt_amount != null
-              ? `RM ${Number(extracted.receipt_amount).toLocaleString('en-MY', { minimumFractionDigits: 2 })}`
-              : '—'
-          } />
         </div>
-
-        {extracted?.products && extracted.products.length > 0 && (
-          <ProductMatchList products={extracted.products} />
-        )}
 
         <div className="flex gap-2">
           <Button type="button" variant="outline" size="sm" className="flex-1 h-10"
@@ -960,7 +1138,7 @@ function QuickReceiptScan() {
             className="flex-1 h-10 border-blue-400 text-blue-700 hover:bg-blue-50"
             onClick={handleCopy}
           >
-            {copied ? '✅ Copied!' : 'Copy Info'}
+            {copied ? '✅ Copied!' : 'Copy Summary'}
           </Button>
         </div>
       </CardContent>
