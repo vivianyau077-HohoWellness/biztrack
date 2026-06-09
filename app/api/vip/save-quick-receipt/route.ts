@@ -4,8 +4,8 @@ import { larkFetch } from '@/lib/lark'
 
 export const dynamic = 'force-dynamic'
 
-const LARK_APP_TOKEN = 'S8XXb8PT2a82ouslzQWjBaYap2g'
-const LARK_TABLE_ID  = 'tblYU2qhtVqzMnEF'
+const LARK_APP_TOKEN = 'QV2vbeAyIaDiu2skeFojbNhspnh'
+const LARK_TABLE_ID  = 'tbl8OxfB9FMYFCnB'
 const VIP_THRESHOLD  = 700
 
 // ── Rate limiter ──────────────────────────────────────────────────────────────
@@ -50,6 +50,8 @@ export async function POST(req: NextRequest) {
     receipt_date?: string | null
     receipt_amount?: number | null
     supplier_name?: string | null
+    products?: string | null
+    address?: string | null
     claimed_by?: string
   }
   try {
@@ -58,7 +60,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  const { phone: rawPhone, customer_name, receipt_number, receipt_date, receipt_amount, claimed_by } = body
+  const { phone: rawPhone, customer_name, receipt_number, receipt_date, receipt_amount, supplier_name, products, address, claimed_by } = body
 
   if (!rawPhone?.trim() || !customer_name?.trim()) {
     return NextResponse.json({ error: 'phone and customer_name are required' }, { status: 400 })
@@ -85,7 +87,7 @@ export async function POST(req: NextRequest) {
             filter: {
               conjunction: 'and',
               conditions: [{
-                field_name: 'Receipt Number',
+                field_name: 'Receipt NO',
                 operator: 'is',
                 value: [receiptNo],
               }],
@@ -170,16 +172,17 @@ export async function POST(req: NextRequest) {
         method: 'POST',
         body: JSON.stringify({
           fields: {
-            fldrQfUga3: customerName,
-            fldH0Q0uEH: phone,
-            fldiqoVAtA: null,
-            fld5XXINtY: null,
-            fldJqQFoHw: claimedBy,
-            fldBHOanbe: memberNumber ?? '',
-            fldygBOw4y: receiptNo,
-            fldAzuUeQt: receipt_date ? new Date(receipt_date).getTime() : null,
-            fldIQ8hHi1: receipt_amount ?? null,
-            fldwWRfYZb: 'Offline Purchase - DD',
+            fldnF9qcOZ: `${customerName} - ${receiptNo ?? 'No Receipt No'}`,
+            fldaiyi9vO: supplier_name ?? '',
+            fldi6lACEe: receiptNo ?? '',
+            fldyGJpc6W: receipt_date ?? '',
+            fldp91meN4: receipt_amount != null ? String(receipt_amount) : '',
+            fldXBRko6s: products ?? '',
+            fld0UxtFIn: customerName,
+            fldNDbKqgD: phone ? Number(phone) : null,
+            fldYMvmpdA: address ?? '',
+            fldbR43goh: false,
+            fldpzDwHju: false,
           },
         }),
       },

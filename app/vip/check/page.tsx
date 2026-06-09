@@ -718,6 +718,7 @@ function QuickReceiptScan() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [detailsName, setDetailsName]           = useState('')
   const [detailsPhone, setDetailsPhone]         = useState('')
+  const [detailsAddress, setDetailsAddress]     = useState('')
   const [detailsClaimedBy, setDetailsClaimedBy] = useState('')
   const [submitting, setSubmitting]             = useState(false)
   const [submitResult, setSubmitResult]         = useState<QuickSubmitResult | null>(null)
@@ -731,6 +732,7 @@ function QuickReceiptScan() {
     setPreviewUrl(null)
     setDetailsName('')
     setDetailsPhone('')
+    setDetailsAddress('')
     setDetailsClaimedBy('')
     setSubmitResult(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
@@ -850,6 +852,10 @@ function QuickReceiptScan() {
           receipt_date: extracted?.receipt_date ?? null,
           receipt_amount: extracted?.receipt_amount ?? null,
           supplier_name: extracted?.supplier_name ?? null,
+          products: extracted?.products
+            ?.map(p => p.matched_product_name ?? p.extracted_name)
+            .join(', ') || null,
+          address: detailsAddress.trim() || null,
           claimed_by: detailsClaimedBy.trim() || undefined,
         }),
       })
@@ -1030,6 +1036,15 @@ function QuickReceiptScan() {
                   className="h-9 text-sm rounded-l-none"
                 />
               </div>
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500 mb-1 block">Address (optional)</Label>
+              <Input
+                value={detailsAddress}
+                onChange={e => setDetailsAddress(e.target.value)}
+                placeholder="Customer delivery address"
+                className="h-9 text-sm"
+              />
             </div>
             <div>
               <Label className="text-xs text-gray-500 mb-1 block">Claimed By</Label>
