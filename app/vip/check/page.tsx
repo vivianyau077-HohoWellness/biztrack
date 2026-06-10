@@ -575,9 +575,9 @@ function ReceiptSection({ phone, customerName }: ReceiptSectionProps) {
           </div>
         </div>
 
-        {extracted?.brand_detected === 'Juji' && (
+        {extracted?.brand_detected && (
           <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-green-700 text-sm font-medium">
-            ✅ Jujigrainz product confirmed
+            ✅ {extracted.brand_detected} product confirmed
           </div>
         )}
 
@@ -1000,10 +1000,14 @@ function QuickReceiptScan() {
             </div>
           )}
 
-          {extracted?.brand_detected === 'Juji' && (
+          {extracted?.brand_detected && (
             <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-green-700 text-sm font-medium">
-              ✅ Jujigrainz product confirmed
+              ✅ {extracted.brand_detected} product confirmed
             </div>
+          )}
+
+          {extracted?.products && extracted.products.length > 0 && (
+            <ProductMatchList products={extracted.products} />
           )}
 
           {aiFailed && (
