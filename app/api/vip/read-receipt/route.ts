@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // Known brand barcodes
 const BRAND_BARCODES: Record<string, { barcode: string; product_name: string; brand: string }> = {
   '9555175811230': { barcode: '9555175811230', product_name: 'Jujigrainz 1 Tin', brand: 'Juji' },
+  '9555175811124': { barcode: '9555175811124', product_name: 'Diamond Drink 500ml', brand: 'DD' },
 }
 
 const LARK_APP_TOKEN = 'S8XXb8PT2a82ouslzQWjBaYap2g'
