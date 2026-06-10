@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import { larkFetch, getTenantAccessToken } from '@/lib/lark'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+// Known brand barcodes
+const BRAND_BARCODES: Record<string, { barcode: string; product_name: string; brand: string }> = {
+  '9555175811230': { barcode: '9555175811230', product_name: 'Jujigrainz 1 Tin', brand: 'Juji' },
+}
+
 const LARK_APP_TOKEN = 'S8XXb8PT2a82ouslzQWjBaYap2g'
 const LARK_TABLE_ID = 'tblYU2qhtVqzMnEF'
 
@@ -279,6 +284,7 @@ export async function POST(req: Request) {
         receipt_number: null, receipt_date: null,
         receipt_amount: null, supplier_name: null,
         confidence: 0, duplicate: false, ai_failed: true, products: [],
+        brand_detected: null,
       })
     }
 
@@ -316,8 +322,31 @@ export async function POST(req: Request) {
       }
     }
 
-    const extractedProducts = extractProducts(parsedText)
-    const products = extractedProducts.length > 0 ? await matchProducts(extractedProducts) : []
+    // Check for known brand barcodes in raw OCR text
+    let brandBarcodeMatch: { barcode: string; product_name: string; brand: string } | null = null
+    for (const [barcode, info] of Object.entries(BRAND_BARCODES)) {
+      if (parsedText.includes(barcode)) {
+        brandBarcodeMatch = info
+        break
+      }
+    }
+
+    // If brand barcode detected → use only that product, skip matchProducts
+    let matchedProducts
+    if (brandBarcodeMatch) {
+      matchedProducts = [{
+        extracted_name: brandBarcodeMatch.product_name,
+        extracted_sku: brandBarcodeMatch.barcode,
+        matched_product_name: brandBarcodeMatch.product_name,
+        matched_sku: brandBarcodeMatch.barcode,
+        matched_price: null,
+        matched_brand: brandBarcodeMatch.brand,
+        match_type: 'sku' as const,
+      }]
+    } else {
+      const extractedProducts = extractProducts(parsedText)
+      matchedProducts = extractedProducts.length > 0 ? await matchProducts(extractedProducts) : []
+    }
 
     return NextResponse.json({
       receipt_number: receiptNumber,
@@ -327,7 +356,8 @@ export async function POST(req: Request) {
       confidence,
       duplicate,
       ai_failed: false,
-      products,
+      products: matchedProducts,
+      brand_detected: brandBarcodeMatch?.brand ?? null,
     })
 
   } catch (e: any) {
@@ -336,6 +366,7 @@ export async function POST(req: Request) {
       receipt_number: null, receipt_date: null,
       receipt_amount: null, supplier_name: null,
       confidence: 0, duplicate: false, ai_failed: true, products: [],
+      brand_detected: null,
     })
   }
 }
