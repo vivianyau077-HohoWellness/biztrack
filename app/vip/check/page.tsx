@@ -66,6 +66,8 @@ interface QuickSubmitResult {
   member_number: string | null
   customer_name: string
   duplicate: boolean
+  lark_synced?: boolean
+  lark_error?: string | null
   message: string
 }
 
@@ -1157,6 +1159,17 @@ function QuickReceiptScan() {
           </div>
           {!submitResult.is_vip_eligible && (
             <p className="text-xs text-gray-500">Amount below VIP threshold (RM 700)</p>
+          )}
+          {submitResult.lark_synced === true && (
+            <p className="text-xs text-green-600">✅ Synced to Lark table</p>
+          )}
+          {submitResult.lark_synced === false && (
+            <div className="mt-1 rounded-md bg-red-50 border border-red-200 px-3 py-2">
+              <p className="text-xs text-red-800 font-semibold">⚠️ NOT synced to Lark table</p>
+              {submitResult.lark_error && (
+                <p className="text-[11px] text-red-700 mt-0.5 break-all">Reason: {submitResult.lark_error}</p>
+              )}
+            </div>
           )}
         </div>
 

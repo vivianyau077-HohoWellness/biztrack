@@ -165,6 +165,8 @@ export async function POST(req: NextRequest) {
 
   // ── Write to Lark (non-blocking on failure) ─────────────────────────────────
 
+  let larkSynced = false
+  let larkError: string | null = null
   try {
     const larkRes = await larkFetch(
       `/bitable/v1/apps/${LARK_APP_TOKEN}/tables/${LARK_TABLE_ID}/records`,
@@ -175,23 +177,27 @@ export async function POST(req: NextRequest) {
             'INFO': `${customerName} - ${receiptNo ?? 'No Receipt No'}`,
             'Supplier': supplier_name ?? '',
             'Receipt NO': receiptNo ?? '',
-            'Date of Purchased': receipt_date ?? '',
+            'Date of Purchased': receipt_date ? new Date(receipt_date).getTime() : null,
             'Amount': receipt_amount != null ? String(receipt_amount) : '',
             'Products': products ?? '',
             'Name': customerName,
             'Contact Number': phone ? Number(phone) : null,
             'Address': address ?? '',
             'Approved': false,
-            'After Sales Flow': false,
+            'AS Offline': false,
           },
         }),
       },
     )
     if (larkRes.code !== 0) {
       console.error('[save-quick-receipt] Lark write error:', larkRes.code, larkRes.msg)
+      larkError = `${larkRes.code}: ${larkRes.msg}`
+    } else {
+      larkSynced = true
     }
   } catch (e) {
     console.error('[save-quick-receipt] Lark write failed:', e)
+    larkError = e instanceof Error ? e.message : 'Network error writing to Lark'
     // Non-blocking — log and continue
   }
 
@@ -202,6 +208,8 @@ export async function POST(req: NextRequest) {
     is_new_vip: isNewVip,
     member_number: memberNumber,
     customer_name: customerName,
+    lark_synced: larkSynced,
+    lark_error: larkError,
     message: isVipEligible
       ? 'Receipt recorded — customer is VIP eligible!'
       : 'Receipt recorded — amount below VIP threshold (RM 700)',
