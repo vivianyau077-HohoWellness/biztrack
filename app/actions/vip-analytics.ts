@@ -7,11 +7,13 @@ const DAILY_ORDER_TABLE = 'tblo8XMsLvQgj9IC'
 
 export interface VipRegistration {
   year: number
-  newVipTotal: number
-  newVipMY: number
-  newVipSG: number
+  newVipTotal: number   // new-customer VIPs (MY + SG), excludes repeat
+  newVipMY: number      // Malaysia VIP, new customers only
+  newVipSG: number      // Singapore VIP, new customers only
+  totalVipMY: number    // Malaysia VIP, all (new + repeat)
+  totalVipSG: number    // Singapore VIP, all (new + repeat)
   newCustomers: number
-  registrationRate: number | null // percentage, e.g. 12.5 (newVipTotal / newCustomers)
+  registrationRate: number | null // percentage = newVipTotal / newCustomers
 }
 
 // Lark fields come back in several shapes: plain string, number, array of strings
@@ -36,10 +38,9 @@ export async function computeVipRegistration(): Promise<VipRegistration> {
   const year = new Date().getFullYear()
   const records = await fetchLarkRecords(DAILY_ORDER_TABLE)
 
-  // Dedupe by customer (phone preferred, else name) so we count people, not orders.
-  const vipMY = new Set<string>()
-  const vipSG = new Set<string>()
-  const newCustomers = new Set<string>()
+  // Aggregate per customer (deduped by phone, else name) — count people, not orders.
+  // vip = which country VIP tag they carry; isNew = whether they're a new customer this year.
+  const customers = new Map<string, { vip: 'MY' | 'SG' | null; isNew: boolean }>()
 
   for (const r of records) {
     const f = r.fields as Record<string, unknown>
@@ -53,19 +54,27 @@ export async function computeVipRegistration(): Promise<VipRegistration> {
     const key = (phoneNum || phoneText || name).toLowerCase()
     if (!key) continue
 
+    const entry = customers.get(key) ?? { vip: null as 'MY' | 'SG' | null, isNew: false }
+
     const autoVip = larkStr(f['AUTO VIP'])
-    if (autoVip.startsWith('Malaysia')) vipMY.add(key)
-    else if (autoVip.startsWith('Singapore')) vipSG.add(key)
+    if (autoVip.startsWith('Malaysia')) entry.vip = 'MY'
+    else if (autoVip.startsWith('Singapore')) entry.vip = 'SG'
 
     const track = larkStr(f['Track 2026']) || larkStr(f['AUTO N/R'])
-    if (track === 'New') newCustomers.add(key)
+    if (track === 'New') entry.isNew = true
+
+    customers.set(key, entry)
   }
 
-  const newVipMY = vipMY.size
-  const newVipSG = vipSG.size
-  const newVipTotal = newVipMY + newVipSG
-  const nc = newCustomers.size
-  const registrationRate = nc > 0 ? Math.round((newVipTotal / nc) * 1000) / 10 : null
+  let totalVipMY = 0, totalVipSG = 0, newVipMY = 0, newVipSG = 0, newCustomers = 0
+  for (const c of customers.values()) {
+    if (c.isNew) newCustomers++
+    if (c.vip === 'MY') { totalVipMY++; if (c.isNew) newVipMY++ }
+    else if (c.vip === 'SG') { totalVipSG++; if (c.isNew) newVipSG++ }
+  }
 
-  return { year, newVipTotal, newVipMY, newVipSG, newCustomers: nc, registrationRate }
+  const newVipTotal = newVipMY + newVipSG
+  const registrationRate = newCustomers > 0 ? Math.round((newVipTotal / newCustomers) * 1000) / 10 : null
+
+  return { year, newVipTotal, newVipMY, newVipSG, totalVipMY, totalVipSG, newCustomers, registrationRate }
 }

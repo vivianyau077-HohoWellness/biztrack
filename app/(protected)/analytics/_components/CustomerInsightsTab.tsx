@@ -137,6 +137,8 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
         newVipTotal: number
         newVipMY: number
         newVipSG: number
+        totalVipMY: number
+        totalVipSG: number
         newCustomers: number
         registrationRate: number | null
       }>
@@ -411,7 +413,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
         {vipError && (
           <p className="text-xs text-red-600 mb-2">⚠️ Failed to load VIP data: {(vipError as Error).message}</p>
         )}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
               <CardTitle className="text-xs font-medium text-muted-foreground">New VIP</CardTitle>
@@ -419,7 +421,25 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-purple-600">{vipLoading ? '…' : (vip?.newVipTotal ?? 0)}</div>
-              <p className="text-xs text-muted-foreground mt-1">New VIPs this year</p>
+              <p className="text-xs text-muted-foreground mt-1">New customers only (excl. repeat)</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium text-muted-foreground">🇲🇾 Malaysia New VIP</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-foreground">{vipLoading ? '…' : (vip?.newVipMY ?? 0)}</div>
+              <p className="text-xs text-muted-foreground mt-1">New customers only</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium text-muted-foreground">🇸🇬 Singapore New VIP</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-foreground">{vipLoading ? '…' : (vip?.newVipSG ?? 0)}</div>
+              <p className="text-xs text-muted-foreground mt-1">New customers only</p>
             </CardContent>
           </Card>
           <Card>
@@ -431,26 +451,26 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
                 {vipLoading ? '…' : vip?.registrationRate != null ? `${vip.registrationRate}%` : '—'}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {vip ? `${vip.newVipTotal} VIP ÷ ${vip.newCustomers} new customers` : 'New VIP ÷ new customers'}
+                {vip ? `${vip.newVipTotal} new VIP ÷ ${vip.newCustomers} new customers` : 'New VIP ÷ new customers'}
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-xs font-medium text-muted-foreground">🇲🇾 Malaysia New VIP</CardTitle>
+              <CardTitle className="text-xs font-medium text-muted-foreground">🇲🇾 Malaysia Total VIP</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">{vipLoading ? '…' : (vip?.newVipMY ?? 0)}</div>
-              <p className="text-xs text-muted-foreground mt-1">Tagged Malaysia VIP</p>
+              <div className="text-2xl font-bold text-purple-600">{vipLoading ? '…' : (vip?.totalVipMY ?? 0)}</div>
+              <p className="text-xs text-muted-foreground mt-1">New + repeat tagged VIP</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-xs font-medium text-muted-foreground">🇸🇬 Singapore New VIP</CardTitle>
+              <CardTitle className="text-xs font-medium text-muted-foreground">🇸🇬 Singapore Total VIP</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">{vipLoading ? '…' : (vip?.newVipSG ?? 0)}</div>
-              <p className="text-xs text-muted-foreground mt-1">Tagged Singapore VIP</p>
+              <div className="text-2xl font-bold text-purple-600">{vipLoading ? '…' : (vip?.totalVipSG ?? 0)}</div>
+              <p className="text-xs text-muted-foreground mt-1">New + repeat tagged VIP</p>
             </CardContent>
           </Card>
         </div>
