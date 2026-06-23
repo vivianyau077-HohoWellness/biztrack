@@ -798,13 +798,6 @@ export default async function DashboardPage() {
               Import CSV
             </Link>
             <Link
-              href="/expenses"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border bg-white hover:bg-muted/50 text-sm font-medium transition-colors"
-            >
-              <Receipt className="h-4 w-4" />
-              Add Expense
-            </Link>
-            <Link
               href="/inventory"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border bg-white hover:bg-muted/50 text-sm font-medium transition-colors"
             >
