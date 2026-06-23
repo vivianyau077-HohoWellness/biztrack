@@ -389,10 +389,9 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
           { filter: 'new_month' as DrillFilter,    label: 'New This Month',   value: String(data.newThisMonth),           color: 'text-green-600',   icon: UserPlus, accent: 'hover:ring-green-200',   subtitle: `${pct(data.newThisMonth)}% of total` },
           { filter: 'repeat' as DrillFilter,       label: 'Retention Customers', value: String(data.retentionCount),      color: 'text-blue-600',    icon: Repeat2,  accent: 'hover:ring-blue-200',    subtitle: `${pct(data.retentionCount)}% returning` },
           { filter: 'vip' as DrillFilter,          label: 'VIP Customers',    value: String(data.vipCount),               color: 'text-purple-600',  icon: Star,     accent: 'hover:ring-purple-200',  subtitle: `${pct(data.vipCount)}% of total` },
-          { filter: 'dormant_lost' as DrillFilter, label: 'Dormant / Lost',   value: String(data.dormantCount),           color: 'text-orange-600',  icon: Clock,    accent: 'hover:ring-orange-200',  subtitle: `${pct(data.dormantCount)}% of total` },
         ]
         return (
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {cards.map(({ filter, label, value, color, icon: Icon, accent, subtitle }) => (
               <Card
                 key={filter}
