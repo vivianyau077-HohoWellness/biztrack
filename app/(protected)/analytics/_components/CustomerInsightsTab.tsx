@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { fetchCustomerInsights } from '@/app/actions/analytics'
-import { getVipRegistration } from '@/app/actions/vip-analytics'
 import { fetchBrandSettings, saveBrandSetting } from '@/app/actions/brand-settings'
 import { fetchProjects } from '@/app/actions/projects'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -123,9 +122,25 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
   // VIP registration (this year) — read from Lark "2026 daily order" AUTO VIP field.
   // Country split (Malaysia / Singapore) lives only in Lark, so this is independent
   // of the brand toggle and date range above.
-  const { data: vip, isLoading: vipLoading } = useQuery({
+  const { data: vip, isLoading: vipLoading, error: vipError } = useQuery({
     queryKey: ['vip-registration'],
-    queryFn: getVipRegistration,
+    retry: 1,
+    queryFn: async () => {
+      const res = await fetch('/api/analytics/vip-registration')
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`
+        try { const j = await res.json(); if (j?.error) msg = j.error } catch {}
+        throw new Error(msg)
+      }
+      return res.json() as Promise<{
+        year: number
+        newVipTotal: number
+        newVipMY: number
+        newVipSG: number
+        newCustomers: number
+        registrationRate: number | null
+      }>
+    },
   })
 
   // Drill-down customers query — fires when a KPI card is clicked
@@ -393,6 +408,9 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
           <Star className="h-4 w-4 text-purple-600" />
           VIP Registration · {vip?.year ?? new Date().getFullYear()} (This Year)
         </h3>
+        {vipError && (
+          <p className="text-xs text-red-600 mb-2">⚠️ Failed to load VIP data: {(vipError as Error).message}</p>
+        )}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">

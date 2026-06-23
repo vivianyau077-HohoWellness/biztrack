@@ -1,5 +1,3 @@
-'use server'
-
 import { fetchLarkRecords } from '@/lib/lark'
 
 // "2026 daily order" table in the DD Lark base. The AUTO VIP single-select field
@@ -34,7 +32,7 @@ function larkStr(v: unknown): string {
   return ''
 }
 
-export async function getVipRegistration(): Promise<VipRegistration> {
+export async function computeVipRegistration(): Promise<VipRegistration> {
   const year = new Date().getFullYear()
   const records = await fetchLarkRecords(DAILY_ORDER_TABLE)
 
