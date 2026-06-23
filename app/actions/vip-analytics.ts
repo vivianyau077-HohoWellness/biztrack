@@ -36,6 +36,18 @@ function larkStr(v: unknown): string {
   return ''
 }
 
+// Robust number parse — Lark currency/number fields may come back as number,
+// numeric string, or a formula-style object like { value: [1438] }.
+function larkNum(v: unknown): number {
+  if (typeof v === 'number') return v
+  if (typeof v === 'string') { const n = Number(v); return isNaN(n) ? 0 : n }
+  if (v && typeof v === 'object') {
+    const o = v as { value?: unknown }
+    if (Array.isArray(o.value) && o.value.length) { const n = Number(o.value[0]); return isNaN(n) ? 0 : n }
+  }
+  return 0
+}
+
 export async function computeVipRegistration(): Promise<VipRegistration> {
   const year = new Date().getFullYear()
   const records = await fetchLarkRecords(DAILY_ORDER_TABLE)
@@ -72,7 +84,7 @@ export async function computeVipRegistration(): Promise<VipRegistration> {
 
     // VIP AOV: only Repeat-customer orders tagged Malaysia / Singapore VIP
     if (autoNR === 'Repeat') {
-      const price = typeof f['Total Price'] === 'number' ? (f['Total Price'] as number) : 0
+      const price = larkNum(f['Total Price'])
       if (autoVip.startsWith('Malaysia')) { myVipSpend += price; myVipOrders++ }
       else if (autoVip.startsWith('Singapore')) { sgVipSpend += price; sgVipOrders++ }
     }
