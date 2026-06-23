@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { fetchCustomerInsights } from '@/app/actions/analytics'
+import { getVipRegistration } from '@/app/actions/vip-analytics'
 import { fetchBrandSettings, saveBrandSetting } from '@/app/actions/brand-settings'
 import { fetchProjects } from '@/app/actions/projects'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -117,6 +118,14 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
   const { data, isLoading } = useQuery({
     queryKey: ['customer-insights', projectId, dateFrom, dateTo, phoneOnly],
     queryFn: () => fetchCustomerInsights(projectId, dateFrom, dateTo, phoneOnly),
+  })
+
+  // VIP registration (this year) — read from Lark "2026 daily order" AUTO VIP field.
+  // Country split (Malaysia / Singapore) lives only in Lark, so this is independent
+  // of the brand toggle and date range above.
+  const { data: vip, isLoading: vipLoading } = useQuery({
+    queryKey: ['vip-registration'],
+    queryFn: getVipRegistration,
   })
 
   // Drill-down customers query — fires when a KPI card is clicked
@@ -377,6 +386,57 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
           </div>
         )
       })()}
+
+      {/* VIP Registration · This Year (from Lark AUTO VIP) */}
+      <div>
+        <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+          <Star className="h-4 w-4 text-purple-600" />
+          VIP Registration · {vip?.year ?? new Date().getFullYear()} (This Year)
+        </h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium text-muted-foreground">New VIP</CardTitle>
+              <Star className="h-3.5 w-3.5 text-purple-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-600">{vipLoading ? '…' : (vip?.newVipTotal ?? 0)}</div>
+              <p className="text-xs text-muted-foreground mt-1">New VIPs this year</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium text-muted-foreground">New VIP Registration Rate</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">
+                {vipLoading ? '…' : vip?.registrationRate != null ? `${vip.registrationRate}%` : '—'}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {vip ? `${vip.newVipTotal} VIP ÷ ${vip.newCustomers} new customers` : 'New VIP ÷ new customers'}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium text-muted-foreground">🇲🇾 Malaysia New VIP</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-foreground">{vipLoading ? '…' : (vip?.newVipMY ?? 0)}</div>
+              <p className="text-xs text-muted-foreground mt-1">Tagged Malaysia VIP</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium text-muted-foreground">🇸🇬 Singapore New VIP</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-foreground">{vipLoading ? '…' : (vip?.newVipSG ?? 0)}</div>
+              <p className="text-xs text-muted-foreground mt-1">Tagged Singapore VIP</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       {/* AOV / LTV / Retention KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
