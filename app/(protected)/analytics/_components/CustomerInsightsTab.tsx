@@ -153,7 +153,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
     queryFn: async () => {
       const res = await fetch(`/api/analytics/churn?projectId=${encodeURIComponent(projectId)}`)
       if (!res.ok) throw new Error('Failed to load churn')
-      return res.json() as Promise<{ churnCount: number; totalCustomers: number; activeCustomers: number }>
+      return res.json() as Promise<{ churnCount: number; totalCustomers: number; activeCustomers: number; unique2025: number; unique2026: number }>
     },
   })
 
@@ -428,6 +428,26 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
             <p className="text-xs text-muted-foreground mt-1">
               No order in over 1 year{churn && churn.totalCustomers > 0 ? ` · ${((churn.churnCount / churn.totalCustomers) * 100).toFixed(1)}% of all customers` : ''}
             </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-xs font-medium text-muted-foreground">2025 Unique Customers</CardTitle>
+            <Users className="h-3.5 w-3.5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-foreground">{churn ? churn.unique2025.toLocaleString() : '…'}</div>
+            <p className="text-xs text-muted-foreground mt-1">Unique phones · ordered in 2025</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-xs font-medium text-muted-foreground">2026 Unique Customers</CardTitle>
+            <Users className="h-3.5 w-3.5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-foreground">{churn ? churn.unique2026.toLocaleString() : '…'}</div>
+            <p className="text-xs text-muted-foreground mt-1">Unique phones · 2026 YTD</p>
           </CardContent>
         </Card>
       </div>
