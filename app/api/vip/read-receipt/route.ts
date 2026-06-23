@@ -28,15 +28,19 @@ function extractReceiptNumber(text: string): string | null {
   const patterns = [
     // Invoice No : CPBL02-1060201 format
     /(?:invoice\s*no|receipt\s*no|OR\s*no)[\s:]*([A-Z0-9][A-Z0-9\-\/]{3,})/i,
-    // Specific numeric format like 1656-01-1028218
-    /\b(\d{4}-\d{2}-\d{6,})\b/,
+    // Numeric format like 1389-04-1029848 — tolerant of dashes read as spaces by OCR.
+    // Separators are REQUIRED so plain barcodes (e.g. 9555175811230) are NOT matched.
+    /\b(\d{4}[-\s]+\d{2}[-\s]+\d{6,})\b/,
     /\b(INV[-\/]?\d{4,})\b/i,
     /\b(REC[-\/]?\d{4,})\b/i,
     /\b([A-Z]{2,6}\d{2}-\d{7,})\b/,
   ]
   for (const pattern of patterns) {
     const match = text.match(pattern)
-    if (match && match[1] !== 'Date' && match[1] !== 'Cashier') return match[1].trim()
+    if (match && match[1] !== 'Date' && match[1] !== 'Cashier') {
+      // Normalize any spaces/multiple separators back to single dashes
+      return match[1].trim().replace(/[-\s]+/g, '-')
+    }
   }
   return null
 }
