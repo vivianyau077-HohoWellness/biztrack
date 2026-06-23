@@ -566,7 +566,7 @@ export async function fetchCustomerInsights(
     if (brandCustomerIds.length === 0) {
       const emptyDays = eachDayOfInterval({ start: parseISO(dateFrom), end: parseISO(dateTo) })
       return plain({
-        total: 0, newThisMonth: 0, repeatRate: 0, vipCount: 0, dormantCount: 0,
+        total: 0, newThisMonth: 0, repeatRate: 0, vipCount: 0, dormantCount: 0, churnCount: 0,
         byTag: [],
         newVsRepeatByDay: emptyDays.map(d => ({ date: format(d, 'dd MMM'), new: 0, repeat: 0 })),
         top10: [],
