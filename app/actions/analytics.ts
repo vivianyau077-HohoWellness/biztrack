@@ -110,7 +110,6 @@ export interface CustomerInsightsData {
   repeatRate: number
   vipCount: number
   dormantCount: number
-  churnCount: number
   byTag: { tag: string; count: number }[]
   newVsRepeatByDay: { date: string; new: number; repeat: number }[]
   top10: { id: string; name: string; phone: string; total_orders: number; total_spent: number; tag: string }[]
@@ -566,7 +565,7 @@ export async function fetchCustomerInsights(
     if (brandCustomerIds.length === 0) {
       const emptyDays = eachDayOfInterval({ start: parseISO(dateFrom), end: parseISO(dateTo) })
       return plain({
-        total: 0, newThisMonth: 0, repeatRate: 0, vipCount: 0, dormantCount: 0, churnCount: 0,
+        total: 0, newThisMonth: 0, repeatRate: 0, vipCount: 0, dormantCount: 0,
         byTag: [],
         newVsRepeatByDay: emptyDays.map(d => ({ date: format(d, 'dd MMM'), new: 0, repeat: 0 })),
         top10: [],
@@ -772,20 +771,6 @@ export async function fetchCustomerInsights(
     dormantCount = all.filter(c => c.customer_tag === 'Dormant' || c.customer_tag === 'Lost').length
   }
 
-  // Churn = customers whose last order was more than 1 year (365 days) ago.
-  // Fixed 365-day window (independent of the configurable retention setting).
-  const churnCutoffStr = format(subDays(today, 365), 'yyyy-MM-dd')
-  let churnCount: number
-  if (projectId && brandCustomerIds && brandCustomerIds.length > 0) {
-    churnCount = brandCustomerIds.filter(cid => {
-      const d = customerProjectData[cid]
-      if (!d || !d.lastOrderDate) return false
-      return d.lastOrderDate < churnCutoffStr
-    }).length
-  } else {
-    churnCount = all.filter(c => c.last_order_date != null && c.last_order_date < churnCutoffStr).length
-  }
-
   const repeatCount = all.filter(c => (c.total_orders ?? 0) >= 2).length
 
   // "New in Range": customers whose first-ever order for this brand falls within
@@ -947,7 +932,6 @@ export async function fetchCustomerInsights(
     repeatRate: safeDivide(repeatCount, total) * 100,
     vipCount,
     dormantCount,
-    churnCount,
     byTag,
     newVsRepeatByDay,
     top10,

@@ -147,6 +147,16 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
     },
   })
 
+  // Churn customers (all-time, deduped by phone) — independent of date range, scoped by brand
+  const { data: churn } = useQuery({
+    queryKey: ['churn', projectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/analytics/churn?projectId=${encodeURIComponent(projectId)}`)
+      if (!res.ok) throw new Error('Failed to load churn')
+      return res.json() as Promise<{ churnCount: number; totalCustomers: number; activeCustomers: number }>
+    },
+  })
+
   // Drill-down customers query — fires when a KPI card is clicked
   const { data: drillCustomers = [], isLoading: drillLoading } = useQuery({
     queryKey: ['customer-drill', drillFilter, selectedBrand, phoneOnly],
@@ -414,9 +424,9 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
             <Clock className="h-3.5 w-3.5 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{data.churnCount.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-red-600">{churn ? churn.churnCount.toLocaleString() : '…'}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              No order in over 1 year{data.total > 0 ? ` · ${((data.churnCount / data.total) * 100).toFixed(1)}% of total` : ''}
+              No order in over 1 year{churn && churn.totalCustomers > 0 ? ` · ${((churn.churnCount / churn.totalCustomers) * 100).toFixed(1)}% of all customers` : ''}
             </p>
           </CardContent>
         </Card>
