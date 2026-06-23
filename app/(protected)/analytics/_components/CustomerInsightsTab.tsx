@@ -406,6 +406,22 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
         )
       })()}
 
+      {/* Churn Customers — no order in over 1 year */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-xs font-medium text-muted-foreground">Churn Customers</CardTitle>
+            <Clock className="h-3.5 w-3.5 text-red-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{data.churnCount.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              No order in over 1 year{data.total > 0 ? ` · ${((data.churnCount / data.total) * 100).toFixed(1)}% of total` : ''}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* VIP Registration · This Year (from Lark AUTO VIP) */}
       <div>
         <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
