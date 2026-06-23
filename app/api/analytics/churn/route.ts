@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     cutoff.setDate(cutoff.getDate() - 365)
     const cutoffStr = cutoff.toISOString().split('T')[0]
 
-    async function collectPhones(activeOnly: boolean): Promise<Set<string>> {
+    const collectPhones = async (activeOnly: boolean): Promise<Set<string>> => {
       const set = new Set<string>()
       const PAGE = 1000
       let offset = 0
