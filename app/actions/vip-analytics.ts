@@ -67,7 +67,7 @@ export async function computeVipRegistration(): Promise<VipRegistration> {
   }
 
   let totalVipMY = 0, totalVipSG = 0, newVipMY = 0, newVipSG = 0, newCustomers = 0
-  for (const c of customers.values()) {
+  for (const c of Array.from(customers.values())) {
     if (c.isNew) newCustomers++
     if (c.vip === 'MY') { totalVipMY++; if (c.isNew) newVipMY++ }
     else if (c.vip === 'SG') { totalVipSG++; if (c.isNew) newVipSG++ }
