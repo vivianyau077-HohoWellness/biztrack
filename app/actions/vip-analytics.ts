@@ -66,11 +66,12 @@ export async function computeVipRegistration(): Promise<VipRegistration> {
     if (autoVip.startsWith('Malaysia')) entry.vip = 'MY'
     else if (autoVip.startsWith('Singapore')) entry.vip = 'SG'
 
-    const track = larkStr(f['Track 2026']) || larkStr(f['AUTO N/R'])
-    if (track === 'New') entry.isNew = true
+    // AUTO N/R is the auto "New vs Repeat customer" marker (New / Repeat / no)
+    const autoNR = larkStr(f['AUTO N/R'])
+    if (autoNR === 'New') entry.isNew = true
 
     // VIP AOV: only Repeat-customer orders tagged Malaysia / Singapore VIP
-    if (track === 'Repeat') {
+    if (autoNR === 'Repeat') {
       const price = typeof f['Total Price'] === 'number' ? (f['Total Price'] as number) : 0
       if (autoVip.startsWith('Malaysia')) { myVipSpend += price; myVipOrders++ }
       else if (autoVip.startsWith('Singapore')) { sgVipSpend += price; sgVipOrders++ }
