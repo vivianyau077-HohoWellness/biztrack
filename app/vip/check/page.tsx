@@ -729,6 +729,7 @@ function QuickReceiptScan() {
   const [detailsPhone, setDetailsPhone]         = useState('')
   const [detailsAddress, setDetailsAddress]     = useState('')
   const [detailsClaimedBy, setDetailsClaimedBy] = useState('')
+  const [detailsReceiptNo, setDetailsReceiptNo] = useState('')
   const [submitting, setSubmitting]             = useState(false)
   const [submitResult, setSubmitResult]         = useState<QuickSubmitResult | null>(null)
   const fileInputRef                = useRef<HTMLInputElement>(null)
@@ -743,6 +744,7 @@ function QuickReceiptScan() {
     setDetailsPhone('')
     setDetailsAddress('')
     setDetailsClaimedBy('')
+    setDetailsReceiptNo('')
     setSubmitResult(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
@@ -758,6 +760,7 @@ function QuickReceiptScan() {
       const data: ReceiptData & { ai_failed?: boolean } = await res.json()
       if (!res.ok) { toast.error((data as any).error ?? 'Failed to read receipt'); setState('upload'); return }
       setExtracted(data)
+      setDetailsReceiptNo(data.receipt_number ?? '')
       setAiFailed(!!data.ai_failed)
       setState('details')
     } catch {
@@ -779,6 +782,7 @@ function QuickReceiptScan() {
       const data: ReceiptData & { ai_failed?: boolean } = await res.json()
       if (!res.ok) { toast.error((data as any).error ?? 'Failed to read receipt'); setState('upload'); return }
       setExtracted(data)
+      setDetailsReceiptNo(data.receipt_number ?? '')
       setAiFailed(!!data.ai_failed)
       setState('details')
     } catch {
@@ -857,7 +861,7 @@ function QuickReceiptScan() {
         body: JSON.stringify({
           phone,
           customer_name: detailsName.trim(),
-          receipt_number: extracted?.receipt_number ?? null,
+          receipt_number: detailsReceiptNo.trim() || null,
           receipt_date: extracted?.receipt_date ?? null,
           receipt_amount: extracted?.receipt_amount ?? null,
           supplier_name: extracted?.supplier_name ?? null,
@@ -992,7 +996,6 @@ function QuickReceiptScan() {
             <div className="bg-gray-50 rounded-lg px-4 py-3 space-y-0.5">
               <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Receipt Info</p>
               {extracted.supplier_name && <DetailRow label="Store"      value={extracted.supplier_name} />}
-              <DetailRow label="Receipt No" value={extracted.receipt_number ?? '—'} />
               <DetailRow label="Date"       value={formatDate(extracted.receipt_date)} />
               <DetailRow label="Amount"     value={
                 extracted.receipt_amount != null
@@ -1001,6 +1004,16 @@ function QuickReceiptScan() {
               } />
             </div>
           )}
+
+          <div>
+            <Label className="text-xs text-gray-500 mb-1 block">Receipt No</Label>
+            <Input
+              value={detailsReceiptNo}
+              onChange={e => setDetailsReceiptNo(e.target.value)}
+              placeholder="e.g. 1389-04-1029848 (edit if AI missed it)"
+              className="h-9 text-sm"
+            />
+          </div>
 
           {extracted?.brand_detected && (
             <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-green-700 text-sm font-medium">
