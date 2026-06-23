@@ -14,6 +14,8 @@ export interface VipRegistration {
   totalVipSG: number    // Singapore VIP, all (new + repeat)
   newCustomers: number
   registrationRate: number | null // percentage = newVipTotal / newCustomers
+  malaysiaVipAov: number   // avg order value: Repeat customers tagged Malaysia VIP
+  singaporeVipAov: number  // avg order value: Repeat customers tagged Singapore VIP
 }
 
 // Lark fields come back in several shapes: plain string, number, array of strings
@@ -42,6 +44,10 @@ export async function computeVipRegistration(): Promise<VipRegistration> {
   // vip = which country VIP tag they carry; isNew = whether they're a new customer this year.
   const customers = new Map<string, { vip: 'MY' | 'SG' | null; isNew: boolean }>()
 
+  // VIP AOV accumulators — per order row, Repeat customers only, split by country
+  let myVipSpend = 0, myVipOrders = 0
+  let sgVipSpend = 0, sgVipOrders = 0
+
   for (const r of records) {
     const f = r.fields as Record<string, unknown>
 
@@ -63,6 +69,13 @@ export async function computeVipRegistration(): Promise<VipRegistration> {
     const track = larkStr(f['Track 2026']) || larkStr(f['AUTO N/R'])
     if (track === 'New') entry.isNew = true
 
+    // VIP AOV: only Repeat-customer orders tagged Malaysia / Singapore VIP
+    if (track === 'Repeat') {
+      const price = typeof f['Total Price'] === 'number' ? (f['Total Price'] as number) : 0
+      if (autoVip.startsWith('Malaysia')) { myVipSpend += price; myVipOrders++ }
+      else if (autoVip.startsWith('Singapore')) { sgVipSpend += price; sgVipOrders++ }
+    }
+
     customers.set(key, entry)
   }
 
@@ -75,6 +88,8 @@ export async function computeVipRegistration(): Promise<VipRegistration> {
 
   const newVipTotal = newVipMY + newVipSG
   const registrationRate = newCustomers > 0 ? Math.round((newVipTotal / newCustomers) * 1000) / 10 : null
+  const malaysiaVipAov = myVipOrders > 0 ? Math.round((myVipSpend / myVipOrders) * 100) / 100 : 0
+  const singaporeVipAov = sgVipOrders > 0 ? Math.round((sgVipSpend / sgVipOrders) * 100) / 100 : 0
 
-  return { year, newVipTotal, newVipMY, newVipSG, totalVipMY, totalVipSG, newCustomers, registrationRate }
+  return { year, newVipTotal, newVipMY, newVipSG, totalVipMY, totalVipSG, newCustomers, registrationRate, malaysiaVipAov, singaporeVipAov }
 }

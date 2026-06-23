@@ -141,6 +141,8 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
         totalVipSG: number
         newCustomers: number
         registrationRate: number | null
+        malaysiaVipAov: number
+        singaporeVipAov: number
       }>
     },
   })
@@ -476,24 +478,26 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
         </div>
       </div>
 
-      {/* AOV / LTV / Retention KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* VIP AOV (Repeat customers, by country) + Customer LTV */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-xs font-medium text-muted-foreground">New Customer AOV</CardTitle>
+            <CardTitle className="text-xs font-medium text-muted-foreground">🇲🇾 Malaysia VIP AOV</CardTitle>
+            <Star className="h-3.5 w-3.5 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold text-green-600">{formatCurrency(data.newCustomerAov)}</div>
-            <p className="text-xs text-muted-foreground mt-0.5">Avg first order value</p>
+            <div className="text-xl font-bold text-purple-600">{vipLoading ? '…' : formatCurrency(vip?.malaysiaVipAov ?? 0)}</div>
+            <p className="text-xs text-muted-foreground mt-0.5">Repeat + Malaysia VIP (this year)</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-xs font-medium text-muted-foreground">Repeat Customer AOV</CardTitle>
+            <CardTitle className="text-xs font-medium text-muted-foreground">🇸🇬 Singapore VIP AOV</CardTitle>
+            <Star className="h-3.5 w-3.5 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold text-blue-600">{formatCurrency(data.repeatCustomerAov)}</div>
-            <p className="text-xs text-muted-foreground mt-0.5">Avg per order (2+ orders)</p>
+            <div className="text-xl font-bold text-purple-600">{vipLoading ? '…' : formatCurrency(vip?.singaporeVipAov ?? 0)}</div>
+            <p className="text-xs text-muted-foreground mt-0.5">Repeat + Singapore VIP (this year)</p>
           </CardContent>
         </Card>
         <Card>
