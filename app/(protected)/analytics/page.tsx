@@ -7,11 +7,10 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { BRANDS, BRAND_COLORS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
-import { Upload, BarChart3, Megaphone, Users, Target } from 'lucide-react'
+import { Upload, BarChart3, Users, Target } from 'lucide-react'
 import { subDays, format } from 'date-fns'
 import DateRangePicker from '@/components/shared/DateRangePicker'
 import SalesOverviewTab from './_components/SalesOverviewTab'
-import AdPerformanceTab from './_components/AdPerformanceTab'
 import CustomerInsightsTab from './_components/CustomerInsightsTab'
 import GoalTrackingTab from './_components/GoalTrackingTab'
 import AdSpendImportModal from './_components/AdSpendImportModal'
@@ -20,7 +19,6 @@ type Tab = 'sales' | 'ads' | 'customers' | 'goals'
 
 const TAB_CONFIG = [
   { id: 'sales' as Tab, label: 'Sales Overview', icon: BarChart3 },
-  { id: 'ads' as Tab, label: 'Ad Performance', icon: Megaphone },
   { id: 'customers' as Tab, label: 'Customer Insights', icon: Users },
   { id: 'goals' as Tab, label: 'Goal Tracking', icon: Target },
 ]
@@ -134,15 +132,6 @@ export default function AnalyticsPage() {
             dateFrom={dateFrom}
             dateTo={dateTo}
             selectedBrand={selectedBrand}
-          />
-        )}
-        {activeTab === 'ads' && (
-          <AdPerformanceTab
-            projectId={projectId}
-            dateFrom={dateFrom}
-            dateTo={dateTo}
-            selectedBrand={selectedBrand}
-            projects={projects}
           />
         )}
         {activeTab === 'customers' && (
