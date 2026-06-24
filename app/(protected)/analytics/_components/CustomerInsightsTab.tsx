@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { fetchCustomerInsights } from '@/app/actions/analytics'
+import { setInactiveFollowUp } from '@/app/actions/inactive-followup'
 import { fetchBrandSettings, saveBrandSetting } from '@/app/actions/brand-settings'
 import { fetchProjects } from '@/app/actions/projects'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -58,6 +59,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
   const [exportingId,   setExportingId]   = useState<string | null>(null)
   const [phoneOnly, setPhoneOnly] = useState(false)
   const [showInactive, setShowInactive] = useState(false)
+  const [followLocal, setFollowLocal] = useState<Record<string, { done: boolean; note: string }>>({})
   const drillRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
 
@@ -167,7 +169,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
       return res.json() as Promise<{
         count: number
         days: number
-        customers: { phone: string; name: string; lastOrderDate: string; daysSince: number }[]
+        customers: { phone: string; name: string; package: string; lastOrderDate: string; daysSince: number; followedUp: boolean; followUpDate: string | null; followUpNote: string | null }[]
       }>
     },
   })
@@ -223,6 +225,35 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
     if (next !== 'all') {
       setTimeout(() => drillRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
     }
+  }
+
+  function effFollow(c: { phone: string; followedUp: boolean; followUpNote: string | null }) {
+    return followLocal[c.phone] ?? { done: c.followedUp, note: c.followUpNote ?? '' }
+  }
+
+  async function toggleFollow(phone: string, done: boolean, note: string) {
+    setFollowLocal(prev => ({ ...prev, [phone]: { done, note } }))
+    const res = await setInactiveFollowUp(phone, done, note)
+    if (!res.success) toast.error(res.error ?? 'Failed to save follow-up')
+  }
+
+  function exportInactive() {
+    if (!inactive) return
+    const header = ['#', 'Name', 'Phone', 'Package', 'Last Order', 'Days Since', 'Followed Up', 'Remark']
+    const rows = inactive.customers.map((c, i) => {
+      const e = effFollow(c)
+      return [i + 1, c.name, c.phone, c.package, c.lastOrderDate, c.daysSince, e.done ? 'Yes' : 'No', e.note]
+    })
+    const csv = [header, ...rows]
+      .map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `inactive-90-${selectedBrand || 'all'}-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   async function handleExportCustomers() {
@@ -490,12 +521,17 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
         {showInactive && inactive && inactive.customers.length > 0 && (
           <Card className="mt-4">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">
-                Inactive 90+ Days
-                <span className="ml-2 text-xs font-normal text-muted-foreground">
-                  ({inactive.count} customers{inactive.count > inactive.customers.length ? `, showing first ${inactive.customers.length}` : ''})
-                </span>
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium">
+                  Inactive 90+ Days
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    ({inactive.count} customers{inactive.count > inactive.customers.length ? `, showing first ${inactive.customers.length}` : ''})
+                  </span>
+                </CardTitle>
+                <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5" onClick={exportInactive}>
+                  <Download className="h-3.5 w-3.5" /> Export CSV
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
@@ -505,18 +541,40 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
                       <th className="px-3 py-2 text-left font-medium text-muted-foreground">#</th>
                       <th className="px-3 py-2 text-left font-medium text-muted-foreground">Name</th>
                       <th className="px-3 py-2 text-left font-medium text-muted-foreground">Phone</th>
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">Package</th>
                       <th className="px-3 py-2 text-left font-medium text-muted-foreground">Last Order</th>
                       <th className="px-3 py-2 text-right font-medium text-muted-foreground">Days Since</th>
+                      <th className="px-3 py-2 text-center font-medium text-muted-foreground">Followed Up</th>
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">Remark</th>
                     </tr>
                   </thead>
                   <tbody>
                     {inactive.customers.map((c, i) => (
-                      <tr key={c.phone + i} className="border-b hover:bg-muted/30">
+                      <tr key={c.phone + i} className={`border-b hover:bg-muted/30 ${effFollow(c).done ? 'bg-green-50/60' : ''}`}>
                         <td className="px-3 py-2 font-mono text-muted-foreground">{i + 1}</td>
                         <td className="px-3 py-2">{c.name}</td>
                         <td className="px-3 py-2 font-mono text-muted-foreground">{c.phone}</td>
+                        <td className="px-3 py-2">{c.package}</td>
                         <td className="px-3 py-2 text-muted-foreground">{formatDate(c.lastOrderDate)}</td>
                         <td className="px-3 py-2 text-right font-semibold text-orange-600">{c.daysSince}</td>
+                        <td className="px-3 py-2 text-center">
+                          <input
+                            type="checkbox"
+                            checked={effFollow(c).done}
+                            onChange={e => toggleFollow(c.phone, e.target.checked, effFollow(c).note)}
+                            className="h-4 w-4 cursor-pointer accent-green-600"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="text"
+                            value={effFollow(c).note}
+                            placeholder="备注…"
+                            onChange={e => setFollowLocal(prev => ({ ...prev, [c.phone]: { done: effFollow(c).done, note: e.target.value } }))}
+                            onBlur={e => toggleFollow(c.phone, effFollow(c).done, e.target.value)}
+                            className="w-36 rounded border px-2 py-1 text-xs"
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
