@@ -40,7 +40,11 @@ export async function GET(req: NextRequest) {
         if (!existing) {
           map.set(p, { name: r.customer_name ?? '', last: r.order_date, pkg: r.package_name ?? '' })
         } else {
-          if (r.order_date > existing.last) { existing.last = r.order_date; existing.pkg = r.package_name ?? '' }
+          if (r.order_date > existing.last) {
+            existing.last = r.order_date
+            existing.pkg = r.package_name ?? ''
+            if (r.customer_name) existing.name = r.customer_name
+          }
           if (!existing.name && r.customer_name) existing.name = r.customer_name
         }
       }
@@ -52,31 +56,35 @@ export async function GET(req: NextRequest) {
     for (const [phone, v] of Array.from(map.entries())) {
       if (v.last >= since && v.last < cutoffStr) {
         const daysSince = Math.floor((now.getTime() - new Date(v.last).getTime()) / 86400000)
-        list.push({ phone, name: v.name || '(no name)', package: v.pkg || '—', lastOrderDate: v.last, daysSince })
+        list.push({ phone, name: v.name || '', package: v.pkg || '—', lastOrderDate: v.last, daysSince })
       }
     }
     list.sort((a, b) => b.daysSince - a.daysSince)
     const top = list.slice(0, 1000)
 
     // Attach follow-up status (reuses customers.follow_up_date / follow_up_note), batched by phone
-    const followMap = new Map<string, { date: string | null; note: string | null }>()
+    const followMap = new Map<string, { date: string | null; note: string | null; name: string | null }>()
     const phones = top.map(t => t.phone)
     const FB = 150
     for (let i = 0; i < phones.length; i += FB) {
       const chunk = phones.slice(i, i + FB)
       const { data: cust } = await sb
         .from('customers')
-        .select('phone, follow_up_date, follow_up_note')
+        .select('phone, name, follow_up_date, follow_up_note')
         .in('phone', chunk)
-      for (const c of (cust ?? []) as { phone: string | number; follow_up_date: string | null; follow_up_note: string | null }[]) {
-        followMap.set(String(c.phone), { date: c.follow_up_date, note: c.follow_up_note })
+      for (const c of (cust ?? []) as { phone: string | number; name: string | null; follow_up_date: string | null; follow_up_note: string | null }[]) {
+        followMap.set(String(c.phone), { date: c.follow_up_date, note: c.follow_up_note, name: c.name })
       }
     }
 
     const customers = top.map(t => {
       const f = followMap.get(t.phone)
+      const orderName = (t.name ?? '').trim()
+      const custName = (f?.name ?? '').trim()
+      const name = orderName || (custName && custName !== 'Lark Customer' ? custName : '') || '(no name)'
       return {
         ...t,
+        name,
         followedUp: !!(f && f.date),
         followUpDate: f?.date ?? null,
         followUpNote: f?.note ?? null,
