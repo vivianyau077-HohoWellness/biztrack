@@ -476,7 +476,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-orange-600">{inactive ? inactive.count.toLocaleString() : '…'}</div>
-              <p className="text-xs text-muted-foreground mt-1">No order in 90+ days</p>
+              <p className="text-xs text-muted-foreground mt-1">2026 buyer · no repurchase in 90+ days</p>
               <button
                 onClick={() => setShowInactive(v => !v)}
                 disabled={!inactive || inactive.count === 0}

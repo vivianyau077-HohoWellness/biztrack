@@ -16,6 +16,8 @@ export async function GET(req: NextRequest) {
     const cutoff = new Date(now)
     cutoff.setDate(cutoff.getDate() - days)
     const cutoffStr = cutoff.toISOString().split('T')[0]
+    // Only customers whose LAST order is in 2026 (ordered in 2026, then no repurchase in `days` days).
+    const since = req.nextUrl.searchParams.get('since') || '2026-01-01'
 
     // phone -> { name, last order date }
     const map = new Map<string, { name: string; last: string }>()
@@ -48,7 +50,7 @@ export async function GET(req: NextRequest) {
 
     const list: { phone: string; name: string; lastOrderDate: string; daysSince: number }[] = []
     for (const [phone, v] of Array.from(map.entries())) {
-      if (v.last < cutoffStr) {
+      if (v.last >= since && v.last < cutoffStr) {
         const daysSince = Math.floor((now.getTime() - new Date(v.last).getTime()) / 86400000)
         list.push({ phone, name: v.name || '(no name)', lastOrderDate: v.last, daysSince })
       }
