@@ -57,6 +57,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
   const [isExporting,   setIsExporting]   = useState(false)
   const [exportingId,   setExportingId]   = useState<string | null>(null)
   const [phoneOnly, setPhoneOnly] = useState(false)
+  const [showInactive, setShowInactive] = useState(false)
   const drillRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
 
@@ -154,6 +155,20 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
       const res = await fetch(`/api/analytics/churn?projectId=${encodeURIComponent(projectId)}`)
       if (!res.ok) throw new Error('Failed to load churn')
       return res.json() as Promise<{ churnCount: number; totalCustomers: number; activeCustomers: number; unique2025: number; unique2026: number }>
+    },
+  })
+
+  // Customers inactive 90+ days (count + list), all-time by phone, scoped by brand
+  const { data: inactive } = useQuery({
+    queryKey: ['inactive90', projectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/analytics/inactive?projectId=${encodeURIComponent(projectId)}&days=90`)
+      if (!res.ok) throw new Error('Failed to load inactive customers')
+      return res.json() as Promise<{
+        count: number
+        days: number
+        customers: { phone: string; name: string; lastOrderDate: string; daysSince: number }[]
+      }>
     },
   })
 
@@ -449,6 +464,67 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
             <p className="text-xs text-muted-foreground mt-1">Unique phones · 2026 YTD</p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Inactive 90 days — count + expandable list */}
+      <div>
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium text-muted-foreground">Inactive 90 Days</CardTitle>
+              <Clock className="h-3.5 w-3.5 text-orange-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">{inactive ? inactive.count.toLocaleString() : '…'}</div>
+              <p className="text-xs text-muted-foreground mt-1">No order in 90+ days</p>
+              <button
+                onClick={() => setShowInactive(v => !v)}
+                disabled={!inactive || inactive.count === 0}
+                className="mt-2 text-xs text-blue-600 hover:underline disabled:opacity-40"
+              >
+                {showInactive ? 'Hide list ↑' : 'Show who ↓'}
+              </button>
+            </CardContent>
+          </Card>
+        </div>
+        {showInactive && inactive && inactive.customers.length > 0 && (
+          <Card className="mt-4">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">
+                Inactive 90+ Days
+                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  ({inactive.count} customers{inactive.count > inactive.customers.length ? `, showing first ${inactive.customers.length}` : ''})
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-muted/50">
+                    <tr className="border-b">
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">#</th>
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">Name</th>
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">Phone</th>
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">Last Order</th>
+                      <th className="px-3 py-2 text-right font-medium text-muted-foreground">Days Since</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inactive.customers.map((c, i) => (
+                      <tr key={c.phone + i} className="border-b hover:bg-muted/30">
+                        <td className="px-3 py-2 font-mono text-muted-foreground">{i + 1}</td>
+                        <td className="px-3 py-2">{c.name}</td>
+                        <td className="px-3 py-2 font-mono text-muted-foreground">{c.phone}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{formatDate(c.lastOrderDate)}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-orange-600">{c.daysSince}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* VIP Registration · This Year (from Lark AUTO VIP) */}
