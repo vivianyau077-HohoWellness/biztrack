@@ -122,34 +122,6 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
     queryFn: () => fetchCustomerInsights(projectId, dateFrom, dateTo, phoneOnly),
   })
 
-  // VIP registration (this year) — read from Lark "2026 daily order" AUTO VIP field.
-  // Country split (Malaysia / Singapore) lives only in Lark, so this is independent
-  // of the brand toggle and date range above.
-  const { data: vip, isLoading: vipLoading, error: vipError } = useQuery({
-    queryKey: ['vip-registration'],
-    retry: 1,
-    queryFn: async () => {
-      const res = await fetch('/api/analytics/vip-registration')
-      if (!res.ok) {
-        let msg = `HTTP ${res.status}`
-        try { const j = await res.json(); if (j?.error) msg = j.error } catch {}
-        throw new Error(msg)
-      }
-      return res.json() as Promise<{
-        year: number
-        newVipTotal: number
-        newVipMY: number
-        newVipSG: number
-        totalVipMY: number
-        totalVipSG: number
-        newCustomers: number
-        registrationRate: number | null
-        malaysiaVipAov: number
-        singaporeVipAov: number
-      }>
-    },
-  })
-
   // Churn customers (all-time, deduped by phone) — independent of date range, scoped by brand
   const { data: churn } = useQuery({
     queryKey: ['churn', projectId],
@@ -585,106 +557,8 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
         )}
       </div>
 
-      {/* VIP Registration · This Year — DD only (VIP system runs on DD) */}
-      {(!selectedBrand || selectedBrand === 'DD') && (
-      <div>
-        <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-          <Star className="h-4 w-4 text-purple-600" />
-          VIP Registration · {vip?.year ?? new Date().getFullYear()} · DD (This Year)
-        </h3>
-        {vipError && (
-          <p className="text-xs text-red-600 mb-2">⚠️ Failed to load VIP data: {(vipError as Error).message}</p>
-        )}
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-xs font-medium text-muted-foreground">New VIP</CardTitle>
-              <Star className="h-3.5 w-3.5 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600">{vipLoading ? '…' : (vip?.newVipTotal ?? 0)}</div>
-              <p className="text-xs text-muted-foreground mt-1">New customers only (excl. repeat)</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-xs font-medium text-muted-foreground">🇲🇾 Malaysia New VIP</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-foreground">{vipLoading ? '…' : (vip?.newVipMY ?? 0)}</div>
-              <p className="text-xs text-muted-foreground mt-1">New customers only</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-xs font-medium text-muted-foreground">🇸🇬 Singapore New VIP</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-foreground">{vipLoading ? '…' : (vip?.newVipSG ?? 0)}</div>
-              <p className="text-xs text-muted-foreground mt-1">New customers only</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-xs font-medium text-muted-foreground">New VIP Registration Rate</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {vipLoading ? '…' : vip?.registrationRate != null ? `${vip.registrationRate}%` : '—'}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {vip ? `${vip.newVipTotal} new VIP ÷ ${vip.newCustomers} new customers` : 'New VIP ÷ new customers'}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-xs font-medium text-muted-foreground">🇲🇾 Malaysia Total VIP</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600">{vipLoading ? '…' : (vip?.totalVipMY ?? 0)}</div>
-              <p className="text-xs text-muted-foreground mt-1">New + repeat tagged VIP</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-xs font-medium text-muted-foreground">🇸🇬 Singapore Total VIP</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600">{vipLoading ? '…' : (vip?.totalVipSG ?? 0)}</div>
-              <p className="text-xs text-muted-foreground mt-1">New + repeat tagged VIP</p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-      )}
-
-      {/* VIP AOV (Repeat customers, by country) + Customer LTV */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        {(!selectedBrand || selectedBrand === 'DD') && (
-          <>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-xs font-medium text-muted-foreground">🇲🇾 Malaysia VIP AOV</CardTitle>
-            <Star className="h-3.5 w-3.5 text-purple-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold text-purple-600">{vipLoading ? '…' : formatCurrency(vip?.malaysiaVipAov ?? 0)}</div>
-            <p className="text-xs text-muted-foreground mt-0.5">Repeat + Malaysia VIP (this year)</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-xs font-medium text-muted-foreground">🇸🇬 Singapore VIP AOV</CardTitle>
-            <Star className="h-3.5 w-3.5 text-purple-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold text-purple-600">{vipLoading ? '…' : formatCurrency(vip?.singaporeVipAov ?? 0)}</div>
-            <p className="text-xs text-muted-foreground mt-0.5">Repeat + Singapore VIP (this year)</p>
-          </CardContent>
-        </Card>
-          </>
-        )}
+      {/* Customer LTV */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-xs font-medium text-muted-foreground">Customer LTV</CardTitle>

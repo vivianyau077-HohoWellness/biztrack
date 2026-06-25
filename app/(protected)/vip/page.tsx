@@ -49,6 +49,19 @@ async function copyText(text: string, label: string) {
   }
 }
 
+type VipRegData = {
+  year: number
+  newVipTotal: number
+  newVipMY: number
+  newVipSG: number
+  totalVipMY: number
+  totalVipSG: number
+  newCustomers: number
+  registrationRate: number | null
+  malaysiaVipAov: number
+  singaporeVipAov: number
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function VIPManagementPage() {
@@ -58,18 +71,21 @@ export default function VIPManagementPage() {
   const [loading,  setLoading]  = useState(true)
   const [search,   setSearch]   = useState('')
   const [eligibleOpen, setEligibleOpen] = useState(false)
+  const [vipReg, setVipReg] = useState<VipRegData | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [statsData, vipData, eligibleData] = await Promise.all([
+      const [statsData, vipData, eligibleData, vipRegRes] = await Promise.all([
         getVIPStats(),
         getLarkVIPs(),
         getVIPEligible(),
+        fetch('/api/analytics/vip-registration').then(r => (r.ok ? r.json() : null)).catch(() => null),
       ])
       setStats(statsData)
       setVips(vipData)
       setEligible(eligibleData)
+      setVipReg(vipRegRes)
     } catch (e: any) {
       toast.error(e.message ?? 'Failed to load VIP data')
     } finally {
@@ -173,6 +189,72 @@ export default function VIPManagementPage() {
             <p className="text-xs text-orange-600/70 mt-0.5">eligible, not ticked</p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* ── VIP Registration · This Year (Malaysia / Singapore — from Lark AUTO VIP) ── */}
+      <div>
+        <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
+          <Crown className="h-4 w-4 text-purple-600" />
+          VIP Registration · {vipReg?.year ?? new Date().getFullYear()} (This Year)
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="pb-1 pt-4 px-4"><CardDescription className="text-xs">New VIP</CardDescription></CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className="text-2xl font-bold text-purple-600">{loading ? '—' : (vipReg?.newVipTotal ?? 0)}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">New customers only (excl. repeat)</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-1 pt-4 px-4"><CardDescription className="text-xs">New VIP Registration Rate</CardDescription></CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className="text-2xl font-bold text-green-600">{loading ? '—' : vipReg?.registrationRate != null ? `${vipReg.registrationRate}%` : '—'}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{vipReg ? `${vipReg.newVipTotal} new VIP / ${vipReg.newCustomers} new` : 'New VIP ÷ new customers'}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-1 pt-4 px-4"><CardDescription className="text-xs">🇲🇾 Malaysia New VIP</CardDescription></CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className="text-2xl font-bold">{loading ? '—' : (vipReg?.newVipMY ?? 0)}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">New customers only</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-1 pt-4 px-4"><CardDescription className="text-xs">🇸🇬 Singapore New VIP</CardDescription></CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className="text-2xl font-bold">{loading ? '—' : (vipReg?.newVipSG ?? 0)}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">New customers only</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-1 pt-4 px-4"><CardDescription className="text-xs">🇲🇾 Malaysia Total VIP</CardDescription></CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className="text-2xl font-bold text-purple-600">{loading ? '—' : (vipReg?.totalVipMY ?? 0)}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">New + repeat tagged VIP</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-1 pt-4 px-4"><CardDescription className="text-xs">🇸🇬 Singapore Total VIP</CardDescription></CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className="text-2xl font-bold text-purple-600">{loading ? '—' : (vipReg?.totalVipSG ?? 0)}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">New + repeat tagged VIP</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-1 pt-4 px-4"><CardDescription className="text-xs">🇲🇾 Malaysia VIP AOV</CardDescription></CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className="text-2xl font-bold text-purple-600">{loading ? '—' : formatCurrency(vipReg?.malaysiaVipAov ?? 0)}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Repeat + Malaysia VIP</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-1 pt-4 px-4"><CardDescription className="text-xs">🇸🇬 Singapore VIP AOV</CardDescription></CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className="text-2xl font-bold text-purple-600">{loading ? '—' : formatCurrency(vipReg?.singaporeVipAov ?? 0)}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Repeat + Singapore VIP</p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* ── Search + VIP table ──────────────────────────────────────────── */}
