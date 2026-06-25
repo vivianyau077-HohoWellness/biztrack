@@ -1,13 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCleanupDialogArtifacts } from '@/lib/hooks/use-cleanup-dialog-artifacts'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { BRANDS, BRAND_COLORS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
-import { Upload, BarChart3, Users, Target } from 'lucide-react'
+import { toast } from 'sonner'
+import { Upload, BarChart3, Users, Target, RefreshCw } from 'lucide-react'
 import { subDays, format } from 'date-fns'
 import DateRangePicker from '@/components/shared/DateRangePicker'
 import SalesOverviewTab from './_components/SalesOverviewTab'
@@ -33,6 +34,23 @@ export default function AnalyticsPage() {
   const [dateFrom, setDateFrom] = useState(format(subDays(today, 29), 'yyyy-MM-dd'))
   const [dateTo, setDateTo] = useState(format(today, 'yyyy-MM-dd'))
   const [showImport, setShowImport] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const queryClient = useQueryClient()
+
+  async function handleSync() {
+    setSyncing(true)
+    try {
+      const res = await fetch('/api/sync/run', { method: 'POST' })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(data?.error ?? 'Sync failed')
+      toast.success(`Synced ${data?.synced ?? 0} records${data?.errors?.length ? ` · ${data.errors.length} errors` : ''}`)
+      queryClient.invalidateQueries()
+    } catch (e: any) {
+      toast.error(e.message ?? 'Sync failed')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const { data: projects = [] } = useQuery({
     queryKey: ['projects'],
@@ -86,10 +104,16 @@ export default function AnalyticsPage() {
               </button>
             ))}
           </div>
-          <Button size="sm" variant="outline" onClick={() => setShowImport(true)}>
-            <Upload className="h-3.5 w-3.5 mr-1.5" />
-            Import Ad Spend
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={handleSync} disabled={syncing} className="gap-1.5 bg-green-600 hover:bg-green-700">
+              <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Syncing…' : 'Sync'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setShowImport(true)}>
+              <Upload className="h-3.5 w-3.5 mr-1.5" />
+              Import Ad Spend
+            </Button>
+          </div>
         </div>
 
         {/* Date range */}
