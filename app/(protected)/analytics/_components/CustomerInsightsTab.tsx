@@ -585,11 +585,12 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
         )}
       </div>
 
-      {/* VIP Registration · This Year (from Lark AUTO VIP) */}
+      {/* VIP Registration · This Year — DD only (VIP system runs on DD) */}
+      {(!selectedBrand || selectedBrand === 'DD') && (
       <div>
         <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
           <Star className="h-4 w-4 text-purple-600" />
-          VIP Registration · {vip?.year ?? new Date().getFullYear()} (This Year)
+          VIP Registration · {vip?.year ?? new Date().getFullYear()} · DD (This Year)
         </h3>
         {vipError && (
           <p className="text-xs text-red-600 mb-2">⚠️ Failed to load VIP data: {(vipError as Error).message}</p>
@@ -656,9 +657,12 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
           </Card>
         </div>
       </div>
+      )}
 
       {/* VIP AOV (Repeat customers, by country) + Customer LTV */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        {(!selectedBrand || selectedBrand === 'DD') && (
+          <>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-xs font-medium text-muted-foreground">🇲🇾 Malaysia VIP AOV</CardTitle>
@@ -679,6 +683,8 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
             <p className="text-xs text-muted-foreground mt-0.5">Repeat + Singapore VIP (this year)</p>
           </CardContent>
         </Card>
+          </>
+        )}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-xs font-medium text-muted-foreground">Customer LTV</CardTitle>
