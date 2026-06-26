@@ -335,6 +335,52 @@ export async function runLarkSync(): Promise<SyncResult> {
   )
 }
 
+// Fast, targeted backfill of customer names only — reads Name + record_id from
+// Lark and updates orders.customer_name by lark_record_id (parallel batches).
+// Much faster than a full re-sync because it skips customer creation and other
+// fields, so it can cover ALL old records within the timeout.
+export async function backfillNames(uiBrand: string): Promise<{ updated: number; scanned: number; errors: string[] }> {
+  const keys: (keyof typeof TABLES)[] =
+    uiBrand === 'DD' ? ['DD2025', 'DD'] : ([uiBrand] as (keyof typeof TABLES)[])
+  const valid = keys.filter(k => k in TABLES)
+  const sb = createAdminClient()
+  let updated = 0
+  let scanned = 0
+  const errors: string[] = []
+
+  for (const brand of valid) {
+    const { appToken, tableId, projectId } = TABLES[brand]
+    const records = await fetchLarkRecords(tableId, appToken)
+    scanned += records.length
+
+    const updates: { id: string; name: string }[] = []
+    for (const r of records) {
+      const f = r.fields as Record<string, unknown>
+      const name = getText(f['Name'])
+      if (name && name.trim()) updates.push({ id: r.record_id, name: name.trim() })
+    }
+
+    const B = 25
+    for (let i = 0; i < updates.length; i += B) {
+      const batch = updates.slice(i, i + B)
+      const res = await Promise.all(
+        batch.map(u =>
+          sb.from('orders')
+            .update({ customer_name: u.name })
+            .eq('lark_record_id', u.id)
+            .eq('project_id', projectId),
+        ),
+      )
+      for (const r of res) {
+        if (r.error) errors.push(r.error.message)
+        else updated++
+      }
+    }
+  }
+
+  return { updated, scanned, errors: errors.slice(0, 20) }
+}
+
 // Full re-sync for ONE UI brand (ignores last-synced cutoff — re-pulls ALL rows).
 // 'DD' covers both the 2025 and 2026 DD tables. Used to backfill names/phones on
 // older records that were synced before Lark filled them in.

@@ -56,13 +56,13 @@ export default function AnalyticsPage() {
     if (!selectedBrand) { toast.error('Select a brand first (DD / FIOR / Juji / KHH / NE)'); return }
     setSyncing(true)
     try {
-      const res = await fetch(`/api/sync/full?brand=${encodeURIComponent(selectedBrand)}`, { method: 'POST' })
+      const res = await fetch(`/api/sync/backfill-names?brand=${encodeURIComponent(selectedBrand)}`, { method: 'POST' })
       const data = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(data?.error ?? 'Full re-sync failed')
-      toast.success(`Full re-synced ${selectedBrand}: ${data?.synced ?? 0} records${data?.errors?.length ? ` · ${data.errors.length} errors` : ''}`)
+      if (!res.ok) throw new Error(data?.error ?? 'Backfill failed')
+      toast.success(`${selectedBrand}: filled ${data?.updated ?? 0} names (scanned ${data?.scanned ?? 0})`)
       queryClient.invalidateQueries()
     } catch (e: any) {
-      toast.error(e.message ?? 'Full re-sync failed')
+      toast.error(e.message ?? 'Backfill failed')
     } finally {
       setSyncing(false)
     }
@@ -125,9 +125,9 @@ export default function AnalyticsPage() {
               <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
               {syncing ? 'Syncing…' : 'Sync'}
             </Button>
-            <Button size="sm" variant="outline" onClick={handleFullSync} disabled={syncing} className="gap-1.5" title="Re-pull ALL records for the selected brand (backfills missing names)">
+            <Button size="sm" variant="outline" onClick={handleFullSync} disabled={syncing} className="gap-1.5" title="Backfill missing customer names from Lark for the selected brand">
               <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
-              Full Re-sync
+              Fix Names
             </Button>
             <Button size="sm" variant="outline" onClick={() => setShowImport(true)}>
               <Upload className="h-3.5 w-3.5 mr-1.5" />
