@@ -52,6 +52,22 @@ export default function AnalyticsPage() {
     }
   }
 
+  async function handleFullSync() {
+    if (!selectedBrand) { toast.error('Select a brand first (DD / FIOR / Juji / KHH / NE)'); return }
+    setSyncing(true)
+    try {
+      const res = await fetch(`/api/sync/full?brand=${encodeURIComponent(selectedBrand)}`, { method: 'POST' })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(data?.error ?? 'Full re-sync failed')
+      toast.success(`Full re-synced ${selectedBrand}: ${data?.synced ?? 0} records${data?.errors?.length ? ` · ${data.errors.length} errors` : ''}`)
+      queryClient.invalidateQueries()
+    } catch (e: any) {
+      toast.error(e.message ?? 'Full re-sync failed')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   const { data: projects = [] } = useQuery({
     queryKey: ['projects'],
     queryFn: async () => {
@@ -108,6 +124,10 @@ export default function AnalyticsPage() {
             <Button size="sm" onClick={handleSync} disabled={syncing} className="gap-1.5 bg-green-600 hover:bg-green-700">
               <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
               {syncing ? 'Syncing…' : 'Sync'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleFullSync} disabled={syncing} className="gap-1.5" title="Re-pull ALL records for the selected brand (backfills missing names)">
+              <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
+              Full Re-sync
             </Button>
             <Button size="sm" variant="outline" onClick={() => setShowImport(true)}>
               <Upload className="h-3.5 w-3.5 mr-1.5" />

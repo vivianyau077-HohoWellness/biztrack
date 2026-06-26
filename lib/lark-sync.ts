@@ -180,7 +180,7 @@ function mapDD2025Record(record: LarkRecord, projectId: string) {
   }
 }
 
-async function syncBrand(brand: keyof typeof TABLES): Promise<SyncResult> {
+async function syncBrand(brand: keyof typeof TABLES, full = false): Promise<SyncResult> {
   const { appToken, tableId, projectId } = TABLES[brand]
   const supabase = createAdminClient()
 
@@ -190,9 +190,11 @@ async function syncBrand(brand: keyof typeof TABLES): Promise<SyncResult> {
     .eq('id', `lark_${brand}`)
     .single()
 
-  const modifiedAfter = state?.last_synced_at
-    ? new Date(state.last_synced_at).getTime()
-    : undefined
+  const modifiedAfter = full
+    ? undefined
+    : state?.last_synced_at
+      ? new Date(state.last_synced_at).getTime()
+      : undefined
 
   const syncStartTime = new Date()
 
@@ -330,5 +332,26 @@ export async function runLarkSync(): Promise<SyncResult> {
       errors: [...total.errors, ...r.errors],
     }),
     { synced: 0, skipped: 0, errors: [] }
+  )
+}
+
+// Full re-sync for ONE UI brand (ignores last-synced cutoff — re-pulls ALL rows).
+// 'DD' covers both the 2025 and 2026 DD tables. Used to backfill names/phones on
+// older records that were synced before Lark filled them in.
+export async function runFullSync(uiBrand: string): Promise<SyncResult> {
+  const keys: (keyof typeof TABLES)[] =
+    uiBrand === 'DD' ? ['DD2025', 'DD'] : ([uiBrand] as (keyof typeof TABLES)[])
+  const valid = keys.filter(k => k in TABLES)
+  if (valid.length === 0) {
+    return { synced: 0, skipped: 0, errors: [`Unknown brand: ${uiBrand}`] }
+  }
+  const results = await Promise.all(valid.map(b => syncBrand(b, true)))
+  return results.reduce(
+    (total, r) => ({
+      synced: total.synced + r.synced,
+      skipped: total.skipped + r.skipped,
+      errors: [...total.errors, ...r.errors],
+    }),
+    { synced: 0, skipped: 0, errors: [] as string[] },
   )
 }
