@@ -141,7 +141,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
       return res.json() as Promise<{
         count: number
         days: number
-        customers: { phone: string; name: string; package: string; lastOrderDate: string; daysSince: number; followedUp: boolean; followUpDate: string | null; followUpNote: string | null }[]
+        customers: { phone: string; phoneDisplay: string; name: string; package: string; totalPrice: number; lastOrderDate: string; daysSince: number; followedUp: boolean; followUpDate: string | null; followUpNote: string | null }[]
       }>
     },
   })
@@ -211,10 +211,10 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
 
   function exportInactive() {
     if (!inactive) return
-    const header = ['#', 'Name', 'Phone', 'Package', 'Last Order', 'Days Since', 'Followed Up', 'Remark']
+    const header = ['#', 'Name', 'Phone', 'Package', 'Total Price', 'Last Order', 'Days Since', 'Followed Up', 'Remark']
     const rows = inactive.customers.map((c, i) => {
       const e = effFollow(c)
-      return [i + 1, c.name, c.phone, c.package, c.lastOrderDate, c.daysSince, e.done ? 'Yes' : 'No', e.note]
+      return [i + 1, c.name, c.phoneDisplay, c.package, c.totalPrice, c.lastOrderDate, c.daysSince, e.done ? 'Yes' : 'No', e.note]
     })
     const csv = [header, ...rows]
       .map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
@@ -514,6 +514,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
                       <th className="px-3 py-2 text-left font-medium text-muted-foreground">Name</th>
                       <th className="px-3 py-2 text-left font-medium text-muted-foreground">Phone</th>
                       <th className="px-3 py-2 text-left font-medium text-muted-foreground">Package</th>
+                      <th className="px-3 py-2 text-right font-medium text-muted-foreground">Total Price</th>
                       <th className="px-3 py-2 text-left font-medium text-muted-foreground">Last Order</th>
                       <th className="px-3 py-2 text-right font-medium text-muted-foreground">Days Since</th>
                       <th className="px-3 py-2 text-center font-medium text-muted-foreground">Followed Up</th>
@@ -525,8 +526,9 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
                       <tr key={c.phone + i} className={`border-b hover:bg-muted/30 ${effFollow(c).done ? 'bg-green-50/60' : ''}`}>
                         <td className="px-3 py-2 font-mono text-muted-foreground">{i + 1}</td>
                         <td className="px-3 py-2">{c.name}</td>
-                        <td className="px-3 py-2 font-mono text-muted-foreground">{c.phone}</td>
+                        <td className="px-3 py-2 font-mono text-muted-foreground">{c.phoneDisplay}</td>
                         <td className="px-3 py-2">{c.package}</td>
+                        <td className="px-3 py-2 text-right">{formatCurrency(c.totalPrice)}</td>
                         <td className="px-3 py-2 text-muted-foreground">{formatDate(c.lastOrderDate)}</td>
                         <td className="px-3 py-2 text-right font-semibold text-orange-600">{c.daysSince}</td>
                         <td className="px-3 py-2 text-center">
