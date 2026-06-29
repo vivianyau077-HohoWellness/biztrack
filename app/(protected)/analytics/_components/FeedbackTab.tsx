@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
-import { ThumbsUp, ThumbsDown } from 'lucide-react'
+import { ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -20,14 +20,14 @@ function fmtDate(ms: number | null): string {
 }
 
 export default function FeedbackTab({ selectedBrand }: Props) {
-  const [view, setView] = useState<'good' | 'bad'>('good')
+  const [view, setView] = useState<'good' | 'bad' | 'keyword'>('good')
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['feedback'],
     queryFn: async () => {
       const res = await fetch('/api/feedback')
       if (!res.ok) throw new Error('Failed to load feedback')
-      return res.json() as Promise<{ good: GoodItem[]; bad: BadItem[] }>
+      return res.json() as Promise<{ good: GoodItem[]; bad: BadItem[]; keyword: GoodItem[] }>
     },
   })
 
@@ -36,7 +36,8 @@ export default function FeedbackTab({ selectedBrand }: Props) {
 
   const good = (data?.good ?? []).filter(x => matchBrand(x.brand))
   const bad = (data?.bad ?? []).filter(x => matchBrand(x.brand))
-  const list: (GoodItem | BadItem)[] = view === 'good' ? good : bad
+  const keyword = (data?.keyword ?? []).filter(x => matchBrand(x.brand))
+  const list: (GoodItem | BadItem)[] = view === 'good' ? good : view === 'bad' ? bad : keyword
 
   return (
     <div className="space-y-4">
@@ -62,6 +63,16 @@ export default function FeedbackTab({ selectedBrand }: Props) {
           <ThumbsDown className="h-4 w-4" />
           Bad Review ({bad.length})
         </button>
+        <button
+          onClick={() => setView('keyword')}
+          className={cn(
+            'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors',
+            view === 'keyword' ? 'bg-amber-500 text-white border-amber-500' : 'border-border hover:bg-muted',
+          )}
+        >
+          <MessageSquare className="h-4 w-4" />
+          字眼 Keywords ({keyword.length})
+        </button>
       </div>
 
       {error ? (
@@ -74,7 +85,7 @@ export default function FeedbackTab({ selectedBrand }: Props) {
         </div>
       ) : list.length === 0 ? (
         <div className="rounded-lg border border-dashed p-12 text-center text-sm text-muted-foreground">
-          No {view === 'good' ? 'good' : 'bad'} reviews{selectedBrand ? ` for ${selectedBrand}` : ''}.
+          No {view === 'good' ? 'good reviews' : view === 'bad' ? 'bad reviews' : 'keywords'}{selectedBrand ? ` for ${selectedBrand}` : ''}.
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -88,7 +99,7 @@ export default function FeedbackTab({ selectedBrand }: Props) {
                   <span className="text-xs text-muted-foreground shrink-0">{fmtDate(item.date)}</span>
                 </div>
                 <p className="text-sm text-foreground whitespace-pre-wrap">{item.comment || '—'}</p>
-                {item.contact && (
+                {item.contact && view !== 'keyword' && (
                   <p className="text-xs text-muted-foreground">📞 {item.contact}</p>
                 )}
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground pt-1">

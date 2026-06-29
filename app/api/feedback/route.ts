@@ -47,22 +47,22 @@ export async function GET() {
       fetchLarkRecords(BAD_TABLE, BASE),
     ])
 
-    const good = goodRecs
-      .map(r => {
-        const f = r.fields as Record<string, unknown>
-        return {
-          brand: toStr(f['产品']),
-          comment: toStr(f['Customer Feedback']),
-          date: typeof f['Date'] === 'number' ? (f['Date'] as number) : null,
-          who: toStr(f['Who']),
-          duration: toStr(f['吃了多久']),
-          tags: toStr(f['字眼/好评']),
-          contact: toStr(f['顾客联系资料']),
-          attachments: attachments(f['Attachment']),
-        }
-      })
-      // Only genuine good reviews (好评), exclude the 字眼 (keyword) category
-      .filter(x => x.tags.includes('好评') && (x.comment || x.brand))
+    const allGood = goodRecs.map(r => {
+      const f = r.fields as Record<string, unknown>
+      return {
+        brand: toStr(f['产品']),
+        comment: toStr(f['Customer Feedback']),
+        date: typeof f['Date'] === 'number' ? (f['Date'] as number) : null,
+        who: toStr(f['Who']),
+        duration: toStr(f['吃了多久']),
+        tags: toStr(f['字眼/好评']),
+        contact: toStr(f['顾客联系资料']),
+        attachments: attachments(f['Attachment']),
+      }
+    })
+    // 好评 = genuine reviews; 字眼 = keyword/phrase category
+    const good = allGood.filter(x => x.tags.includes('好评') && (x.comment || x.brand))
+    const keyword = allGood.filter(x => x.tags.includes('字眼') && (x.comment || x.brand))
 
     const bad = badRecs
       .map(r => {
@@ -82,8 +82,9 @@ export async function GET() {
 
     good.sort((a, b) => (b.date ?? 0) - (a.date ?? 0))
     bad.sort((a, b) => (b.date ?? 0) - (a.date ?? 0))
+    keyword.sort((a, b) => (b.date ?? 0) - (a.date ?? 0))
 
-    return NextResponse.json({ good, bad })
+    return NextResponse.json({ good, bad, keyword })
   } catch (e) {
     console.error('[feedback] error:', e)
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Failed to load feedback' }, { status: 500 })
