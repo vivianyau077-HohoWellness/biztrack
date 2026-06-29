@@ -17,41 +17,78 @@ export async function GET(req: NextRequest) {
     cutoff.setDate(cutoff.getDate() - 365)
     const cutoffStr = cutoff.toISOString().split('T')[0]
 
-    const collectPhones = async (from?: string, to?: string): Promise<Set<string>> => {
-      const set = new Set<string>()
-      const PAGE = 1000
-      let offset = 0
-      while (true) {
-        let q = sb.from('orders').select('phone').not('phone', 'is', null)
-        if (projectId) q = q.eq('project_id', projectId)
-        if (from) q = q.gte('order_date', from)
-        if (to) q = q.lte('order_date', to)
-        const { data, error } = await q.range(offset, offset + PAGE - 1)
-        if (error) throw new Error(error.message)
-        if (!data || data.length === 0) break
-        for (const r of data as { phone: string | null }[]) {
-          const p = (r.phone ?? '').toString().trim()
-          if (p && p !== '0') set.add(p)
+    // Aggregate per customer (phone): most recent order's date, channel, package.
+    const map = new Map<string, { last: string; channel: string; pkg: string; in2025: boolean; in2026: boolean }>()
+    const PAGE = 1000
+    let offset = 0
+    while (true) {
+      let q = sb
+        .from('orders')
+        .select('phone, order_date, channel, package_name')
+        .not('phone', 'is', null)
+        .not('order_date', 'is', null)
+      if (projectId) q = q.eq('project_id', projectId)
+      const { data, error } = await q.range(offset, offset + PAGE - 1)
+      if (error) throw new Error(error.message)
+      if (!data || data.length === 0) break
+      for (const r of data as { phone: string | null; order_date: string | null; channel: string | null; package_name: string | null }[]) {
+        const p = (r.phone ?? '').toString().trim()
+        if (!p || p === '0' || !r.order_date) continue
+        const y2025 = r.order_date.startsWith('2025')
+        const y2026 = r.order_date.startsWith('2026')
+        const e = map.get(p)
+        if (!e) {
+          map.set(p, { last: r.order_date, channel: r.channel ?? '', pkg: r.package_name ?? '', in2025: y2025, in2026: y2026 })
+        } else {
+          if (r.order_date > e.last) { e.last = r.order_date; e.channel = r.channel ?? ''; e.pkg = r.package_name ?? '' }
+          if (y2025) e.in2025 = true
+          if (y2026) e.in2026 = true
         }
-        if (data.length < PAGE) break
-        offset += PAGE
       }
-      return set
+      if (data.length < PAGE) break
+      offset += PAGE
     }
 
-    const today = new Date().toISOString().split('T')[0]
-    const allPhones = await collectPhones()
-    const activePhones = await collectPhones(cutoffStr)
-    const unique2025 = await collectPhones('2025-01-01', '2025-12-31')
-    const unique2026 = await collectPhones('2026-01-01', today)
-    const churnCount = Math.max(0, allPhones.size - activePhones.size)
+    let total = 0
+    let churn = 0
+    let active = 0
+    let unique2025 = 0
+    let unique2026 = 0
+    const channelMap = new Map<string, number>()
+    const pkgMap = new Map<string, number>()
+    for (const c of Array.from(map.values())) {
+      total++
+      if (c.in2025) unique2025++
+      if (c.in2026) unique2026++
+      if (c.last < cutoffStr) {
+        churn++
+        const ch = c.channel || '(unknown)'
+        channelMap.set(ch, (channelMap.get(ch) ?? 0) + 1)
+        const pk = c.pkg || '(none)'
+        pkgMap.set(pk, (pkgMap.get(pk) ?? 0) + 1)
+      } else {
+        active++
+      }
+    }
+
+    const churnRate = total ? Math.round((churn / total) * 1000) / 10 : 0
+    const byChannel = Array.from(channelMap.entries())
+      .map(([channel, count]) => ({ channel, count, pct: churn ? Math.round((count / churn) * 1000) / 10 : 0 }))
+      .sort((a, b) => b.count - a.count)
+    const byPackage = Array.from(pkgMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 12)
 
     return NextResponse.json({
-      churnCount,
-      totalCustomers: allPhones.size,
-      activeCustomers: activePhones.size,
-      unique2025: unique2025.size,
-      unique2026: unique2026.size,
+      churnCount: churn,
+      totalCustomers: total,
+      activeCustomers: active,
+      unique2025,
+      unique2026,
+      churnRate,
+      byChannel,
+      byPackage,
     })
   } catch (e) {
     console.error('[churn] error:', e)

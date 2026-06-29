@@ -59,6 +59,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
   const [exportingId,   setExportingId]   = useState<string | null>(null)
   const [phoneOnly, setPhoneOnly] = useState(false)
   const [showInactive, setShowInactive] = useState(false)
+  const [showChurnBreakdown, setShowChurnBreakdown] = useState(false)
   const [followLocal, setFollowLocal] = useState<Record<string, { done: boolean; note: string }>>({})
   const drillRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
@@ -128,7 +129,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
     queryFn: async () => {
       const res = await fetch(`/api/analytics/churn?projectId=${encodeURIComponent(projectId)}`)
       if (!res.ok) throw new Error('Failed to load churn')
-      return res.json() as Promise<{ churnCount: number; totalCustomers: number; activeCustomers: number; unique2025: number; unique2026: number }>
+      return res.json() as Promise<{ churnCount: number; totalCustomers: number; activeCustomers: number; unique2025: number; unique2026: number; churnRate: number; byChannel: { channel: string; count: number; pct: number }[]; byPackage: { name: string; count: number }[] }>
     },
   })
 
@@ -443,8 +444,15 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
           <CardContent>
             <div className="text-2xl font-bold text-red-600">{churn ? churn.churnCount.toLocaleString() : '…'}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              No order in over 1 year{churn && churn.totalCustomers > 0 ? ` · ${((churn.churnCount / churn.totalCustomers) * 100).toFixed(1)}% of all customers` : ''}
+              No order in over 1 year{churn ? ` · ${churn.churnRate}% churn rate` : ''}
             </p>
+            <button
+              onClick={() => setShowChurnBreakdown(v => !v)}
+              disabled={!churn || churn.churnCount === 0}
+              className="mt-2 text-xs text-blue-600 hover:underline disabled:opacity-40"
+            >
+              {showChurnBreakdown ? 'Hide breakdown ↑' : 'Show breakdown ↓'}
+            </button>
           </CardContent>
         </Card>
         <Card>
@@ -468,6 +476,49 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
           </CardContent>
         </Card>
       </div>
+
+      {/* Churn breakdown — channel % + packages (of churned customers) */}
+      {showChurnBreakdown && churn && churn.churnCount > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Churned customers by channel</CardTitle></CardHeader>
+            <CardContent className="space-y-1.5">
+              {churn.byChannel.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No data</p>
+              ) : churn.byChannel.map(c => (
+                <div key={c.channel} className="flex items-center gap-2 text-xs">
+                  <span className="w-32 truncate" title={c.channel}>{c.channel}</span>
+                  <div className="flex-1 bg-muted rounded h-2 overflow-hidden">
+                    <div className="h-2 bg-orange-500" style={{ width: `${c.pct}%` }} />
+                  </div>
+                  <span className="w-24 text-right font-medium shrink-0">{c.pct}% ({c.count})</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Packages churned customers bought</CardTitle></CardHeader>
+            <CardContent className="p-0">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Package</th>
+                    <th className="px-3 py-2 text-right font-medium text-muted-foreground">Customers</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {churn.byPackage.map(p => (
+                    <tr key={p.name} className="border-b last:border-0">
+                      <td className="px-3 py-2">{p.name}</td>
+                      <td className="px-3 py-2 text-right font-medium">{p.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Inactive 90 days — count + expandable list */}
       <div>
