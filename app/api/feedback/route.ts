@@ -29,6 +29,17 @@ function toStr(v: unknown): string {
   return ''
 }
 
+// Extract attachment file tokens (for the image proxy).
+function attachments(v: unknown): { token: string; name: string }[] {
+  if (!Array.isArray(v)) return []
+  return v
+    .map(a => {
+      const o = a as { file_token?: string; name?: string }
+      return { token: o.file_token ?? '', name: o.name ?? '' }
+    })
+    .filter(x => x.token)
+}
+
 export async function GET() {
   try {
     const [goodRecs, badRecs] = await Promise.all([
@@ -46,9 +57,12 @@ export async function GET() {
           who: toStr(f['Who']),
           duration: toStr(f['吃了多久']),
           tags: toStr(f['字眼/好评']),
+          contact: toStr(f['顾客联系资料']),
+          attachments: attachments(f['Attachment']),
         }
       })
-      .filter(x => x.comment || x.brand)
+      // Only genuine good reviews (好评), exclude the 字眼 (keyword) category
+      .filter(x => x.tags.includes('好评') && (x.comment || x.brand))
 
     const bad = badRecs
       .map(r => {
@@ -60,6 +74,8 @@ export async function GET() {
           who: toStr(f['Who']),
           duration: toStr(f['喝了多久']),
           issue: toStr(f['问题']),
+          contact: toStr(f['顾客联系资料']),
+          attachments: attachments(f['Attachment']),
         }
       })
       .filter(x => x.comment || x.brand)

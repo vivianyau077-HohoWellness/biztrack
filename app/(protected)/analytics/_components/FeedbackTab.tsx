@@ -10,8 +10,9 @@ interface Props {
   selectedBrand?: string
 }
 
-type GoodItem = { brand: string; comment: string; date: number | null; who: string; duration: string; tags: string }
-type BadItem = { brand: string; comment: string; date: number | null; who: string; duration: string; issue: string }
+type Attachment = { token: string; name: string }
+type GoodItem = { brand: string; comment: string; date: number | null; who: string; duration: string; tags: string; contact: string; attachments: Attachment[] }
+type BadItem = { brand: string; comment: string; date: number | null; who: string; duration: string; issue: string; contact: string; attachments: Attachment[] }
 
 function fmtDate(ms: number | null): string {
   if (!ms) return '—'
@@ -87,6 +88,9 @@ export default function FeedbackTab({ selectedBrand }: Props) {
                   <span className="text-xs text-muted-foreground shrink-0">{fmtDate(item.date)}</span>
                 </div>
                 <p className="text-sm text-foreground whitespace-pre-wrap">{item.comment || '—'}</p>
+                {item.contact && (
+                  <p className="text-xs text-muted-foreground">📞 {item.contact}</p>
+                )}
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground pt-1">
                   {view === 'bad' && (item as BadItem).issue && (
                     <span className="text-red-600 font-medium">⚠ {(item as BadItem).issue}</span>
@@ -94,6 +98,21 @@ export default function FeedbackTab({ selectedBrand }: Props) {
                   {item.duration && <span>⏱ {item.duration}</span>}
                   {item.who && <span>CS: {item.who}</span>}
                 </div>
+                {item.attachments && item.attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {item.attachments.map((a, j) => (
+                      <a key={j} href={`/api/feedback/media?token=${encodeURIComponent(a.token)}`} target="_blank" rel="noreferrer">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={`/api/feedback/media?token=${encodeURIComponent(a.token)}`}
+                          alt={a.name}
+                          className="h-16 w-16 object-cover rounded border"
+                          loading="lazy"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
