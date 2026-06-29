@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
 import { ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -39,56 +40,56 @@ export default function FeedbackTab({ selectedBrand }: Props) {
   const keyword = (data?.keyword ?? []).filter(x => matchBrand(x.brand))
   const list: (GoodItem | BadItem)[] = view === 'good' ? good : view === 'bad' ? bad : keyword
 
-  // Per-brand good vs bad % (across all brands; excludes 字眼 keywords)
-  const summary = (() => {
-    const m = new Map<string, { good: number; bad: number }>()
-    for (const x of data?.good ?? []) { const b = x.brand || '—'; const e = m.get(b) ?? { good: 0, bad: 0 }; e.good++; m.set(b, e) }
-    for (const x of data?.bad ?? []) { const b = x.brand || '—'; const e = m.get(b) ?? { good: 0, bad: 0 }; e.bad++; m.set(b, e) }
-    return Array.from(m.entries())
-      .map(([brand, v]) => {
-        const total = v.good + v.bad
-        return {
-          brand,
-          good: v.good,
-          bad: v.bad,
-          goodPct: total ? Math.round((v.good / total) * 1000) / 10 : 0,
-          badPct: total ? Math.round((v.bad / total) * 1000) / 10 : 0,
-        }
-      })
-      .sort((a, b) => b.good + b.bad - (a.good + a.bad))
-  })()
+  // Good vs Bad chart for the current brand selection (excludes 字眼 keywords)
+  const totalGB = good.length + bad.length
+  const goodPct = totalGB ? Math.round((good.length / totalGB) * 100) : 0
+  const badPct = totalGB ? 100 - goodPct : 0
+  const chartData = [
+    { name: 'Good Review', value: good.length, color: '#22c55e' },
+    { name: 'Bad Review', value: bad.length, color: '#ef4444' },
+  ]
 
   return (
     <div className="space-y-4">
-      {summary.length > 0 && (
+      {totalGB > 0 && (
         <Card>
           <CardContent className="p-4">
-            <h3 className="text-sm font-semibold mb-3">Good vs Bad Review by Brand</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b text-muted-foreground">
-                    <th className="px-2 py-1.5 text-left font-medium">Brand</th>
-                    <th className="px-2 py-1.5 text-right font-medium">Good</th>
-                    <th className="px-2 py-1.5 text-right font-medium">Bad</th>
-                    <th className="px-2 py-1.5 text-right font-medium">Good %</th>
-                    <th className="px-2 py-1.5 text-right font-medium">Bad %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {summary.map(s => (
-                    <tr key={s.brand} className="border-b last:border-0">
-                      <td className="px-2 py-1.5 font-medium">{s.brand}</td>
-                      <td className="px-2 py-1.5 text-right">{s.good}</td>
-                      <td className="px-2 py-1.5 text-right">{s.bad}</td>
-                      <td className="px-2 py-1.5 text-right font-semibold text-green-600">{s.goodPct}%</td>
-                      <td className="px-2 py-1.5 text-right font-semibold text-red-600">{s.badPct}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <h3 className="text-sm font-semibold mb-1">
+              Good vs Bad — {selectedBrand || 'All Brands'}
+            </h3>
+            <p className="text-xs text-muted-foreground mb-2">{totalGB} reviews (excludes 字眼 keywords)</p>
+            <div className="flex items-center gap-6 flex-wrap">
+              <ResponsiveContainer width={200} height={190}>
+                <PieChart>
+                  <Pie
+                    data={chartData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={48}
+                    outerRadius={82}
+                    label={({ value }) => `${totalGB ? Math.round((value / totalGB) * 100) : 0}%`}
+                    labelLine={false}
+                  >
+                    {chartData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                  </Pie>
+                  <Tooltip formatter={(v: number) => [`${v} reviews`, '']} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="h-3 w-3 rounded-full bg-green-500 inline-block shrink-0" />
+                  Good Review: <span className="font-semibold text-green-600">{goodPct}%</span>
+                  <span className="text-muted-foreground">({good.length})</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="h-3 w-3 rounded-full bg-red-500 inline-block shrink-0" />
+                  Bad Review: <span className="font-semibold text-red-600">{badPct}%</span>
+                  <span className="text-muted-foreground">({bad.length})</span>
+                </div>
+              </div>
             </div>
-            <p className="text-[11px] text-muted-foreground mt-2">% = each brand&apos;s share of good vs bad reviews (excludes 字眼 keywords).</p>
           </CardContent>
         </Card>
       )}
