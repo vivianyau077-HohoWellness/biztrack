@@ -39,8 +39,60 @@ export default function FeedbackTab({ selectedBrand }: Props) {
   const keyword = (data?.keyword ?? []).filter(x => matchBrand(x.brand))
   const list: (GoodItem | BadItem)[] = view === 'good' ? good : view === 'bad' ? bad : keyword
 
+  // Per-brand good vs bad % (across all brands; excludes 字眼 keywords)
+  const summary = (() => {
+    const m = new Map<string, { good: number; bad: number }>()
+    for (const x of data?.good ?? []) { const b = x.brand || '—'; const e = m.get(b) ?? { good: 0, bad: 0 }; e.good++; m.set(b, e) }
+    for (const x of data?.bad ?? []) { const b = x.brand || '—'; const e = m.get(b) ?? { good: 0, bad: 0 }; e.bad++; m.set(b, e) }
+    return Array.from(m.entries())
+      .map(([brand, v]) => {
+        const total = v.good + v.bad
+        return {
+          brand,
+          good: v.good,
+          bad: v.bad,
+          goodPct: total ? Math.round((v.good / total) * 1000) / 10 : 0,
+          badPct: total ? Math.round((v.bad / total) * 1000) / 10 : 0,
+        }
+      })
+      .sort((a, b) => b.good + b.bad - (a.good + a.bad))
+  })()
+
   return (
     <div className="space-y-4">
+      {summary.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="text-sm font-semibold mb-3">Good vs Bad Review by Brand</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b text-muted-foreground">
+                    <th className="px-2 py-1.5 text-left font-medium">Brand</th>
+                    <th className="px-2 py-1.5 text-right font-medium">Good</th>
+                    <th className="px-2 py-1.5 text-right font-medium">Bad</th>
+                    <th className="px-2 py-1.5 text-right font-medium">Good %</th>
+                    <th className="px-2 py-1.5 text-right font-medium">Bad %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summary.map(s => (
+                    <tr key={s.brand} className="border-b last:border-0">
+                      <td className="px-2 py-1.5 font-medium">{s.brand}</td>
+                      <td className="px-2 py-1.5 text-right">{s.good}</td>
+                      <td className="px-2 py-1.5 text-right">{s.bad}</td>
+                      <td className="px-2 py-1.5 text-right font-semibold text-green-600">{s.goodPct}%</td>
+                      <td className="px-2 py-1.5 text-right font-semibold text-red-600">{s.badPct}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">% = each brand&apos;s share of good vs bad reviews (excludes 字眼 keywords).</p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Good / Bad toggle */}
       <div className="flex gap-2">
         <button
