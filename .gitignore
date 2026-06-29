@@ -18,6 +18,7 @@ dist-ssr
 
 # Local helper scripts (not for repo)
 deploy-env.ps1
+deploy.bat
 
 # Next.js
 .next/
