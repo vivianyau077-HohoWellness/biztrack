@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { resolveNodeToDocId, larkFetch } from '@/lib/lark'
+import { larkFetch } from '@/lib/lark'
 
 // Diagnostic: resolve the Feedback wiki node -> base, list tables + fields + a
 // few sample rows, so we can see the structure and build the Feedback tab.
@@ -10,7 +10,17 @@ const FEEDBACK_WIKI_NODE = 'FfUPw6VKZiZ7UpkB8V2j5merple'
 
 export async function GET() {
   try {
-    const appToken = await resolveNodeToDocId(FEEDBACK_WIKI_NODE)
+    // Correct Lark endpoint is get_node (not "nodes").
+    const nodeRes = await larkFetch(`/wiki/v2/spaces/get_node?token=${encodeURIComponent(FEEDBACK_WIKI_NODE)}`)
+    const appToken: string | undefined = nodeRes?.data?.node?.obj_token
+    if (!appToken) {
+      return NextResponse.json({
+        step: 'resolve-node',
+        code: nodeRes?.code,
+        msg: nodeRes?.msg,
+        node: nodeRes?.data?.node ?? null,
+      })
+    }
 
     const tablesRes = await larkFetch(`/bitable/v1/apps/${appToken}/tables?page_size=50`)
     const tables: { table_id: string; name: string }[] = (tablesRes.data?.items ?? []).map(
