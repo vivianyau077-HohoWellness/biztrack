@@ -129,7 +129,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
     queryFn: async () => {
       const res = await fetch(`/api/analytics/churn?projectId=${encodeURIComponent(projectId)}`)
       if (!res.ok) throw new Error('Failed to load churn')
-      return res.json() as Promise<{ churnCount: number; totalCustomers: number; activeCustomers: number; unique2025: number; unique2026: number; churnRate: number; byChannel: { channel: string; count: number; pct: number }[]; byPackage: { name: string; count: number }[] }>
+      return res.json() as Promise<{ churnCount: number; totalCustomers: number; activeCustomers: number; churnOneTime: number; churnRepeat: number; unique2025: number; unique2026: number; churnRate: number; byChannel: { channel: string; count: number; pct: number }[]; byPackage: { name: string; count: number }[] }>
     },
   })
 
@@ -479,6 +479,17 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
 
       {/* Churn breakdown — channel % + packages (of churned customers) */}
       {showChurnBreakdown && churn && churn.churnCount > 0 && (
+        <div className="space-y-4">
+        <div className="flex flex-wrap gap-3 text-xs">
+          <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1">
+            <span className="h-2 w-2 rounded-full bg-red-500" />
+            Lapsed repeat customers: <b className="text-red-600">{churn.churnRepeat.toLocaleString()}</b>
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1">
+            <span className="h-2 w-2 rounded-full bg-amber-400" />
+            One-time buyers (never repurchased): <b className="text-amber-600">{churn.churnOneTime.toLocaleString()}</b>
+          </span>
+        </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Churned customers by channel</CardTitle></CardHeader>
@@ -517,6 +528,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
               </table>
             </CardContent>
           </Card>
+        </div>
         </div>
       )}
 
