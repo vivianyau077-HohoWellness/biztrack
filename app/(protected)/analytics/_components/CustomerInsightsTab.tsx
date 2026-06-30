@@ -28,6 +28,61 @@ interface Props {
   selectedBrand?: string
 }
 
+type ChurnSeg = {
+  count: number
+  byChannel: { channel: string; count: number; pct: number }[]
+  byPackage: { name: string; count: number; pct: number }[]
+}
+
+// Renders one churned segment's channel + package breakdown.
+function ChurnSegmentBreakdown({ title, color, seg }: { title: string; color: string; seg: ChurnSeg }) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
+          {title} <span className="text-muted-foreground font-normal">({seg.count.toLocaleString()})</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {seg.count === 0 ? (
+          <p className="text-xs text-muted-foreground">No customers in this group.</p>
+        ) : (
+          <>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">在哪个 Channel 下过单</p>
+              <div className="space-y-1.5">
+                {seg.byChannel.map(c => (
+                  <div key={c.channel} className="flex items-center gap-2 text-xs">
+                    <span className="w-28 truncate" title={c.channel}>{c.channel}</span>
+                    <div className="flex-1 bg-muted rounded h-2 overflow-hidden">
+                      <div className="h-2" style={{ width: `${c.pct}%`, background: color }} />
+                    </div>
+                    <span className="w-20 text-right font-medium shrink-0">{c.pct}% ({c.count})</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">买过什么配套</p>
+              <table className="w-full text-xs">
+                <tbody>
+                  {seg.byPackage.map(p => (
+                    <tr key={p.name} className="border-b last:border-0">
+                      <td className="py-1.5 pr-2">{p.name}</td>
+                      <td className="py-1.5 text-right font-medium whitespace-nowrap">{p.pct}% ({p.count})</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 const TAG_COLORS: Record<string, string> = {
   New: '#22c55e', Repeat: '#3b82f6', VIP: '#a855f7',
   Dormant: '#f97316', Lost: '#ef4444', Unknown: '#94a3b8',
@@ -129,7 +184,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
     queryFn: async () => {
       const res = await fetch(`/api/analytics/churn?projectId=${encodeURIComponent(projectId)}`)
       if (!res.ok) throw new Error('Failed to load churn')
-      return res.json() as Promise<{ churnCount: number; totalCustomers: number; activeCustomers: number; churnOneTime: number; churnRepeat: number; unique2025: number; unique2026: number; churnRate: number; byChannel: { channel: string; count: number; pct: number }[]; byPackage: { name: string; count: number }[] }>
+      return res.json() as Promise<{ churnCount: number; totalCustomers: number; activeCustomers: number; churnOneTime: number; churnRepeat: number; unique2025: number; unique2026: number; churnRate: number; repeat: ChurnSeg; oneTime: ChurnSeg }>
     },
   })
 
@@ -479,56 +534,17 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
 
       {/* Churn breakdown — channel % + packages (of churned customers) */}
       {showChurnBreakdown && churn && churn.churnCount > 0 && (
-        <div className="space-y-4">
-        <div className="flex flex-wrap gap-3 text-xs">
-          <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1">
-            <span className="h-2 w-2 rounded-full bg-red-500" />
-            Lapsed repeat customers: <b className="text-red-600">{churn.churnRepeat.toLocaleString()}</b>
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1">
-            <span className="h-2 w-2 rounded-full bg-amber-400" />
-            One-time buyers (never repurchased): <b className="text-amber-600">{churn.churnOneTime.toLocaleString()}</b>
-          </span>
-        </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Churned customers by channel</CardTitle></CardHeader>
-            <CardContent className="space-y-1.5">
-              {churn.byChannel.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No data</p>
-              ) : churn.byChannel.map(c => (
-                <div key={c.channel} className="flex items-center gap-2 text-xs">
-                  <span className="w-32 truncate" title={c.channel}>{c.channel}</span>
-                  <div className="flex-1 bg-muted rounded h-2 overflow-hidden">
-                    <div className="h-2 bg-orange-500" style={{ width: `${c.pct}%` }} />
-                  </div>
-                  <span className="w-24 text-right font-medium shrink-0">{c.pct}% ({c.count})</span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Packages churned customers bought</CardTitle></CardHeader>
-            <CardContent className="p-0">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Package</th>
-                    <th className="px-3 py-2 text-right font-medium text-muted-foreground">Customers</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {churn.byPackage.map(p => (
-                    <tr key={p.name} className="border-b last:border-0">
-                      <td className="px-3 py-2">{p.name}</td>
-                      <td className="px-3 py-2 text-right font-medium">{p.count}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        </div>
+          <ChurnSegmentBreakdown
+            title="Lapsed repeat customers · 曾复购后流失"
+            color="#ef4444"
+            seg={churn.repeat}
+          />
+          <ChurnSegmentBreakdown
+            title="One-time buyers · 只买一次没回购"
+            color="#f59e0b"
+            seg={churn.oneTime}
+          />
         </div>
       )}
 

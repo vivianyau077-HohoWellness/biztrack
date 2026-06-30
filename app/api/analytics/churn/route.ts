@@ -8,6 +8,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
+type Seg = 'repeat' | 'oneTime'
+
 export async function GET(req: NextRequest) {
   try {
     const projectId = req.nextUrl.searchParams.get('projectId') || ''
@@ -77,50 +79,57 @@ export async function GET(req: NextRequest) {
     let total = 0
     let churn = 0
     let active = 0
-    let churnOneTime = 0 // churned customers who only ever ordered once
-    let churnRepeat = 0  // churned customers who ordered 2+ times (lapsed loyal)
     let unique2025 = 0
     let unique2026 = 0
-    const channelMap = new Map<string, number>() // # distinct churned customers per channel
-    const pkgMap = new Map<string, number>()     // # distinct churned customers per package
+    // Per-segment counters & breakdown maps (each customer counted once per
+    // distinct channel / package they ever used).
+    const segCount: Record<Seg, number> = { repeat: 0, oneTime: 0 }
+    const chanMap: Record<Seg, Map<string, number>> = { repeat: new Map(), oneTime: new Map() }
+    const pkgMap: Record<Seg, Map<string, number>> = { repeat: new Map(), oneTime: new Map() }
+
     for (const c of Array.from(map.values())) {
       total++
       if (c.in2025) unique2025++
       if (c.in2026) unique2026++
       if (c.last < cutoffStr) {
         churn++
-        if (c.orders >= 2) { churnRepeat++ } else { churnOneTime++ }
+        const seg: Seg = c.orders >= 2 ? 'repeat' : 'oneTime'
+        segCount[seg]++
         const chans = c.channels.size ? Array.from(c.channels) : ['(unknown)']
-        for (const ch of chans) channelMap.set(ch, (channelMap.get(ch) ?? 0) + 1)
+        for (const ch of chans) chanMap[seg].set(ch, (chanMap[seg].get(ch) ?? 0) + 1)
         const pks = c.pkgs.size ? Array.from(c.pkgs) : ['(none)']
-        for (const pk of pks) pkgMap.set(pk, (pkgMap.get(pk) ?? 0) + 1)
+        for (const pk of pks) pkgMap[seg].set(pk, (pkgMap[seg].get(pk) ?? 0) + 1)
       } else {
         active++
       }
     }
 
     const churnRate = total ? Math.round((churn / total) * 1000) / 10 : 0
-    // pct = share of churned customers who ever used this channel / bought this
-    // package. A customer can use several channels, so these can sum to >100%.
-    const byChannel = Array.from(channelMap.entries())
-      .map(([channel, count]) => ({ channel, count, pct: churn ? Math.round((count / churn) * 1000) / 10 : 0 }))
-      .sort((a, b) => b.count - a.count)
-    const byPackage = Array.from(pkgMap.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 12)
+    const pct = (count: number, base: number) => (base ? Math.round((count / base) * 1000) / 10 : 0)
+
+    const buildSeg = (seg: Seg) => {
+      const base = segCount[seg]
+      const byChannel = Array.from(chanMap[seg].entries())
+        .map(([channel, count]) => ({ channel, count, pct: pct(count, base) }))
+        .sort((a, b) => b.count - a.count)
+      const byPackage = Array.from(pkgMap[seg].entries())
+        .map(([name, count]) => ({ name, count, pct: pct(count, base) }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 12)
+      return { count: base, byChannel, byPackage }
+    }
 
     return NextResponse.json({
       churnCount: churn,
       totalCustomers: total,
       activeCustomers: active,
-      churnOneTime,
-      churnRepeat,
+      churnRepeat: segCount.repeat,
+      churnOneTime: segCount.oneTime,
       unique2025,
       unique2026,
       churnRate,
-      byChannel,
-      byPackage,
+      repeat: buildSeg('repeat'),
+      oneTime: buildSeg('oneTime'),
     })
   } catch (e) {
     console.error('[churn] error:', e)
