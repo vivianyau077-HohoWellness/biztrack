@@ -24,10 +24,10 @@ type Segment = {
 }
 
 const META: Record<SegKey, { label: string; icon: typeof Sparkles; color: string; bar: string; ring: string; desc: string }> = {
-  new:    { label: 'New customer onboarding',    icon: Sparkles,      color: '#22c55e', bar: 'bg-green-500',  ring: 'ring-green-500',  desc: '只下过 1 单且仍活跃 · onboarding' },
-  active: { label: 'Active customer recurring',  icon: Repeat2,       color: '#3b82f6', bar: 'bg-blue-500',   ring: 'ring-blue-500',   desc: '2–3 单且仍活跃 · recurring' },
-  loyal:  { label: 'Loyal customer advocacy',    icon: Crown,         color: '#a855f7', bar: 'bg-purple-500', ring: 'ring-purple-500', desc: '4+ 单且仍活跃 · advocacy' },
-  churn:  { label: 'Churn customer reactivation', icon: AlertTriangle, color: '#ef4444', bar: 'bg-red-500',    ring: 'ring-red-500',    desc: '超过 1 年没回来 · reactivation' },
+  new:    { label: 'New customer onboarding',    icon: Sparkles,      color: '#22c55e', bar: 'bg-green-500',  ring: 'ring-green-500',  desc: '1 order only · still active · onboarding' },
+  active: { label: 'Active customer recurring',  icon: Repeat2,       color: '#3b82f6', bar: 'bg-blue-500',   ring: 'ring-blue-500',   desc: '2–3 orders · still active · recurring' },
+  loyal:  { label: 'Loyal customer advocacy',    icon: Crown,         color: '#a855f7', bar: 'bg-purple-500', ring: 'ring-purple-500', desc: '4+ orders · still active · advocacy' },
+  churn:  { label: 'Churn customer reactivation', icon: AlertTriangle, color: '#ef4444', bar: 'bg-red-500',    ring: 'ring-red-500',    desc: 'No order in 1+ year · reactivation' },
 }
 
 function fmtRM(n: number) { return `RM ${Math.round(n).toLocaleString()}` }
@@ -70,7 +70,7 @@ export default function LifecycleTab({ projectId, selectedBrand }: Props) {
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        以电话号码去重{selectedBrand ? ` · ${selectedBrand}` : ' · 全部品牌'} · 每个客户只归一段 · 共 {total.toLocaleString()} 位客户
+        Deduped by phone{selectedBrand ? ` · ${selectedBrand}` : ' · All brands'} · each customer in one segment only · {total.toLocaleString()} customers total
       </p>
 
       {/* 4 segment cards */}
@@ -109,7 +109,7 @@ export default function LifecycleTab({ projectId, selectedBrand }: Props) {
       </div>
 
       {!openSeg && !isLoading && (
-        <p className="text-xs text-muted-foreground text-center py-2">点任意一段查看渠道、配套与客户名单 ↑</p>
+        <p className="text-xs text-muted-foreground text-center py-2">Click any segment to see its channels, packages & customer list ↑</p>
       )}
 
       {/* Selected segment detail */}
@@ -117,7 +117,7 @@ export default function LifecycleTab({ projectId, selectedBrand }: Props) {
         <div className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">在哪个 Channel 下过单</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Which channel they ordered through</CardTitle></CardHeader>
               <CardContent className="space-y-1.5">
                 {active.byChannel.length === 0 ? <p className="text-xs text-muted-foreground">No data</p> : active.byChannel.map(c => (
                   <div key={c.channel} className="flex items-center gap-2 text-xs">
@@ -131,14 +131,14 @@ export default function LifecycleTab({ projectId, selectedBrand }: Props) {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">买过什么配套</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Packages bought</CardTitle></CardHeader>
               <CardContent>
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b text-muted-foreground">
-                      <th className="py-1 pr-2 text-left font-medium">配套</th>
-                      <th className="py-1 px-2 text-right font-medium whitespace-nowrap">价钱</th>
-                      <th className="py-1 pl-2 text-right font-medium whitespace-nowrap">人数 (%)</th>
+                      <th className="py-1 pr-2 text-left font-medium">Package</th>
+                      <th className="py-1 px-2 text-right font-medium whitespace-nowrap">Price</th>
+                      <th className="py-1 pl-2 text-right font-medium whitespace-nowrap">Customers (%)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -159,7 +159,7 @@ export default function LifecycleTab({ projectId, selectedBrand }: Props) {
           <Card>
             <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-sm font-medium">
-                客户名单 <span className="text-muted-foreground font-normal">({active.customers.length.toLocaleString()}{active.truncated ? ' shown' : ''})</span>
+                Customer list <span className="text-muted-foreground font-normal">({active.customers.length.toLocaleString()}{active.truncated ? ' shown' : ''})</span>
               </CardTitle>
               <button
                 onClick={() => exportSeg(active)}
@@ -188,7 +188,7 @@ export default function LifecycleTab({ projectId, selectedBrand }: Props) {
                       <tr key={c.phone + i} className="border-b last:border-0 hover:bg-muted/30">
                         <td className="px-3 py-2">
                           {c.name}
-                          {c.isNew90 && active.key === 'new' && <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-green-100 text-green-700">真新客</span>}
+                          {c.isNew90 && active.key === 'new' && <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-green-100 text-green-700">New</span>}
                         </td>
                         <td className="px-3 py-2 font-mono text-muted-foreground">{c.phone}</td>
                         <td className="px-3 py-2 text-right font-medium">{c.orders}</td>
