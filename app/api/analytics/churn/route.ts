@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getDdPackagePrice } from '@/lib/dd-package-prices'
 
 // Churn = customers (deduped by normalized phone) who have ordered before but
 // NOT in the last 365 days. Computed over ALL orders (all-time), independent of
@@ -116,6 +117,8 @@ export async function GET(req: NextRequest) {
     const pct = (count: number, base: number) => (base ? Math.round((count / base) * 1000) / 10 : 0)
 
     const priceOf = (pk: string) => {
+      const listed = getDdPackagePrice(pk)
+      if (listed > 0) return listed
       const pe = pkgPrice.get(pk)
       return pe && pe.n ? Math.round(pe.sum / pe.n) : 0
     }

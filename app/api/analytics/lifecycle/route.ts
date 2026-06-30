@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getDdPackagePrice } from '@/lib/dd-package-prices'
 
 // Customer lifecycle segmentation (deduped by normalized phone, scoped by
 // project_id / brand). The "1 year" window is the 2026 calendar year (YTD).
@@ -163,7 +164,13 @@ export async function GET(req: NextRequest) {
     }
 
     const total = map.size
-    const priceOf = (pk: string) => { const pe = pkgPrice.get(pk); return pe && pe.n ? Math.round(pe.sum / pe.n) : 0 }
+    // Prefer the listed DD price; fall back to the averaged order total.
+    const priceOf = (pk: string) => {
+      const listed = getDdPackagePrice(pk)
+      if (listed > 0) return listed
+      const pe = pkgPrice.get(pk)
+      return pe && pe.n ? Math.round(pe.sum / pe.n) : 0
+    }
     const pct = (n: number, base: number) => (base ? Math.round((n / base) * 1000) / 10 : 0)
 
     const segments = SEG_ORDER.map(key => {
