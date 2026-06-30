@@ -26,9 +26,9 @@ type Segment = {
 }
 
 const META: Record<SegKey, { label: string; icon: typeof Sparkles; color: string; bar: string; ring: string; desc: string }> = {
-  new:    { label: 'New customer onboarding',    icon: Sparkles,      color: '#22c55e', bar: 'bg-green-500',  ring: 'ring-green-500',  desc: '1 order in selected period · onboarding' },
-  active: { label: 'Active customer recurring',  icon: Repeat2,       color: '#3b82f6', bar: 'bg-blue-500',   ring: 'ring-blue-500',   desc: 'Repurchased in period (2+ orders) · recurring' },
-  loyal:  { label: 'Loyal customer advocacy',    icon: Crown,         color: '#a855f7', bar: 'bg-purple-500', ring: 'ring-purple-500', desc: 'Spent RM700+ in period · MY/SG VIP' },
+  new:    { label: 'New customer onboarding',    icon: Sparkles,      color: '#22c55e', bar: 'bg-green-500',  ring: 'ring-green-500',  desc: 'First-time buyer in period · onboarding' },
+  active: { label: 'Active customer recurring',  icon: Repeat2,       color: '#3b82f6', bar: 'bg-blue-500',   ring: 'ring-blue-500',   desc: 'Repeat customer · spent < RM700 in period' },
+  loyal:  { label: 'Loyal customer advocacy',    icon: Crown,         color: '#a855f7', bar: 'bg-purple-500', ring: 'ring-purple-500', desc: 'Repeat customer · spent RM700+ in period · VIP' },
   churn:  { label: 'Churn customer reactivation', icon: AlertTriangle, color: '#ef4444', bar: 'bg-red-500',    ring: 'ring-red-500',    desc: 'No order in period (bought before) · reactivation' },
 }
 
@@ -55,7 +55,7 @@ export default function LifecycleTab({ projectId, selectedBrand, dateFrom, dateT
   const active = openSeg ? segments.find(s => s.key === openSeg) : null
 
   function exportSeg(seg: Segment) {
-    const header = ['Name', 'Phone', 'Orders', 'Total Spent (RM)', 'Last Order', 'First-time (last year)']
+    const header = ['Name', 'Phone', 'Orders', 'Total Spent (RM)', 'Last Order', 'New VIP']
     const rows = seg.customers.map(c => [c.name, c.phone, c.orders, c.spent, c.lastOrderDate, c.isNew ? 'Yes' : ''])
     const csv = [header, ...rows].map(r => r.map(csvCell).join(',')).join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
@@ -190,7 +190,7 @@ export default function LifecycleTab({ projectId, selectedBrand, dateFrom, dateT
                       <tr key={c.phone + i} className="border-b last:border-0 hover:bg-muted/30">
                         <td className="px-3 py-2">
                           {c.name}
-                          {c.isNew && active.key === 'new' && <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-green-100 text-green-700">First-time</span>}
+                          {c.isNew && active.key === 'new' && <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-purple-100 text-purple-700">New VIP</span>}
                         </td>
                         <td className="px-3 py-2 font-mono text-muted-foreground">{c.phone}</td>
                         <td className="px-3 py-2 text-right font-medium">{c.orders}</td>

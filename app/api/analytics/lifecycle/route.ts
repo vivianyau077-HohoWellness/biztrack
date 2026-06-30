@@ -7,9 +7,10 @@ import { getDdPackagePrice } from '@/lib/dd-package-prices'
 // Population = customers whose first order is on or before `to` (they existed by
 // the end of the period). Each is assigned to exactly ONE segment:
 //   1. churn  — existed before the period but NO order within it → reactivation
-//   2. loyal  — spent >= RM700 within the period (MY / SG VIP) → advocacy
-//   3. active — 2+ orders within the period (repurchased), spent < 700 → recurring
-//   4. new    — exactly 1 order within the period, spent < 700 → onboarding
+//   2. new    — first-EVER order falls within the period (never ordered before) →
+//               onboarding. Takes priority over VIP (a big first order = "New VIP").
+//   3. loyal  — repeat customer (ordered before) + spent >= RM700 in period → VIP
+//   4. active — repeat customer + spent < RM700 in period → recurring
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
@@ -106,16 +107,16 @@ export async function GET(req: NextRequest) {
     const segOf = (c: Cust): SegKey | null => {
       if (c.first > to) return null
       if (c.ordersRange === 0) return 'churn'        // existed before, no order in period
-      if (c.spentRange >= VIP_MIN) return 'loyal'    // RM700+ in period = VIP
-      if (c.ordersRange >= 2) return 'active'        // repurchased in period
-      return 'new'                                   // single order in period
+      if (c.first >= from) return 'new'              // first-EVER order in period = brand new (incl New VIP)
+      if (c.spentRange >= VIP_MIN) return 'loyal'    // repeat customer, RM700+ in period = VIP
+      return 'active'                                // repeat customer, < RM700 in period
     }
 
     type Acc = {
       count: number
       chan: Map<string, number>
       pkg: Map<string, number>
-      list: { name: string; phone: string; rawPhone: string; orders: number; spent: number; last: string; isFirstEver: boolean }[]
+      list: { name: string; phone: string; rawPhone: string; orders: number; spent: number; last: string; flagVip: boolean }[]
     }
     const acc: Record<SegKey, Acc> = {
       new: { count: 0, chan: new Map(), pkg: new Map(), list: [] },
@@ -143,7 +144,7 @@ export async function GET(req: NextRequest) {
           orders: c.ordersAll,
           spent: Math.round(c.spentAll),
           last: c.last,
-          isFirstEver: c.first >= from, // first-ever order falls within the period
+          flagVip: c.spentRange >= VIP_MIN, // spent RM700+ in period → "New VIP" when in the New segment
         })
       }
     }
@@ -194,7 +195,7 @@ export async function GET(req: NextRequest) {
         .slice(0, 12)
       const customers = a.list
         .sort((x, y) => y.spent - x.spent)
-        .map(r => ({ name: r.name || '(no name)', phone: r.phone, orders: r.orders, spent: r.spent, lastOrderDate: r.last, isNew: r.isFirstEver }))
+        .map(r => ({ name: r.name || '(no name)', phone: r.phone, orders: r.orders, spent: r.spent, lastOrderDate: r.last, isNew: r.flagVip }))
       return {
         key,
         label: SEG_LABEL[key],
