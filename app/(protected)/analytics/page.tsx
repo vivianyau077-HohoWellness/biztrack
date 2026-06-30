@@ -198,7 +198,7 @@ export default function AnalyticsPage() {
           />
         )}
         {activeTab === 'lifecycle' && (
-          <LifecycleTab projectId={projectId} selectedBrand={selectedBrand} />
+          <LifecycleTab projectId={projectId} selectedBrand={selectedBrand} dateFrom={dateFrom} dateTo={dateTo} />
         )}
         {activeTab === 'feedback' && (
           <FeedbackTab selectedBrand={selectedBrand} />

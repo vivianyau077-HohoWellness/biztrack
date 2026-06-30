@@ -3,13 +3,13 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getDdPackagePrice } from '@/lib/dd-package-prices'
 
 // Customer lifecycle segmentation (deduped by normalized phone, scoped by
-// project_id / brand). The "1 year" window is the LAST 365 DAYS (rolling), so
-// churn matches the Customer Insights churn card and all four segments add up
-// to the full customer base. Each customer is in exactly ONE segment:
-//   1. churn  — last order > 365 days ago → reactivation
-//   2. loyal  — spent >= RM700 in last 365 days (MY / SG VIP) → advocacy
-//   3. active — 2+ orders in last 365 days (repurchased), spent < 700 → recurring
-//   4. new    — exactly 1 order in last 365 days, spent < 700 → onboarding
+// project_id / brand). The time window FOLLOWS the date range picker [from, to].
+// Population = customers whose first order is on or before `to` (they existed by
+// the end of the period). Each is assigned to exactly ONE segment:
+//   1. churn  — existed before the period but NO order within it → reactivation
+//   2. loyal  — spent >= RM700 within the period (MY / SG VIP) → advocacy
+//   3. active — 2+ orders within the period (repurchased), spent < 700 → recurring
+//   4. new    — exactly 1 order within the period, spent < 700 → onboarding
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +21,7 @@ const SEG_LABEL: Record<SegKey, string> = {
   loyal: 'Loyal customer advocacy',
   churn: 'Churn customer reactivation',
 }
-const VIP_MIN = 700 // MY / SG VIP spend threshold (within the last 365 days)
+const VIP_MIN = 700 // MY / SG VIP spend threshold (within the selected period)
 const LIST_CAP = 5000
 
 export async function GET(req: NextRequest) {
@@ -29,10 +29,11 @@ export async function GET(req: NextRequest) {
     const projectId = req.nextUrl.searchParams.get('projectId') || ''
     const sb = createAdminClient()
 
-    // Rolling 1-year window (matches the Customer Insights churn card exactly).
-    const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() - 365)
-    const cutoffStr = cutoff.toISOString().split('T')[0]
+    // Selected period (follows the date picker). Defaults to the last 365 days.
+    const todayStr = new Date().toISOString().split('T')[0]
+    const def = new Date(); def.setDate(def.getDate() - 365)
+    const from = req.nextUrl.searchParams.get('from') || def.toISOString().split('T')[0]
+    const to = req.nextUrl.searchParams.get('to') || todayStr
 
     const normPhone = (raw: string): string => {
       const d = (raw ?? '').toString().replace(/\D/g, '')
@@ -49,8 +50,8 @@ export async function GET(req: NextRequest) {
       last: string
       ordersAll: number
       spentAll: number
-      ordersRecent: number  // orders in the last 365 days
-      spentRecent: number   // spend in the last 365 days
+      ordersRange: number  // orders within [from, to]
+      spentRange: number   // spend within [from, to]
       channels: Set<string>
       pkgs: Set<string>
     }
@@ -77,7 +78,7 @@ export async function GET(req: NextRequest) {
         const pk = (r.package_name ?? '').trim()
         const price = Number(r.total_price) || 0
         const nm = (r.customer_name ?? '').trim()
-        const isRecent = r.order_date >= cutoffStr
+        const inRange = r.order_date >= from && r.order_date <= to
         if (pk && price > 0) {
           const pe = pkgPrice.get(pk) ?? { sum: 0, n: 0 }
           pe.sum += price; pe.n += 1
@@ -85,12 +86,12 @@ export async function GET(req: NextRequest) {
         }
         let e = map.get(p)
         if (!e) {
-          e = { name: nm, rawPhone: raw, first: r.order_date, last: r.order_date, ordersAll: 0, spentAll: 0, ordersRecent: 0, spentRecent: 0, channels: new Set<string>(), pkgs: new Set<string>() }
+          e = { name: nm, rawPhone: raw, first: r.order_date, last: r.order_date, ordersAll: 0, spentAll: 0, ordersRange: 0, spentRange: 0, channels: new Set<string>(), pkgs: new Set<string>() }
           map.set(p, e)
         }
         e.ordersAll++
         e.spentAll += price
-        if (isRecent) { e.ordersRecent++; e.spentRecent += price }
+        if (inRange) { e.ordersRange++; e.spentRange += price }
         if (nm && (!e.name || e.name === 'Lark Customer')) e.name = nm
         if (r.order_date < e.first) e.first = r.order_date
         if (r.order_date > e.last) e.last = r.order_date
@@ -101,11 +102,13 @@ export async function GET(req: NextRequest) {
       offset += PAGE
     }
 
-    const segOf = (c: Cust): SegKey => {
-      if (c.last < cutoffStr) return 'churn'        // no order in over 1 year
-      if (c.spentRecent >= VIP_MIN) return 'loyal'  // RM700+ in last 365 days = VIP
-      if (c.ordersRecent >= 2) return 'active'      // repurchased in last 365 days
-      return 'new'                                  // single order in last 365 days
+    // null = excluded (customer's first order is after the period — didn't exist yet)
+    const segOf = (c: Cust): SegKey | null => {
+      if (c.first > to) return null
+      if (c.ordersRange === 0) return 'churn'        // existed before, no order in period
+      if (c.spentRange >= VIP_MIN) return 'loyal'    // RM700+ in period = VIP
+      if (c.ordersRange >= 2) return 'active'        // repurchased in period
+      return 'new'                                   // single order in period
     }
 
     type Acc = {
@@ -121,8 +124,11 @@ export async function GET(req: NextRequest) {
       churn: { count: 0, chan: new Map(), pkg: new Map(), list: [] },
     }
 
+    let total = 0
     for (const [phoneKey, c] of Array.from(map.entries())) {
       const seg = segOf(c)
+      if (!seg) continue
+      total++
       const a = acc[seg]
       a.count++
       const chans = c.channels.size ? Array.from(c.channels) : ['(unknown)']
@@ -137,7 +143,7 @@ export async function GET(req: NextRequest) {
           orders: c.ordersAll,
           spent: Math.round(c.spentAll),
           last: c.last,
-          isFirstEver: c.first >= cutoffStr, // first-ever order within the last year
+          isFirstEver: c.first >= from, // first-ever order falls within the period
         })
       }
     }
@@ -168,7 +174,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const total = map.size
     // Prefer the listed DD price; fall back to the averaged order total.
     const priceOf = (pk: string) => {
       const listed = getDdPackagePrice(pk)
@@ -202,7 +207,7 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    return NextResponse.json({ total, segments })
+    return NextResponse.json({ total, from, to, segments })
   } catch (e) {
     console.error('[lifecycle] error:', e)
     return NextResponse.json(

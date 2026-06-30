@@ -9,6 +9,8 @@ import { cn } from '@/lib/utils'
 interface Props {
   projectId: string
   selectedBrand?: string
+  dateFrom: string
+  dateTo: string
 }
 
 type SegKey = 'new' | 'active' | 'loyal' | 'churn'
@@ -24,10 +26,10 @@ type Segment = {
 }
 
 const META: Record<SegKey, { label: string; icon: typeof Sparkles; color: string; bar: string; ring: string; desc: string }> = {
-  new:    { label: 'New customer onboarding',    icon: Sparkles,      color: '#22c55e', bar: 'bg-green-500',  ring: 'ring-green-500',  desc: '1 order in last 365 days · onboarding' },
-  active: { label: 'Active customer recurring',  icon: Repeat2,       color: '#3b82f6', bar: 'bg-blue-500',   ring: 'ring-blue-500',   desc: 'Repurchased in last 365 days (2+ orders) · recurring' },
-  loyal:  { label: 'Loyal customer advocacy',    icon: Crown,         color: '#a855f7', bar: 'bg-purple-500', ring: 'ring-purple-500', desc: 'Spent RM700+ in last 365 days · MY/SG VIP' },
-  churn:  { label: 'Churn customer reactivation', icon: AlertTriangle, color: '#ef4444', bar: 'bg-red-500',    ring: 'ring-red-500',    desc: 'No order in over 1 year · reactivation' },
+  new:    { label: 'New customer onboarding',    icon: Sparkles,      color: '#22c55e', bar: 'bg-green-500',  ring: 'ring-green-500',  desc: '1 order in selected period · onboarding' },
+  active: { label: 'Active customer recurring',  icon: Repeat2,       color: '#3b82f6', bar: 'bg-blue-500',   ring: 'ring-blue-500',   desc: 'Repurchased in period (2+ orders) · recurring' },
+  loyal:  { label: 'Loyal customer advocacy',    icon: Crown,         color: '#a855f7', bar: 'bg-purple-500', ring: 'ring-purple-500', desc: 'Spent RM700+ in period · MY/SG VIP' },
+  churn:  { label: 'Churn customer reactivation', icon: AlertTriangle, color: '#ef4444', bar: 'bg-red-500',    ring: 'ring-red-500',    desc: 'No order in period (bought before) · reactivation' },
 }
 
 function fmtRM(n: number) { return `RM ${Math.round(n).toLocaleString()}` }
@@ -36,15 +38,15 @@ function csvCell(v: string | number) {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 
-export default function LifecycleTab({ projectId, selectedBrand }: Props) {
+export default function LifecycleTab({ projectId, selectedBrand, dateFrom, dateTo }: Props) {
   const [openSeg, setOpenSeg] = useState<SegKey | null>(null)
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['lifecycle', projectId],
+    queryKey: ['lifecycle', projectId, dateFrom, dateTo],
     queryFn: async () => {
-      const res = await fetch(`/api/analytics/lifecycle?projectId=${encodeURIComponent(projectId)}`)
+      const res = await fetch(`/api/analytics/lifecycle?projectId=${encodeURIComponent(projectId)}&from=${dateFrom}&to=${dateTo}`)
       if (!res.ok) throw new Error('Failed to load lifecycle')
-      return res.json() as Promise<{ total: number; segments: Segment[] }>
+      return res.json() as Promise<{ total: number; from: string; to: string; segments: Segment[] }>
     },
   })
 
@@ -70,7 +72,7 @@ export default function LifecycleTab({ projectId, selectedBrand }: Props) {
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Deduped by phone{selectedBrand ? ` · ${selectedBrand}` : ' · All brands'} · each customer in one segment only · {total.toLocaleString()} customers total
+        Deduped by phone{selectedBrand ? ` · ${selectedBrand}` : ' · All brands'} · period {dateFrom} → {dateTo} · each customer in one segment only · {total.toLocaleString()} customers total
       </p>
 
       {/* 4 segment cards */}
