@@ -51,9 +51,14 @@ export default function FeedbackTab({ selectedBrand }: Props) {
     queryKey: ['feedback'],
     queryFn: async () => {
       const res = await fetch('/api/feedback')
-      if (!res.ok) throw new Error('Failed to load feedback')
+      if (!res.ok) {
+        let msg = `Failed to load feedback (HTTP ${res.status})`
+        try { const j = await res.json(); if (j?.error) msg = j.error } catch { /* ignore */ }
+        throw new Error(msg)
+      }
       return res.json() as Promise<{ good: GoodItem[]; bad: BadItem[]; keyword: GoodItem[] }>
     },
+    retry: 1,
   })
 
   const matchBrand = (b: string) =>
@@ -181,7 +186,7 @@ export default function FeedbackTab({ selectedBrand }: Props) {
       </div>
 
       {error ? (
-        <p className="text-sm text-red-600">Failed to load feedback.</p>
+        <p className="text-sm text-red-600">Failed to load feedback: {(error as Error)?.message || 'unknown error'}. Try Sync / refresh — if it persists the Lark feedback fetch timed out.</p>
       ) : isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[...Array(4)].map((_, i) => (
