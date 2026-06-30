@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getDdPackagePrice } from '@/lib/dd-package-prices'
+import { computeDdLifecycleFromLark } from '@/lib/lark-lifecycle-dd'
+
+// DD reads live from Lark (matches the DD dashboard); other brands use the
+// synced Supabase data.
+const DD_PROJECT_ID = '369ca28c-12a2-4dcd-856d-582b9b230766'
 
 // Customer lifecycle segmentation (deduped by normalized phone, scoped by
 // project_id / brand). The time window FOLLOWS the date range picker [from, to].
@@ -35,6 +40,12 @@ export async function GET(req: NextRequest) {
     const def = new Date(); def.setDate(def.getDate() - 365)
     const from = req.nextUrl.searchParams.get('from') || def.toISOString().split('T')[0]
     const to = req.nextUrl.searchParams.get('to') || todayStr
+
+    // DD: read live from Lark so it matches the DD dashboard (sync-independent).
+    if (projectId === DD_PROJECT_ID) {
+      const payload = await computeDdLifecycleFromLark(from, to)
+      return NextResponse.json(payload)
+    }
 
     const normPhone = (raw: string): string => {
       const d = (raw ?? '').toString().replace(/\D/g, '')
