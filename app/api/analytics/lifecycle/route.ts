@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-// Customer lifecycle segmentation (deduped by normalized phone, all-time orders,
-// scoped by project_id / brand). Each customer is assigned to exactly ONE segment
-// via a priority waterfall:
-//   1. churn  — last order > 365 days ago (needs reactivation)
-//   2. loyal  — still active (last <= 365d) AND total orders >= 4 (advocacy)
-//   3. active — still active AND total orders 2..3 (recurring)
-//   4. new    — still active AND total orders == 1 (onboarding)
+// Customer lifecycle segmentation (deduped by normalized phone, scoped by
+// project_id / brand). The "1 year" window is the 2026 calendar year (YTD).
+// Each customer is assigned to exactly ONE segment via a priority waterfall:
+//   1. churn  — NO order in 2026 (didn't come back this year) → reactivation
+//   2. loyal  — spent >= RM700 in 2026 (MY / SG VIP) → advocacy
+//   3. active — 2+ orders in 2026 (repurchased), spent < 700 → recurring
+//   4. new    — exactly 1 order in 2026, spent < 700 → onboarding
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
@@ -19,19 +19,14 @@ const SEG_LABEL: Record<SegKey, string> = {
   loyal: 'Loyal customer advocacy',
   churn: 'Churn customer reactivation',
 }
-const LOYAL_MIN = 4
+const VIP_MIN = 700        // MY / SG VIP spend threshold (within 2026)
+const YEAR_PREFIX = '2026' // the "1 year" basis
 const LIST_CAP = 5000
 
 export async function GET(req: NextRequest) {
   try {
     const projectId = req.nextUrl.searchParams.get('projectId') || ''
     const sb = createAdminClient()
-
-    const today = new Date()
-    const churnCut = new Date(today); churnCut.setDate(today.getDate() - 365)
-    const newCut = new Date(today); newCut.setDate(today.getDate() - 90)
-    const churnCutStr = churnCut.toISOString().split('T')[0]
-    const newCutStr = newCut.toISOString().split('T')[0]
 
     const normPhone = (raw: string): string => {
       const d = (raw ?? '').toString().replace(/\D/g, '')
@@ -46,8 +41,10 @@ export async function GET(req: NextRequest) {
       rawPhone: string
       first: string
       last: string
-      orders: number
-      spent: number
+      ordersAll: number
+      spentAll: number
+      orders2026: number
+      spent2026: number
       channels: Set<string>
       pkgs: Set<string>
     }
@@ -74,6 +71,7 @@ export async function GET(req: NextRequest) {
         const pk = (r.package_name ?? '').trim()
         const price = Number(r.total_price) || 0
         const nm = (r.customer_name ?? '').trim()
+        const is2026 = r.order_date.startsWith(YEAR_PREFIX)
         if (pk && price > 0) {
           const pe = pkgPrice.get(pk) ?? { sum: 0, n: 0 }
           pe.sum += price; pe.n += 1
@@ -81,11 +79,12 @@ export async function GET(req: NextRequest) {
         }
         let e = map.get(p)
         if (!e) {
-          e = { name: nm, rawPhone: raw, first: r.order_date, last: r.order_date, orders: 0, spent: 0, channels: new Set<string>(), pkgs: new Set<string>() }
+          e = { name: nm, rawPhone: raw, first: r.order_date, last: r.order_date, ordersAll: 0, spentAll: 0, orders2026: 0, spent2026: 0, channels: new Set<string>(), pkgs: new Set<string>() }
           map.set(p, e)
         }
-        e.orders++
-        e.spent += price
+        e.ordersAll++
+        e.spentAll += price
+        if (is2026) { e.orders2026++; e.spent2026 += price }
         if (nm && (!e.name || e.name === 'Lark Customer')) e.name = nm
         if (r.order_date < e.first) e.first = r.order_date
         if (r.order_date > e.last) e.last = r.order_date
@@ -97,9 +96,9 @@ export async function GET(req: NextRequest) {
     }
 
     const segOf = (c: Cust): SegKey => {
-      if (c.last < churnCutStr) return 'churn'
-      if (c.orders >= LOYAL_MIN) return 'loyal'
-      if (c.orders >= 2) return 'active'
+      if (c.orders2026 === 0) return 'churn'
+      if (c.spent2026 >= VIP_MIN) return 'loyal'
+      if (c.orders2026 >= 2) return 'active'
       return 'new'
     }
 
@@ -107,7 +106,7 @@ export async function GET(req: NextRequest) {
       count: number
       chan: Map<string, number>
       pkg: Map<string, number>
-      list: { name: string; phone: string; rawPhone: string; orders: number; spent: number; last: string; isNew90: boolean }[]
+      list: { name: string; phone: string; rawPhone: string; orders: number; spent: number; last: string; isFirstEver: boolean }[]
     }
     const acc: Record<SegKey, Acc> = {
       new: { count: 0, chan: new Map(), pkg: new Map(), list: [] },
@@ -129,10 +128,10 @@ export async function GET(req: NextRequest) {
           name: c.name || '',
           phone: phoneKey,
           rawPhone: c.rawPhone,
-          orders: c.orders,
-          spent: Math.round(c.spent),
+          orders: c.ordersAll,
+          spent: Math.round(c.spentAll),
           last: c.last,
-          isNew90: c.first >= newCutStr,
+          isFirstEver: c.first >= YEAR_PREFIX + '-01-01',
         })
       }
     }
@@ -178,7 +177,7 @@ export async function GET(req: NextRequest) {
         .slice(0, 12)
       const customers = a.list
         .sort((x, y) => y.spent - x.spent)
-        .map(r => ({ name: r.name || '(no name)', phone: r.phone, orders: r.orders, spent: r.spent, lastOrderDate: r.last, isNew90: r.isNew90 }))
+        .map(r => ({ name: r.name || '(no name)', phone: r.phone, orders: r.orders, spent: r.spent, lastOrderDate: r.last, isNew: r.isFirstEver }))
       return {
         key,
         label: SEG_LABEL[key],

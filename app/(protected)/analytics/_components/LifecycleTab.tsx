@@ -19,15 +19,15 @@ type Segment = {
   pct: number
   byChannel: { channel: string; count: number; pct: number }[]
   byPackage: { name: string; count: number; pct: number; price: number }[]
-  customers: { name: string; phone: string; orders: number; spent: number; lastOrderDate: string; isNew90: boolean }[]
+  customers: { name: string; phone: string; orders: number; spent: number; lastOrderDate: string; isNew: boolean }[]
   truncated: boolean
 }
 
 const META: Record<SegKey, { label: string; icon: typeof Sparkles; color: string; bar: string; ring: string; desc: string }> = {
-  new:    { label: 'New customer onboarding',    icon: Sparkles,      color: '#22c55e', bar: 'bg-green-500',  ring: 'ring-green-500',  desc: '1 order only · still active · onboarding' },
-  active: { label: 'Active customer recurring',  icon: Repeat2,       color: '#3b82f6', bar: 'bg-blue-500',   ring: 'ring-blue-500',   desc: '2–3 orders · still active · recurring' },
-  loyal:  { label: 'Loyal customer advocacy',    icon: Crown,         color: '#a855f7', bar: 'bg-purple-500', ring: 'ring-purple-500', desc: '4+ orders · still active · advocacy' },
-  churn:  { label: 'Churn customer reactivation', icon: AlertTriangle, color: '#ef4444', bar: 'bg-red-500',    ring: 'ring-red-500',    desc: 'No order in 1+ year · reactivation' },
+  new:    { label: 'New customer onboarding',    icon: Sparkles,      color: '#22c55e', bar: 'bg-green-500',  ring: 'ring-green-500',  desc: '1 order in 2026 · onboarding' },
+  active: { label: 'Active customer recurring',  icon: Repeat2,       color: '#3b82f6', bar: 'bg-blue-500',   ring: 'ring-blue-500',   desc: 'Repurchased in 2026 (2+ orders) · recurring' },
+  loyal:  { label: 'Loyal customer advocacy',    icon: Crown,         color: '#a855f7', bar: 'bg-purple-500', ring: 'ring-purple-500', desc: 'Spent RM700+ in 2026 · MY/SG VIP' },
+  churn:  { label: 'Churn customer reactivation', icon: AlertTriangle, color: '#ef4444', bar: 'bg-red-500',    ring: 'ring-red-500',    desc: 'No order in 2026 · reactivation' },
 }
 
 function fmtRM(n: number) { return `RM ${Math.round(n).toLocaleString()}` }
@@ -53,8 +53,8 @@ export default function LifecycleTab({ projectId, selectedBrand }: Props) {
   const active = openSeg ? segments.find(s => s.key === openSeg) : null
 
   function exportSeg(seg: Segment) {
-    const header = ['Name', 'Phone', 'Orders', 'Total Spent (RM)', 'Last Order', 'New (<=90d)']
-    const rows = seg.customers.map(c => [c.name, c.phone, c.orders, c.spent, c.lastOrderDate, c.isNew90 ? 'Yes' : ''])
+    const header = ['Name', 'Phone', 'Orders', 'Total Spent (RM)', 'Last Order', 'First-time in 2026']
+    const rows = seg.customers.map(c => [c.name, c.phone, c.orders, c.spent, c.lastOrderDate, c.isNew ? 'Yes' : ''])
     const csv = [header, ...rows].map(r => r.map(csvCell).join(',')).join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -188,7 +188,7 @@ export default function LifecycleTab({ projectId, selectedBrand }: Props) {
                       <tr key={c.phone + i} className="border-b last:border-0 hover:bg-muted/30">
                         <td className="px-3 py-2">
                           {c.name}
-                          {c.isNew90 && active.key === 'new' && <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-green-100 text-green-700">New</span>}
+                          {c.isNew && active.key === 'new' && <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-green-100 text-green-700">First-time</span>}
                         </td>
                         <td className="px-3 py-2 font-mono text-muted-foreground">{c.phone}</td>
                         <td className="px-3 py-2 text-right font-medium">{c.orders}</td>
