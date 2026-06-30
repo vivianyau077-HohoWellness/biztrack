@@ -31,7 +31,7 @@ interface Props {
 type ChurnSeg = {
   count: number
   byChannel: { channel: string; count: number; pct: number }[]
-  byPackage: { name: string; count: number; pct: number }[]
+  byPackage: { name: string; count: number; pct: number; price: number }[]
 }
 
 // Renders one churned segment's channel + package breakdown.
@@ -66,11 +66,19 @@ function ChurnSegmentBreakdown({ title, color, seg }: { title: string; color: st
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-1.5">买过什么配套</p>
               <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b text-muted-foreground">
+                    <th className="py-1 pr-2 text-left font-medium">配套</th>
+                    <th className="py-1 px-2 text-right font-medium whitespace-nowrap">价钱</th>
+                    <th className="py-1 pl-2 text-right font-medium whitespace-nowrap">人数 (%)</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {seg.byPackage.map(p => (
                     <tr key={p.name} className="border-b last:border-0">
                       <td className="py-1.5 pr-2">{p.name}</td>
-                      <td className="py-1.5 text-right font-medium whitespace-nowrap">{p.pct}% ({p.count})</td>
+                      <td className="py-1.5 px-2 text-right whitespace-nowrap text-muted-foreground">{p.price > 0 ? `RM ${p.price.toLocaleString()}` : '—'}</td>
+                      <td className="py-1.5 pl-2 text-right font-medium whitespace-nowrap">{p.pct}% ({p.count})</td>
                     </tr>
                   ))}
                 </tbody>

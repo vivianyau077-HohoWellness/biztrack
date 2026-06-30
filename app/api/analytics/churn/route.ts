@@ -41,25 +41,33 @@ export async function GET(req: NextRequest) {
       in2025: boolean
       in2026: boolean
     }>()
+    // Average price per package (computed across all orders, so it's stable).
+    const pkgPrice = new Map<string, { sum: number; n: number }>()
     const PAGE = 1000
     let offset = 0
     while (true) {
       let q = sb
         .from('orders')
-        .select('phone, order_date, channel, package_name')
+        .select('phone, order_date, channel, package_name, total_price')
         .not('phone', 'is', null)
         .not('order_date', 'is', null)
       if (projectId) q = q.eq('project_id', projectId)
       const { data, error } = await q.range(offset, offset + PAGE - 1)
       if (error) throw new Error(error.message)
       if (!data || data.length === 0) break
-      for (const r of data as { phone: string | null; order_date: string | null; channel: string | null; package_name: string | null }[]) {
+      for (const r of data as { phone: string | null; order_date: string | null; channel: string | null; package_name: string | null; total_price: number | null }[]) {
         const p = normPhone((r.phone ?? '').toString().trim())
         if (!p || p === '0' || !r.order_date) continue
         const y2025 = r.order_date.startsWith('2025')
         const y2026 = r.order_date.startsWith('2026')
         const ch = (r.channel ?? '').trim()
         const pk = (r.package_name ?? '').trim()
+        const price = Number(r.total_price) || 0
+        if (pk && price > 0) {
+          const pe = pkgPrice.get(pk) ?? { sum: 0, n: 0 }
+          pe.sum += price; pe.n += 1
+          pkgPrice.set(pk, pe)
+        }
         let e = map.get(p)
         if (!e) {
           e = { last: r.order_date, channels: new Set<string>(), pkgs: new Set<string>(), orders: 0, in2025: false, in2026: false }
@@ -107,13 +115,17 @@ export async function GET(req: NextRequest) {
     const churnRate = total ? Math.round((churn / total) * 1000) / 10 : 0
     const pct = (count: number, base: number) => (base ? Math.round((count / base) * 1000) / 10 : 0)
 
+    const priceOf = (pk: string) => {
+      const pe = pkgPrice.get(pk)
+      return pe && pe.n ? Math.round(pe.sum / pe.n) : 0
+    }
     const buildSeg = (seg: Seg) => {
       const base = segCount[seg]
       const byChannel = Array.from(chanMap[seg].entries())
         .map(([channel, count]) => ({ channel, count, pct: pct(count, base) }))
         .sort((a, b) => b.count - a.count)
       const byPackage = Array.from(pkgMap[seg].entries())
-        .map(([name, count]) => ({ name, count, pct: pct(count, base) }))
+        .map(([name, count]) => ({ name, count, pct: pct(count, base), price: priceOf(name) }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 12)
       return { count: base, byChannel, byPackage }
