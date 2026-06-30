@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
 
     // DD: read live from Lark so it matches the DD dashboard (sync-independent).
     if (projectId === DD_PROJECT_ID) {
-      const payload = await computeDdLifecycleFromLark(from, to)
+      const payload = await computeDdLifecycleFromLark()
       return NextResponse.json(payload)
     }
 

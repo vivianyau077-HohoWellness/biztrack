@@ -81,7 +81,13 @@ type Cust = {
   pkgs: Set<string>
 }
 
-export async function computeDdLifecycleFromLark(from: string, to: string) {
+export async function computeDdLifecycleFromLark() {
+  // Fixed rolling window: the last 365 days. Churn = no order in over 1 year.
+  const today = new Date()
+  const cutoffD = new Date(today); cutoffD.setDate(today.getDate() - 365)
+  const cutoff = cutoffD.toISOString().split('T')[0]
+  const todayStr = today.toISOString().split('T')[0]
+
   const [recs2026, recs2025] = await Promise.all([
     fetchLarkRecords(T2026, APP),
     fetchLarkRecords(T2025, APP),
@@ -112,7 +118,7 @@ export async function computeDdLifecycleFromLark(from: string, to: string) {
       for (const prf of priceFields) { const n = fnum(f[prf]); if (n) { price = n; break } }
       const pkg = flinked(f[pkgField])
       const nm = fstr(f[nameField])
-      const inRange = dateStr >= from && dateStr <= to
+      const inRange = dateStr >= cutoff
 
       let e = map.get(p)
       if (!e) {
@@ -133,12 +139,11 @@ export async function computeDdLifecycleFromLark(from: string, to: string) {
   ingest(recs2026, ['Phone Number', 'Phone no'], 'Date', ['Total Price', 'Price Domain', 'Price'], 'Channel', 'Package', 'Name')
   ingest(recs2025, ['Phone number', 'Phone no'], 'Date', ['Price'], 'Channel', 'Package', 'Name')
 
-  const segOf = (c: Cust): SegKey | null => {
-    if (c.first > to) return null
-    if (c.ordersRange === 0) return 'churn'
-    if (c.first >= from) return 'new'              // first-ever order in period = brand new (incl New VIP)
-    if (c.spentRange >= VIP_MIN) return 'loyal'    // repeat + RM700+ in period = VIP
-    return 'active'                                // repeat + < RM700
+  const segOf = (c: Cust): SegKey => {
+    if (c.last < cutoff) return 'churn'            // no order in over 1 year
+    if (c.first >= cutoff) return 'new'            // first-EVER order within last 365d (regardless of spend)
+    if (c.spentRange >= VIP_MIN) return 'loyal'    // repeat customer + RM700+ = VIP
+    return 'active'                                // repeat customer + < RM700
   }
 
   type Acc = {
@@ -157,7 +162,6 @@ export async function computeDdLifecycleFromLark(from: string, to: string) {
   let total = 0
   for (const [phone, c] of Array.from(map.entries())) {
     const seg = segOf(c)
-    if (!seg) continue
     total++
     const a = acc[seg]
     a.count++
@@ -188,5 +192,5 @@ export async function computeDdLifecycleFromLark(from: string, to: string) {
     return { key, label: SEG_LABEL[key], count: a.count, pct: pct(a.count, total), byChannel, byPackage, customers, truncated: a.count > customers.length }
   })
 
-  return { total, from, to, segments, source: 'lark' as const }
+  return { total, from: cutoff, to: todayStr, segments, source: 'lark' as const }
 }
