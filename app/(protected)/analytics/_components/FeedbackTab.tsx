@@ -20,6 +20,30 @@ function fmtDate(ms: number | null): string {
   return new Date(ms).toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+// Topic keyword buckets — what reviews are mostly talking about.
+const TOPICS: { label: string; kws: string[] }[] = [
+  { label: '效果/改善', kws: ['改善', '变好', '好转', '有效', '效果', '见效', '有帮助', '帮助'] },
+  { label: '睡眠', kws: ['睡眠', '睡', '失眠'] },
+  { label: '皮肤/肤质', kws: ['皮肤', '肤质', '脸', '气色'] },
+  { label: '痒/敏感', kws: ['痒', '敏感'] },
+  { label: '提亮/美白', kws: ['提亮', '变亮', '亮了', '美白', '白了', '透亮'] },
+  { label: '痘痘/暗疮', kws: ['痘', '青春豆', '暗疮', '粉刺'] },
+  { label: '斑/色斑', kws: ['色斑', '斑'] },
+  { label: '味道/口感', kws: ['味道', '口感', '好喝', '难喝'] },
+  { label: '伤口', kws: ['伤口', '开刀', '糖尿'] },
+  { label: '肠胃/排便', kws: ['排便', '便秘', '宿便', '肠', '胃'] },
+  { label: '没效果/慢', kws: ['没效果', '没有效果', '没用', '没变化', '看不到', '没改善', '没什么'] },
+  { label: '价钱', kws: ['贵', '价钱', '价格'] },
+]
+
+function topTopics(items: { comment: string }[], n = 5) {
+  return TOPICS
+    .map(t => ({ label: t.label, count: items.filter(it => t.kws.some(k => (it.comment ?? '').includes(k))).length }))
+    .filter(x => x.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, n)
+}
+
 export default function FeedbackTab({ selectedBrand }: Props) {
   const [view, setView] = useState<'good' | 'bad' | 'keyword'>('good')
 
@@ -48,6 +72,8 @@ export default function FeedbackTab({ selectedBrand }: Props) {
     { name: 'Good Review', value: good.length, color: '#22c55e' },
     { name: 'Bad Review', value: bad.length, color: '#ef4444' },
   ]
+  const goodTopics = topTopics(good)
+  const badTopics = topTopics(bad)
 
   return (
     <div className="space-y-4">
@@ -87,6 +113,32 @@ export default function FeedbackTab({ selectedBrand }: Props) {
                   <span className="h-3 w-3 rounded-full bg-red-500 inline-block shrink-0" />
                   Bad Review: <span className="font-semibold text-red-600">{badPct}%</span>
                   <span className="text-muted-foreground">({bad.length})</span>
+                </div>
+              </div>
+
+              {/* What reviews are mostly about */}
+              <div className="flex gap-8 flex-1 min-w-[300px]">
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-green-700 mb-1.5">好评大部分在讲</p>
+                  {goodTopics.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">—</p>
+                  ) : goodTopics.map(t => (
+                    <div key={t.label} className="flex items-center justify-between gap-2 text-xs py-0.5">
+                      <span className="truncate">{t.label}</span>
+                      <span className="font-medium text-green-700 shrink-0">{good.length ? Math.round((t.count / good.length) * 100) : 0}% ({t.count})</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-red-700 mb-1.5">差评大部分在讲</p>
+                  {badTopics.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">—</p>
+                  ) : badTopics.map(t => (
+                    <div key={t.label} className="flex items-center justify-between gap-2 text-xs py-0.5">
+                      <span className="truncate">{t.label}</span>
+                      <span className="font-medium text-red-700 shrink-0">{bad.length ? Math.round((t.count / bad.length) * 100) : 0}% ({t.count})</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
