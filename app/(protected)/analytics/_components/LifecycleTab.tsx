@@ -24,10 +24,10 @@ type Segment = {
 }
 
 const META: Record<SegKey, { label: string; icon: typeof Sparkles; color: string; bar: string; ring: string; desc: string }> = {
-  new:    { label: 'New customer onboarding',    icon: Sparkles,      color: '#22c55e', bar: 'bg-green-500',  ring: 'ring-green-500',  desc: '1 order in 2026 · onboarding' },
-  active: { label: 'Active customer recurring',  icon: Repeat2,       color: '#3b82f6', bar: 'bg-blue-500',   ring: 'ring-blue-500',   desc: 'Repurchased in 2026 (2+ orders) · recurring' },
-  loyal:  { label: 'Loyal customer advocacy',    icon: Crown,         color: '#a855f7', bar: 'bg-purple-500', ring: 'ring-purple-500', desc: 'Spent RM700+ in 2026 · MY/SG VIP' },
-  churn:  { label: 'Churn customer reactivation', icon: AlertTriangle, color: '#ef4444', bar: 'bg-red-500',    ring: 'ring-red-500',    desc: 'No order in 2026 · reactivation' },
+  new:    { label: 'New customer onboarding',    icon: Sparkles,      color: '#22c55e', bar: 'bg-green-500',  ring: 'ring-green-500',  desc: '1 order in last 365 days · onboarding' },
+  active: { label: 'Active customer recurring',  icon: Repeat2,       color: '#3b82f6', bar: 'bg-blue-500',   ring: 'ring-blue-500',   desc: 'Repurchased in last 365 days (2+ orders) · recurring' },
+  loyal:  { label: 'Loyal customer advocacy',    icon: Crown,         color: '#a855f7', bar: 'bg-purple-500', ring: 'ring-purple-500', desc: 'Spent RM700+ in last 365 days · MY/SG VIP' },
+  churn:  { label: 'Churn customer reactivation', icon: AlertTriangle, color: '#ef4444', bar: 'bg-red-500',    ring: 'ring-red-500',    desc: 'No order in over 1 year · reactivation' },
 }
 
 function fmtRM(n: number) { return `RM ${Math.round(n).toLocaleString()}` }
@@ -53,7 +53,7 @@ export default function LifecycleTab({ projectId, selectedBrand }: Props) {
   const active = openSeg ? segments.find(s => s.key === openSeg) : null
 
   function exportSeg(seg: Segment) {
-    const header = ['Name', 'Phone', 'Orders', 'Total Spent (RM)', 'Last Order', 'First-time in 2026']
+    const header = ['Name', 'Phone', 'Orders', 'Total Spent (RM)', 'Last Order', 'First-time (last year)']
     const rows = seg.customers.map(c => [c.name, c.phone, c.orders, c.spent, c.lastOrderDate, c.isNew ? 'Yes' : ''])
     const csv = [header, ...rows].map(r => r.map(csvCell).join(',')).join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })

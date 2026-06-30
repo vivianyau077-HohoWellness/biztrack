@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { DayPicker, type DateRange } from 'react-day-picker'
-import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
+import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, addMonths, startOfYear, endOfYear, subYears } from 'date-fns'
 import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -48,6 +48,8 @@ function getPresets(): { label: string; from: () => string; to: () => string }[]
     { label: 'Last week',         from: () => toStr(startOfWeek(subDays(today, 7), { weekStartsOn: 1 })), to: () => toStr(endOfWeek(subDays(today, 7), { weekStartsOn: 1 })) },
     { label: 'This month',        from: () => toStr(startOfMonth(today)),        to: () => toStr(endOfMonth(today)) },
     { label: 'Last month',        from: () => { const lm = subMonths(today, 1); return toStr(startOfMonth(lm)) }, to: () => { const lm = subMonths(today, 1); return toStr(endOfMonth(lm)) } },
+    { label: 'This year',         from: () => toStr(startOfYear(today)),         to: () => toStr(today) },
+    { label: 'Last year',         from: () => { const ly = subYears(today, 1); return toStr(startOfYear(ly)) }, to: () => { const ly = subYears(today, 1); return toStr(endOfYear(ly)) } },
   ]
 }
 

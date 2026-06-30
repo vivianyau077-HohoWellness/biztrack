@@ -3,12 +3,13 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getDdPackagePrice } from '@/lib/dd-package-prices'
 
 // Customer lifecycle segmentation (deduped by normalized phone, scoped by
-// project_id / brand). The "1 year" window is the 2026 calendar year (YTD).
-// Each customer is assigned to exactly ONE segment via a priority waterfall:
-//   1. churn  — NO order in 2026 (didn't come back this year) → reactivation
-//   2. loyal  — spent >= RM700 in 2026 (MY / SG VIP) → advocacy
-//   3. active — 2+ orders in 2026 (repurchased), spent < 700 → recurring
-//   4. new    — exactly 1 order in 2026, spent < 700 → onboarding
+// project_id / brand). The "1 year" window is the LAST 365 DAYS (rolling), so
+// churn matches the Customer Insights churn card and all four segments add up
+// to the full customer base. Each customer is in exactly ONE segment:
+//   1. churn  — last order > 365 days ago → reactivation
+//   2. loyal  — spent >= RM700 in last 365 days (MY / SG VIP) → advocacy
+//   3. active — 2+ orders in last 365 days (repurchased), spent < 700 → recurring
+//   4. new    — exactly 1 order in last 365 days, spent < 700 → onboarding
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
@@ -20,14 +21,18 @@ const SEG_LABEL: Record<SegKey, string> = {
   loyal: 'Loyal customer advocacy',
   churn: 'Churn customer reactivation',
 }
-const VIP_MIN = 700        // MY / SG VIP spend threshold (within 2026)
-const YEAR_PREFIX = '2026' // the "1 year" basis
+const VIP_MIN = 700 // MY / SG VIP spend threshold (within the last 365 days)
 const LIST_CAP = 5000
 
 export async function GET(req: NextRequest) {
   try {
     const projectId = req.nextUrl.searchParams.get('projectId') || ''
     const sb = createAdminClient()
+
+    // Rolling 1-year window (matches the Customer Insights churn card exactly).
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - 365)
+    const cutoffStr = cutoff.toISOString().split('T')[0]
 
     const normPhone = (raw: string): string => {
       const d = (raw ?? '').toString().replace(/\D/g, '')
@@ -44,8 +49,8 @@ export async function GET(req: NextRequest) {
       last: string
       ordersAll: number
       spentAll: number
-      orders2026: number
-      spent2026: number
+      ordersRecent: number  // orders in the last 365 days
+      spentRecent: number   // spend in the last 365 days
       channels: Set<string>
       pkgs: Set<string>
     }
@@ -72,7 +77,7 @@ export async function GET(req: NextRequest) {
         const pk = (r.package_name ?? '').trim()
         const price = Number(r.total_price) || 0
         const nm = (r.customer_name ?? '').trim()
-        const is2026 = r.order_date.startsWith(YEAR_PREFIX)
+        const isRecent = r.order_date >= cutoffStr
         if (pk && price > 0) {
           const pe = pkgPrice.get(pk) ?? { sum: 0, n: 0 }
           pe.sum += price; pe.n += 1
@@ -80,12 +85,12 @@ export async function GET(req: NextRequest) {
         }
         let e = map.get(p)
         if (!e) {
-          e = { name: nm, rawPhone: raw, first: r.order_date, last: r.order_date, ordersAll: 0, spentAll: 0, orders2026: 0, spent2026: 0, channels: new Set<string>(), pkgs: new Set<string>() }
+          e = { name: nm, rawPhone: raw, first: r.order_date, last: r.order_date, ordersAll: 0, spentAll: 0, ordersRecent: 0, spentRecent: 0, channels: new Set<string>(), pkgs: new Set<string>() }
           map.set(p, e)
         }
         e.ordersAll++
         e.spentAll += price
-        if (is2026) { e.orders2026++; e.spent2026 += price }
+        if (isRecent) { e.ordersRecent++; e.spentRecent += price }
         if (nm && (!e.name || e.name === 'Lark Customer')) e.name = nm
         if (r.order_date < e.first) e.first = r.order_date
         if (r.order_date > e.last) e.last = r.order_date
@@ -97,10 +102,10 @@ export async function GET(req: NextRequest) {
     }
 
     const segOf = (c: Cust): SegKey => {
-      if (c.orders2026 === 0) return 'churn'
-      if (c.spent2026 >= VIP_MIN) return 'loyal'
-      if (c.orders2026 >= 2) return 'active'
-      return 'new'
+      if (c.last < cutoffStr) return 'churn'        // no order in over 1 year
+      if (c.spentRecent >= VIP_MIN) return 'loyal'  // RM700+ in last 365 days = VIP
+      if (c.ordersRecent >= 2) return 'active'      // repurchased in last 365 days
+      return 'new'                                  // single order in last 365 days
     }
 
     type Acc = {
@@ -132,7 +137,7 @@ export async function GET(req: NextRequest) {
           orders: c.ordersAll,
           spent: Math.round(c.spentAll),
           last: c.last,
-          isFirstEver: c.first >= YEAR_PREFIX + '-01-01',
+          isFirstEver: c.first >= cutoffStr, // first-ever order within the last year
         })
       }
     }
