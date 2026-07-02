@@ -3,17 +3,19 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
-import { ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react'
+import { ThumbsUp, ThumbsDown, MessageSquare, X, Package } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { cn } from '@/lib/utils'
 
 interface Props {
   selectedBrand?: string
+  dateFrom?: string
+  dateTo?: string
 }
 
 type Attachment = { token: string; name: string }
-type GoodItem = { brand: string; comment: string; date: number | null; who: string; duration: string; tags: string; contact: string; attachments: Attachment[] }
-type BadItem = { brand: string; comment: string; date: number | null; who: string; duration: string; issue: string; contact: string; attachments: Attachment[] }
+type GoodItem = { brand: string; comment: string; date: number | null; who: string; duration: string; tags: string; contact: string; phone?: string; packages?: string; attachments: Attachment[] }
+type BadItem = { brand: string; comment: string; date: number | null; who: string; duration: string; issue: string; contact: string; phone?: string; packages?: string; attachments: Attachment[] }
 
 function fmtDate(ms: number | null): string {
   if (!ms) return '—'
@@ -52,8 +54,16 @@ function topTopics(items: { comment: string }[], n = 8) {
     .slice(0, n)
 }
 
-export default function FeedbackTab({ selectedBrand }: Props) {
+function matchTopic(comment: string, label: string | null): boolean {
+  if (!label) return true
+  const t = TOPICS.find(x => x.label === label)
+  if (!t) return true
+  return t.kws.some(k => (comment ?? '').includes(k))
+}
+
+export default function FeedbackTab({ selectedBrand, dateFrom, dateTo }: Props) {
   const [view, setView] = useState<'good' | 'bad' | 'keyword'>('good')
+  const [topicFilter, setTopicFilter] = useState<string | null>(null)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['feedback'],
@@ -72,10 +82,22 @@ export default function FeedbackTab({ selectedBrand }: Props) {
   const matchBrand = (b: string) =>
     !selectedBrand || (b ?? '').toLowerCase() === selectedBrand.toLowerCase()
 
-  const good = (data?.good ?? []).filter(x => matchBrand(x.brand))
-  const bad = (data?.bad ?? []).filter(x => matchBrand(x.brand))
-  const keyword = (data?.keyword ?? []).filter(x => matchBrand(x.brand))
-  const list: (GoodItem | BadItem)[] = view === 'good' ? good : view === 'bad' ? bad : keyword
+  // Date-range filter (follows the date picker). Reviews with no date are kept.
+  const fromMs = dateFrom ? new Date(dateFrom + 'T00:00:00').getTime() : null
+  const toMs = dateTo ? new Date(dateTo + 'T23:59:59').getTime() : null
+  const inRange = (d: number | null) => {
+    if (d == null) return true
+    if (fromMs != null && d < fromMs) return false
+    if (toMs != null && d > toMs) return false
+    return true
+  }
+  const baseFilter = (x: { brand: string; date: number | null }) => matchBrand(x.brand) && inRange(x.date)
+
+  const good = (data?.good ?? []).filter(baseFilter)
+  const bad = (data?.bad ?? []).filter(baseFilter)
+  const keyword = (data?.keyword ?? []).filter(baseFilter)
+  const listAll: (GoodItem | BadItem)[] = view === 'good' ? good : view === 'bad' ? bad : keyword
+  const list = listAll.filter(x => matchTopic(x.comment, topicFilter))
 
   // Good vs Bad chart for the current brand selection (excludes 字眼 keywords)
   const totalGB = good.length + bad.length
@@ -132,26 +154,40 @@ export default function FeedbackTab({ selectedBrand }: Props) {
               {/* What reviews are mostly about */}
               <div className="flex gap-8 flex-1 min-w-[300px]">
                 <div className="flex-1">
-                  <p className="text-xs font-semibold text-green-700 mb-1.5">好评 · 哪方面有好转 (占好评 %)</p>
+                  <p className="text-xs font-semibold text-green-700 mb-1.5">好评 · 哪方面有好转 (点击筛选)</p>
                   {goodTopics.length === 0 ? (
                     <p className="text-xs text-muted-foreground">—</p>
-                  ) : goodTopics.map(t => (
-                    <div key={t.label} className="flex items-center justify-between gap-2 text-xs py-0.5">
-                      <span className="truncate" title={t.label}>{t.label}</span>
-                      <span className="font-medium text-green-700 shrink-0">{t.pct}% ({t.count})</span>
-                    </div>
-                  ))}
+                  ) : goodTopics.map(t => {
+                    const active = view === 'good' && topicFilter === t.label
+                    return (
+                      <button
+                        key={t.label}
+                        onClick={() => { setView('good'); setTopicFilter(active ? null : t.label) }}
+                        className={cn('w-full flex items-center justify-between gap-2 text-xs py-0.5 px-1 rounded transition-colors', active ? 'bg-green-100' : 'hover:bg-muted')}
+                      >
+                        <span className="truncate text-left" title={t.label}>{t.label}</span>
+                        <span className="font-medium text-green-700 shrink-0">{t.pct}% ({t.count})</span>
+                      </button>
+                    )
+                  })}
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs font-semibold text-red-700 mb-1.5">差评 · 哪方面没好转/投诉 (占差评 %)</p>
+                  <p className="text-xs font-semibold text-red-700 mb-1.5">差评 · 哪方面没好转/投诉 (点击筛选)</p>
                   {badTopics.length === 0 ? (
                     <p className="text-xs text-muted-foreground">—</p>
-                  ) : badTopics.map(t => (
-                    <div key={t.label} className="flex items-center justify-between gap-2 text-xs py-0.5">
-                      <span className="truncate" title={t.label}>{t.label}</span>
-                      <span className="font-medium text-red-700 shrink-0">{t.pct}% ({t.count})</span>
-                    </div>
-                  ))}
+                  ) : badTopics.map(t => {
+                    const active = view === 'bad' && topicFilter === t.label
+                    return (
+                      <button
+                        key={t.label}
+                        onClick={() => { setView('bad'); setTopicFilter(active ? null : t.label) }}
+                        className={cn('w-full flex items-center justify-between gap-2 text-xs py-0.5 px-1 rounded transition-colors', active ? 'bg-red-100' : 'hover:bg-muted')}
+                      >
+                        <span className="truncate text-left" title={t.label}>{t.label}</span>
+                        <span className="font-medium text-red-700 shrink-0">{t.pct}% ({t.count})</span>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             </div>
@@ -162,7 +198,7 @@ export default function FeedbackTab({ selectedBrand }: Props) {
       {/* Good / Bad toggle */}
       <div className="flex gap-2">
         <button
-          onClick={() => setView('good')}
+          onClick={() => { setView('good'); setTopicFilter(null) }}
           className={cn(
             'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors',
             view === 'good' ? 'bg-green-600 text-white border-green-600' : 'border-border hover:bg-muted',
@@ -172,7 +208,7 @@ export default function FeedbackTab({ selectedBrand }: Props) {
           Good Review ({good.length})
         </button>
         <button
-          onClick={() => setView('bad')}
+          onClick={() => { setView('bad'); setTopicFilter(null) }}
           className={cn(
             'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors',
             view === 'bad' ? 'bg-red-600 text-white border-red-600' : 'border-border hover:bg-muted',
@@ -182,7 +218,7 @@ export default function FeedbackTab({ selectedBrand }: Props) {
           Bad Review ({bad.length})
         </button>
         <button
-          onClick={() => setView('keyword')}
+          onClick={() => { setView('keyword'); setTopicFilter(null) }}
           className={cn(
             'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors',
             view === 'keyword' ? 'bg-amber-500 text-white border-amber-500' : 'border-border hover:bg-muted',
@@ -192,6 +228,17 @@ export default function FeedbackTab({ selectedBrand }: Props) {
           字眼 Keywords ({keyword.length})
         </button>
       </div>
+
+      {topicFilter && (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">筛选主题:</span>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 text-primary px-3 py-1 text-xs font-medium">
+            {topicFilter}
+            <button onClick={() => setTopicFilter(null)} className="hover:text-foreground"><X className="h-3 w-3" /></button>
+          </span>
+          <span className="text-xs text-muted-foreground">{list.length} 条</span>
+        </div>
+      )}
 
       {error ? (
         <p className="text-sm text-red-600">Failed to load feedback: {(error as Error)?.message || 'unknown error'}. Try Sync / refresh — if it persists the Lark feedback fetch timed out.</p>
@@ -219,6 +266,12 @@ export default function FeedbackTab({ selectedBrand }: Props) {
                 <p className="text-sm text-foreground whitespace-pre-wrap">{item.comment || '—'}</p>
                 {item.contact && view !== 'keyword' && (
                   <p className="text-xs text-muted-foreground">📞 {item.contact}</p>
+                )}
+                {item.packages && (
+                  <p className="text-xs text-muted-foreground flex items-start gap-1">
+                    <Package className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary" />
+                    <span>买过配套: {item.packages}</span>
+                  </p>
                 )}
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground pt-1">
                   {view === 'bad' && (item as BadItem).issue && (

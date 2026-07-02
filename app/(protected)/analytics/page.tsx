@@ -201,7 +201,7 @@ export default function AnalyticsPage() {
           <LifecycleTab projectId={projectId} selectedBrand={selectedBrand} dateFrom={dateFrom} dateTo={dateTo} />
         )}
         {activeTab === 'feedback' && (
-          <FeedbackTab selectedBrand={selectedBrand} />
+          <FeedbackTab selectedBrand={selectedBrand} dateFrom={dateFrom} dateTo={dateTo} />
         )}
       </div>
 
