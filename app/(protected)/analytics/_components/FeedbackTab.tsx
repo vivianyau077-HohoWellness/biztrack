@@ -20,25 +20,33 @@ function fmtDate(ms: number | null): string {
   return new Date(ms).toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-// Topic keyword buckets — what reviews are mostly talking about.
+// Topic keyword buckets — grouped into meaningful skin/health categories.
+// In good reviews these read as "improved in ___"; in bad reviews as "still ___".
 const TOPICS: { label: string; kws: string[] }[] = [
-  { label: '效果/改善', kws: ['改善', '变好', '好转', '有效', '效果', '见效', '有帮助', '帮助'] },
-  { label: '睡眠', kws: ['睡眠', '睡', '失眠'] },
-  { label: '皮肤/肤质', kws: ['皮肤', '肤质', '脸', '气色'] },
-  { label: '痒/敏感', kws: ['痒', '敏感'] },
-  { label: '提亮/美白', kws: ['提亮', '变亮', '亮了', '美白', '白了', '透亮'] },
+  { label: '皮肤屏障 (癣/富贵手/湿疹)', kws: ['牛皮癣', '银屑', '干癣', '富贵手', '湿疹', '荨麻疹', '皮肤病', '红斑', '狼疮', '鸡皮', '脱皮', '龟裂', '毛囊', '癣'] },
+  { label: '痒/敏感/过敏', kws: ['痒', '敏感', '过敏'] },
+  { label: '斑/色斑', kws: ['色斑', '黑斑', '雀斑', '黑点', '斑'] },
+  { label: '眼袋/黑眼圈', kws: ['眼袋', '黑眼圈'] },
+  { label: '提亮/美白/肤质', kws: ['提亮', '变亮', '亮了', '美白', '白了', '透亮', '光滑', '滑嫩', '气色', '细致', '皮肤好'] },
   { label: '痘痘/暗疮', kws: ['痘', '青春豆', '暗疮', '粉刺'] },
-  { label: '斑/色斑', kws: ['色斑', '斑'] },
-  { label: '味道/口感', kws: ['味道', '口感', '好喝', '难喝'] },
-  { label: '伤口', kws: ['伤口', '开刀', '糖尿'] },
-  { label: '肠胃/排便', kws: ['排便', '便秘', '宿便', '肠', '胃'] },
-  { label: '没效果/慢', kws: ['没效果', '没有效果', '没用', '没变化', '看不到', '没改善', '没什么'] },
+  { label: '睡眠/精神', kws: ['睡', '失眠', '精神'] },
+  { label: '伤口/开刀/糖尿', kws: ['伤口', '开刀', '疤', '糖尿'] },
+  { label: '肠胃/排便', kws: ['排便', '便秘', '宿便', '肠', '胃胀', '胃'] },
+  { label: '味道/口感', kws: ['味道', '好喝', '难喝', '口感', '太甜', '很甜'] },
+  { label: '没效果/太慢', kws: ['没效', '没有效果', '没用', '没变化', '没改善', '没什么', '一样', '更严重', '没感觉', '没看到'] },
+  { label: '品质/疑似假货', kws: ['变薄', '很水', '很稀', '很假', '品质', '浓缩', '没泡沫'] },
+  { label: '副作用/不适', kws: ['肿', '血糖', '头痛', '关节', '口干', '累'] },
+  { label: '包装/送货', kws: ['包装', '破损', '送货', '邮寄', '破裂'] },
   { label: '价钱', kws: ['贵', '价钱', '价格'] },
 ]
 
-function topTopics(items: { comment: string }[], n = 5) {
+function topTopics(items: { comment: string }[], n = 8) {
+  const total = items.length
   return TOPICS
-    .map(t => ({ label: t.label, count: items.filter(it => t.kws.some(k => (it.comment ?? '').includes(k))).length }))
+    .map(t => {
+      const count = items.filter(it => t.kws.some(k => (it.comment ?? '').includes(k))).length
+      return { label: t.label, count, pct: total ? Math.round((count / total) * 100) : 0 }
+    })
     .filter(x => x.count > 0)
     .sort((a, b) => b.count - a.count)
     .slice(0, n)
@@ -124,24 +132,24 @@ export default function FeedbackTab({ selectedBrand }: Props) {
               {/* What reviews are mostly about */}
               <div className="flex gap-8 flex-1 min-w-[300px]">
                 <div className="flex-1">
-                  <p className="text-xs font-semibold text-green-700 mb-1.5">好评大部分在讲</p>
+                  <p className="text-xs font-semibold text-green-700 mb-1.5">好评 · 哪方面有好转 (占好评 %)</p>
                   {goodTopics.length === 0 ? (
                     <p className="text-xs text-muted-foreground">—</p>
                   ) : goodTopics.map(t => (
                     <div key={t.label} className="flex items-center justify-between gap-2 text-xs py-0.5">
-                      <span className="truncate">{t.label}</span>
-                      <span className="font-medium text-green-700 shrink-0">{good.length ? Math.round((t.count / good.length) * 100) : 0}% ({t.count})</span>
+                      <span className="truncate" title={t.label}>{t.label}</span>
+                      <span className="font-medium text-green-700 shrink-0">{t.pct}% ({t.count})</span>
                     </div>
                   ))}
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs font-semibold text-red-700 mb-1.5">差评大部分在讲</p>
+                  <p className="text-xs font-semibold text-red-700 mb-1.5">差评 · 哪方面没好转/投诉 (占差评 %)</p>
                   {badTopics.length === 0 ? (
                     <p className="text-xs text-muted-foreground">—</p>
                   ) : badTopics.map(t => (
                     <div key={t.label} className="flex items-center justify-between gap-2 text-xs py-0.5">
-                      <span className="truncate">{t.label}</span>
-                      <span className="font-medium text-red-700 shrink-0">{bad.length ? Math.round((t.count / bad.length) * 100) : 0}% ({t.count})</span>
+                      <span className="truncate" title={t.label}>{t.label}</span>
+                      <span className="font-medium text-red-700 shrink-0">{t.pct}% ({t.count})</span>
                     </div>
                   ))}
                 </div>
