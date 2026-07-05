@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Plus, FolderKanban, ArrowRight } from 'lucide-react'
 import PasswordGate from '@/components/shared/PasswordGate'
 import ProfitTargetTab from '../analytics/_components/ProfitTargetTab'
+import PnlHistory from '../analytics/_components/PnlHistory'
 
 export default function ProjectsPage() {
   return (
@@ -96,6 +97,12 @@ function ProjectsInner() {
       )}
 
       <div className="mt-10 border-t pt-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-1">P&L 历史</h2>
+        <p className="text-sm text-muted-foreground mb-4">每月实际营收、成本、净利(Online / Offline)。</p>
+        <PnlHistory />
+      </div>
+
+      <div className="mt-8">
         <h2 className="text-lg font-semibold text-gray-900 mb-1">Profit Target</h2>
         <p className="text-sm text-muted-foreground mb-4">目标利润倒推 —— 输入想要的净利/利润率,算出需要做多少 Sales。</p>
         <ProfitTargetTab />
