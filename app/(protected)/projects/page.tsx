@@ -97,14 +97,12 @@ function ProjectsInner() {
       )}
 
       <div className="mt-10 border-t pt-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-1">P&L 明细</h2>
-        <p className="text-sm text-muted-foreground mb-4">选月份,逐行查看每一笔钱花在哪(照录你上传的 P&L)。</p>
+        <h2 className="text-lg font-semibold text-gray-900 mb-3">P&L</h2>
         <PnlDetail />
       </div>
 
       <div className="mt-8">
-        <h2 className="text-lg font-semibold text-gray-900 mb-1">Profit Target</h2>
-        <p className="text-sm text-muted-foreground mb-4">目标利润倒推 —— 输入想要的净利/利润率,算出需要做多少 Sales。</p>
+        <h2 className="text-lg font-semibold text-gray-900 mb-3">Profit Target</h2>
         <ProfitTargetTab />
       </div>
 

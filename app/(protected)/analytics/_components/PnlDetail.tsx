@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 
 // Full line-by-line P&L, transcribed exactly from the uploaded statements (2026).
 // To add a month: append a Statement below (or send me the P&L and I'll add it).
@@ -267,24 +268,64 @@ const S: Statement[] = [
 function rm(n: number) { return (n < 0 ? '-RM ' : 'RM ') + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
 function pctOf(a: number, b: number) { return b ? Math.round((a / b) * 100) : 0 }
 
+const MONTHS = ["Jan'26", "Feb'26", "Mar'26", "Apr'26", "May'26"]
+
+function findSt(ch: 'online' | 'offline', m: string): Statement | undefined {
+  const pre = ch === 'online' ? 'Online' : 'Offline'
+  return S.find(s => s.label === `${pre} · ${m}`)
+}
+function mergeSt(a: Statement | undefined, b: Statement | undefined, m: string): Statement {
+  if (a && !b) return { ...a, id: 'ov', label: `Overall · ${m}` }
+  if (b && !a) return { ...b, id: 'ov', label: `Overall · ${m}` }
+  if (!a && !b) return { id: 'ov', label: `Overall · ${m}`, revenue: [], totalRevenue: 0, sections: [], totalExpenses: 0, netProfit: 0 }
+  const names: string[] = a!.sections.map(s => s.name)
+  for (const s of b!.sections) if (!names.includes(s.name)) names.push(s.name)
+  const sections: Section[] = names.map(n => {
+    const sa = a!.sections.find(s => s.name === n)
+    const sb = b!.sections.find(s => s.name === n)
+    return { name: n, items: [...(sa?.items ?? []), ...(sb?.items ?? [])], subtotal: (sa?.subtotal ?? 0) + (sb?.subtotal ?? 0) }
+  })
+  return {
+    id: 'ov', label: `Overall · ${m}`,
+    revenue: [...a!.revenue.map(r => ({ label: r.label + ' (Online)', amt: r.amt })), ...b!.revenue.map(r => ({ label: r.label + ' (Offline)', amt: r.amt }))],
+    totalRevenue: a!.totalRevenue + b!.totalRevenue, sections,
+    totalExpenses: a!.totalExpenses + b!.totalExpenses, netProfit: a!.netProfit + b!.netProfit,
+  }
+}
+function getSt(ch: 'online' | 'offline' | 'overall', m: string): Statement {
+  if (ch === 'overall') return mergeSt(findSt('online', m), findSt('offline', m), m)
+  return findSt(ch, m) ?? { id: 'none', label: m, revenue: [], totalRevenue: 0, sections: [], totalExpenses: 0, netProfit: 0 }
+}
+
 export default function PnlDetail() {
-  const [id, setId] = useState(S[0].id)
-  const st = S.find(x => x.id === id) ?? S[0]
+  const [ch, setCh] = useState<'online' | 'offline' | 'overall'>('online')
+  const [m, setM] = useState("May'26")
+  const st = getSt(ch, m)
+  const accent = ch === 'offline' ? '#0F766E' : ch === 'overall' ? '#7E57C2' : '#1C7293'
+  const hasData = st.totalRevenue > 0 || st.sections.length > 0
 
   return (
     <Card>
       <CardContent className="p-4">
-        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-          <h3 className="text-sm font-semibold">P&L 逐项明细</h3>
-          <select
-            value={id}
-            onChange={e => setId(e.target.value)}
-            className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-          >
-            {S.map(x => <option key={x.id} value={x.id}>{x.label}</option>)}
+        <div className="flex items-center gap-3 mb-3 flex-wrap">
+          <h3 className="text-sm font-semibold mr-1">P&L</h3>
+          <div className="flex gap-1.5">
+            {(['online', 'offline', 'overall'] as const).map(c => (
+              <button key={c} onClick={() => setCh(c)}
+                className={cn('text-xs px-3 py-1.5 rounded-md border font-medium', ch === c ? 'text-white' : 'hover:bg-muted')}
+                style={ch === c ? { background: accent, borderColor: accent } : {}}>
+                {c === 'online' ? 'Online' : c === 'offline' ? 'Offline' : 'Overall (合并)'}
+              </button>
+            ))}
+          </div>
+          <select value={m} onChange={e => setM(e.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-sm">
+            {MONTHS.map(x => <option key={x} value={x}>{x}</option>)}
           </select>
         </div>
 
+        {!hasData ? (
+          <p className="text-sm text-muted-foreground py-8 text-center">该月此渠道没有 P&L 数据。</p>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <tbody>
@@ -318,7 +359,7 @@ export default function PnlDetail() {
             </tbody>
           </table>
         </div>
-        <p className="text-[11px] text-muted-foreground mt-2">逐行照录你上传的 P&L。要加新月份,把该月 P&L 发给我即可。</p>
+        )}
       </CardContent>
     </Card>
   )

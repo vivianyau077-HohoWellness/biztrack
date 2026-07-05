@@ -161,10 +161,6 @@ export default function ProfitTargetTab() {
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-muted-foreground">
-        可编辑 P&L 试算:选渠道+月份,自动带出该月真实数字。改数量、广告 RM、营收就看到净利怎么变。默认值来自你上传的 P&L。
-      </p>
-
       {/* Channel + month selectors */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex gap-1.5">
@@ -190,9 +186,6 @@ export default function ProfitTargetTab() {
         </CardContent>
       </Card>
 
-      <p className="text-xs text-muted-foreground">
-        用法:切到 Online / May,把「广告 Ad Spend」改小看净利升多少;或改「Total Sales」和各产品数量做预测。每日广告 = 广告 ÷ 当月天数,方便你排每天预算。
-      </p>
     </div>
   )
 }
