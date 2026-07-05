@@ -10,8 +10,21 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Plus, FolderKanban, ArrowRight } from 'lucide-react'
+import PasswordGate from '@/components/shared/PasswordGate'
 
 export default function ProjectsPage() {
+  return (
+    <PasswordGate
+      endpoint="/api/projects/unlock"
+      title="Projects 受保护"
+      description="此页涉及重大机密,请输入密码查看。"
+    >
+      <ProjectsInner />
+    </PasswordGate>
+  )
+}
+
+function ProjectsInner() {
   useCleanupDialogArtifacts()
   const router = useRouter()
   const { projects, ready, addProject } = useProjects()
