@@ -1,182 +1,197 @@
 'use client'
 
 import { useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Globe, Store } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
-function rm(n: number): string {
-  if (!isFinite(n)) return '—'
-  return 'RM ' + Math.round(n).toLocaleString()
+// ── Product catalog (unit costs from the P&L) ────────────────────────────────
+const CATALOG: { name: string; unit: number }[] = [
+  { name: 'Dhealthy 330ml Cactus Gel', unit: 25.07 },
+  { name: 'Diamond Drink 500ml', unit: 49.35 },
+  { name: 'Diamond Drink 25gm', unit: 2.30 },
+  { name: 'Diamond Drink 25ml×10 Box', unit: 26.78 },
+  { name: 'Dhealthy 60ml Cactus Gel', unit: 5.50 },
+  { name: 'Dhealthy 215ml Cactus Gel', unit: 15.30 },
+]
+
+type Plan = { sales: number; ads: number; other: number; fixed: number; marketerPct: number; qty: number[] }
+// qty order matches CATALOG. other = all costs except COGS, Ads, Marketer(3%), Fixed.
+const ONLINE: Record<string, Plan> = {
+  "Jan'26": { sales: 590501.88, ads: 167673.36, other: 55291.15, fixed: 4000, marketerPct: 3, qty: [195, 2372, 6, 1397, 0, 0] },
+  "Feb'26": { sales: 624164.00, ads: 198899.62, other: 71932.50, fixed: 4000, marketerPct: 3, qty: [132, 2539, 15, 1363, 0, 0] },
+  "Mar'26": { sales: 763232.71, ads: 260938.29, other: 107604.85, fixed: 4000, marketerPct: 3, qty: [78, 3315, 25, 1685, 0, 100] },
+  "Apr'26": { sales: 537674.90, ads: 184817.53, other: 72743.64, fixed: 4000, marketerPct: 3, qty: [0, 2351, 3, 991, 0, 151] },
+  "May'26": { sales: 611191.50, ads: 230694.44, other: 71671.41, fixed: 4000, marketerPct: 3, qty: [2, 2978, 49, 804, 0, 125] },
+}
+const OFFLINE: Record<string, Plan> = {
+  "Feb'26": { sales: 125662.50, ads: 0, other: 6553.43, fixed: 0, marketerPct: 3, qty: [27, 736, 370, 349, 0, 0] },
+}
+const MONTHS = ["Jan'26", "Feb'26", "Mar'26", "Apr'26", "May'26"]
+const DAYS: Record<string, number> = { "Jan'26": 31, "Feb'26": 28, "Mar'26": 31, "Apr'26": 30, "May'26": 31 }
+
+function emptyPlan(): Plan { return { sales: 0, ads: 0, other: 0, fixed: 0, marketerPct: 3, qty: [0, 0, 0, 0, 0, 0] } }
+function mergePlans(a: Plan, b: Plan): Plan {
+  return { sales: a.sales + b.sales, ads: a.ads + b.ads, other: a.other + b.other, fixed: a.fixed + b.fixed, marketerPct: 3, qty: a.qty.map((q, i) => q + b.qty[i]) }
+}
+function getPlan(channel: 'online' | 'offline' | 'overall', month: string): Plan {
+  if (channel === 'online') return ONLINE[month] ?? emptyPlan()
+  if (channel === 'offline') return OFFLINE[month] ?? emptyPlan()
+  return mergePlans(ONLINE[month] ?? emptyPlan(), OFFLINE[month] ?? emptyPlan())
 }
 
-type Defaults = {
-  cogs: number; ads: number; shipping: number; fees: number; marketer: number; fixed: number
-  refRev: number; refLabel: string; adsLabel: string
-}
+function rm(n: number) { return (n < 0 ? '-RM ' : 'RM ') + Math.abs(Math.round(n)).toLocaleString() }
+function pct(a: number, b: number) { return b ? (a / b) * 100 : 0 }
 
-function Field({ label, val, set, suffix }: { label: string; val: number; set: (n: number) => void; suffix: string }) {
+function NumInput({ val, set, w = 'w-28' }: { val: number; set: (n: number) => void; w?: string }) {
   return (
-    <label className="flex items-center justify-between gap-2 text-xs py-1">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="flex items-center gap-1">
-        <input
-          type="number"
-          value={val}
-          onChange={e => set(parseFloat(e.target.value) || 0)}
-          className="w-24 h-7 rounded-md border border-input bg-background px-2 text-right text-xs"
-        />
-        <span className="text-muted-foreground w-3 text-left">{suffix}</span>
-      </span>
-    </label>
+    <input type="number" value={val} onChange={e => set(parseFloat(e.target.value) || 0)}
+      className={cn(w, 'h-8 rounded-md border border-input bg-background px-2 text-right text-sm')} />
   )
 }
 
-function ChannelPlanner({ title, accent, icon: Icon, d }: { title: string; accent: string; icon: typeof Globe; d: Defaults }) {
-  const [cogs, setCogs] = useState(d.cogs)
-  const [ads, setAds] = useState(d.ads)
-  const [shipping, setShipping] = useState(d.shipping)
-  const [fees, setFees] = useState(d.fees)
-  const [marketer, setMarketer] = useState(d.marketer)
-  const [fixed, setFixed] = useState(d.fixed)
-  const [mode, setMode] = useState<'profit' | 'margin' | 'sales'>('sales')
-  const [targetProfit, setTargetProfit] = useState(150000)
-  const [targetMargin, setTargetMargin] = useState(30)
-  const [targetSales, setTargetSales] = useState(Math.round(d.refRev))
+function EditablePlan({ plan, days, accent }: { plan: Plan; days: number; accent: string }) {
+  const [sales, setSales] = useState(plan.sales)
+  const [qty, setQty] = useState<number[]>(plan.qty)
+  const [units, setUnits] = useState<number[]>(CATALOG.map(c => c.unit))
+  const [ads, setAds] = useState(plan.ads)
+  const [other, setOther] = useState(plan.other)
+  const [marketerPct, setMarketerPct] = useState(plan.marketerPct)
+  const [fixed, setFixed] = useState(plan.fixed)
 
-  const variablePct = cogs + ads + shipping + fees + marketer
-  const cm = 100 - variablePct
-  const cmR = cm / 100
-  const breakeven = cmR > 0 ? fixed / cmR : Infinity
-
-  let requiredRev = Infinity
-  let note = ''
-  if (mode === 'sales') {
-    requiredRev = targetSales
-    if (cmR <= 0) note = '变动成本 ≥ 100%,贡献率为负,营收越大亏越多。请降低成本 %。'
-  } else if (mode === 'profit') {
-    requiredRev = cmR > 0 ? (fixed + targetProfit) / cmR : Infinity
-    if (cmR <= 0) note = '变动成本 ≥ 100%,贡献率为负,无法盈利。请降低成本 %。'
-  } else {
-    if (cm <= targetMargin) {
-      note = `贡献率只有 ${cm.toFixed(1)}%,低于目标利润率 ${targetMargin}% —— 单靠增加营收达不到,要降低广告/成本 % 或提价。`
-    } else if (fixed <= 0) {
-      note = `固定成本 ≈ 0,利润率 ≈ 贡献率 (${cm.toFixed(1)}%),不随营收变化。要更高利润率就得降低成本 %。`
-    } else {
-      requiredRev = (fixed * 100) / (cm - targetMargin)
-    }
-  }
-  const impliedProfit = isFinite(requiredRev) ? cmR * requiredRev - fixed : NaN
-  const impliedMargin = isFinite(requiredRev) && requiredRev > 0 ? (impliedProfit / requiredRev) * 100 : NaN
-  const gap = isFinite(requiredRev) ? requiredRev - d.refRev : NaN
-  const gapPct = d.refRev ? (gap / d.refRev) * 100 : NaN
+  const cogs = CATALOG.reduce((s, _c, i) => s + units[i] * qty[i], 0)
+  const marketer = sales * marketerPct / 100
+  const totalCost = cogs + ads + other + marketer + fixed
+  const net = sales - totalCost
+  const netPct = pct(net, sales)
+  const dailyAds = days ? ads / days : 0
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <span className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: accent }}>
-            <Icon className="h-4 w-4 text-white" />
+    <div className="space-y-4">
+      {/* Total Sales on top */}
+      <div className="rounded-lg p-3 flex items-center justify-between" style={{ background: accent + '14' }}>
+        <div>
+          <p className="text-xs text-muted-foreground">Total Sales (月营收)</p>
+          <p className="text-[11px] text-muted-foreground">改这个数字试算</p>
+        </div>
+        <div className="flex items-center gap-1">
+          <input type="number" value={sales} onChange={e => setSales(parseFloat(e.target.value) || 0)}
+            className="w-40 h-10 rounded-md border border-input bg-background px-3 text-right text-lg font-bold" />
+          <span className="text-muted-foreground text-sm">RM</span>
+        </div>
+      </div>
+
+      {/* Product Related Costing — key in quantity */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground mb-1">Product Related Costing — 输入数量</p>
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b bg-muted/50 text-muted-foreground">
+                <th className="px-3 py-1.5 text-left font-medium">产品</th>
+                <th className="px-2 py-1.5 text-right font-medium">单位成本</th>
+                <th className="px-2 py-1.5 text-right font-medium">数量 Qty</th>
+                <th className="px-3 py-1.5 text-right font-medium">小计</th>
+              </tr>
+            </thead>
+            <tbody>
+              {CATALOG.map((c, i) => (
+                <tr key={c.name} className="border-b last:border-0">
+                  <td className="px-3 py-1.5">{c.name}</td>
+                  <td className="px-2 py-1.5 text-right"><NumInput w="w-20" val={units[i]} set={v => setUnits(u => u.map((x, j) => j === i ? v : x))} /></td>
+                  <td className="px-2 py-1.5 text-right"><NumInput w="w-24" val={qty[i]} set={v => setQty(q => q.map((x, j) => j === i ? v : x))} /></td>
+                  <td className="px-3 py-1.5 text-right font-medium">{rm(units[i] * qty[i])}</td>
+                </tr>
+              ))}
+              <tr className="bg-muted/30 font-semibold">
+                <td className="px-3 py-1.5" colSpan={3}>COGS 小计 · {pct(cogs, sales).toFixed(1)}% of sales</td>
+                <td className="px-3 py-1.5 text-right">{rm(cogs)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Other cost inputs */}
+      <div className="rounded-lg border divide-y px-3">
+        <div className="flex items-center justify-between gap-2 py-1.5 text-xs">
+          <span className="text-muted-foreground">广告 Ad Spend (输入 RM)</span>
+          <span className="flex items-center gap-2">
+            <span className="text-[11px] text-green-700">每日 ≈ {rm(dailyAds)} <span className="text-muted-foreground">(÷{days}天)</span></span>
+            <NumInput val={ads} set={setAds} />
+            <span className="text-muted-foreground w-3">RM</span>
           </span>
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Cost assumptions */}
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground mb-1">成本假设(可改)</p>
-          <div className="rounded-lg border divide-y px-3">
-            <Field label="产品成本 COGS" val={cogs} set={setCogs} suffix="%" />
-            <Field label={d.adsLabel} val={ads} set={setAds} suffix="%" />
-            <Field label="运费 Shipping" val={shipping} set={setShipping} suffix="%" />
-            <Field label="平台佣金 + 包装 + 手续费" val={fees} set={setFees} suffix="%" />
-            <Field label="Marketer 抽成" val={marketer} set={setMarketer} suffix="%" />
-            <Field label="固定成本 / 月" val={fixed} set={setFixed} suffix="RM" />
-          </div>
-          <div className="flex items-center justify-between mt-2 text-xs">
-            <span className="text-muted-foreground">变动成本合计 {variablePct.toFixed(1)}%</span>
-            <span className="font-semibold" style={{ color: accent }}>贡献率(毛利率) {cm.toFixed(1)}%</span>
-          </div>
         </div>
+        <div className="flex items-center justify-between gap-2 py-1.5 text-xs">
+          <span className="text-muted-foreground">其他运营费(运费+佣金+包装+税等)</span>
+          <span className="flex items-center gap-1"><NumInput val={other} set={setOther} /><span className="text-muted-foreground w-3">RM</span></span>
+        </div>
+        <div className="flex items-center justify-between gap-2 py-1.5 text-xs">
+          <span className="text-muted-foreground">Marketer 抽成 = {rm(marketer)}</span>
+          <span className="flex items-center gap-1"><NumInput w="w-16" val={marketerPct} set={setMarketerPct} /><span className="text-muted-foreground w-3">%</span></span>
+        </div>
+        <div className="flex items-center justify-between gap-2 py-1.5 text-xs">
+          <span className="text-muted-foreground">固定成本 / 月 (Overhead 等)</span>
+          <span className="flex items-center gap-1"><NumInput val={fixed} set={setFixed} /><span className="text-muted-foreground w-3">RM</span></span>
+        </div>
+      </div>
 
-        {/* Target */}
-        <div>
-          <div className="flex gap-1.5 mb-2">
-            <button onClick={() => setMode('sales')} className={cn('flex-1 text-xs py-1.5 rounded-md border font-medium', mode === 'sales' ? 'text-white' : 'hover:bg-muted')} style={mode === 'sales' ? { background: accent, borderColor: accent } : {}}>输入营收 → 净利</button>
-            <button onClick={() => setMode('profit')} className={cn('flex-1 text-xs py-1.5 rounded-md border font-medium', mode === 'profit' ? 'text-white' : 'hover:bg-muted')} style={mode === 'profit' ? { background: accent, borderColor: accent } : {}}>目标净利</button>
-            <button onClick={() => setMode('margin')} className={cn('flex-1 text-xs py-1.5 rounded-md border font-medium', mode === 'margin' ? 'text-white' : 'hover:bg-muted')} style={mode === 'margin' ? { background: accent, borderColor: accent } : {}}>目标利润率</button>
-          </div>
-          {mode === 'sales' ? (
-            <Field label="输入月营收 Total Sales" val={targetSales} set={setTargetSales} suffix="RM" />
-          ) : mode === 'profit' ? (
-            <Field label="每月想赚的净利" val={targetProfit} set={setTargetProfit} suffix="RM" />
-          ) : (
-            <Field label="想达到的净利率" val={targetMargin} set={setTargetMargin} suffix="%" />
-          )}
+      {/* Result */}
+      <div className="rounded-lg p-3" style={{ background: (net >= 0 ? accent : '#C0392B') + '14' }}>
+        <p className="text-xs text-muted-foreground">预计净利 Net Profit</p>
+        <p className="text-3xl font-bold" style={{ color: net >= 0 ? accent : '#C0392B' }}>{rm(net)} <span className="text-lg">· {netPct.toFixed(1)}%</span></p>
+        <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+          <div className="flex justify-between"><span>Total Sales</span><span className="font-medium text-foreground">{rm(sales)}</span></div>
+          <div className="flex justify-between"><span>(-) COGS 产品成本</span><span className="font-medium text-foreground">{rm(cogs)} ({pct(cogs, sales).toFixed(0)}%)</span></div>
+          <div className="flex justify-between"><span>(-) 广告 Ads</span><span className="font-medium text-foreground">{rm(ads)} ({pct(ads, sales).toFixed(0)}%)</span></div>
+          <div className="flex justify-between"><span>(-) 其他运营费</span><span className="font-medium text-foreground">{rm(other)} ({pct(other, sales).toFixed(0)}%)</span></div>
+          <div className="flex justify-between"><span>(-) Marketer 抽成</span><span className="font-medium text-foreground">{rm(marketer)}</span></div>
+          <div className="flex justify-between"><span>(-) 固定成本</span><span className="font-medium text-foreground">{rm(fixed)}</span></div>
+          <div className="flex justify-between border-t pt-1 mt-1"><span>= 总成本</span><span className="font-medium text-foreground">{rm(totalCost)} ({pct(totalCost, sales).toFixed(0)}%)</span></div>
         </div>
-
-        {/* Result */}
-        <div className="rounded-lg p-3" style={{ background: accent + '14' }}>
-          {mode === 'sales' ? (
-            <>
-              <p className="text-xs text-muted-foreground">预计净利 Net Profit</p>
-              <p className="text-3xl font-bold" style={{ color: impliedProfit >= 0 ? accent : '#C0392B' }}>{rm(impliedProfit)}</p>
-              {note ? (
-                <p className="text-xs text-red-600 mt-1">{note}</p>
-              ) : (
-                <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
-                  <div className="flex justify-between"><span>净利率 Net %</span><span className="font-medium text-foreground">{isFinite(impliedMargin) ? impliedMargin.toFixed(1) : '—'}%</span></div>
-                  <div className="flex justify-between"><span>输入的营收</span><span className="font-medium text-foreground">{rm(targetSales)}</span></div>
-                  <div className="flex justify-between"><span>毛利(贡献) = 营收 × {cm.toFixed(1)}%</span><span className="font-medium text-foreground">{rm(cmR * targetSales)}</span></div>
-                  <div className="flex justify-between"><span>(-) 固定成本</span><span className="font-medium text-foreground">{rm(fixed)}</span></div>
-                  <div className="flex justify-between"><span>保本营收 (break-even)</span><span className="font-medium text-foreground">{rm(breakeven)}</span></div>
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <p className="text-xs text-muted-foreground">需要做到的月营收 Sales</p>
-              <p className="text-3xl font-bold" style={{ color: accent }}>{rm(requiredRev)}</p>
-              {note ? (
-                <p className="text-xs text-red-600 mt-1">{note}</p>
-              ) : (
-                <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
-                  <div className="flex justify-between"><span>预计净利</span><span className="font-medium text-foreground">{rm(impliedProfit)} ({isFinite(impliedMargin) ? impliedMargin.toFixed(1) : '—'}%)</span></div>
-                  <div className="flex justify-between"><span>保本营收 (break-even)</span><span className="font-medium text-foreground">{rm(breakeven)}</span></div>
-                  <div className="flex justify-between"><span>参考:{d.refLabel} 营收</span><span className="font-medium text-foreground">{rm(d.refRev)}</span></div>
-                  <div className="flex justify-between"><span>vs 参考需增长</span><span className={cn('font-medium', gap > 0 ? 'text-orange-600' : 'text-green-600')}>{isFinite(gap) ? `${gap >= 0 ? '+' : ''}${rm(gap)} (${gapPct >= 0 ? '+' : ''}${isFinite(gapPct) ? gapPct.toFixed(0) : '—'}%)` : '—'}</span></div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
 
 export default function ProfitTargetTab() {
+  const [channel, setChannel] = useState<'online' | 'offline' | 'overall'>('online')
+  const [month, setMonth] = useState("May'26")
+  const accent = channel === 'offline' ? '#0F766E' : channel === 'overall' ? '#7E57C2' : '#1C7293'
+  const plan = getPlan(channel, month)
+
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        倒推工具:输入你想要的净利或利润率,算出需要做多少 Sales。公式:所需营收 = (固定成本 + 目标净利) ÷ 贡献率。默认值来自你 2026 Jan–May 的 P&L,均可修改。
+        可编辑 P&L 试算:选渠道+月份,自动带出该月真实数字。改数量、广告 RM、营收就看到净利怎么变。默认值来自你上传的 P&L。
       </p>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChannelPlanner
-          title="Online (Diamond Drink)"
-          accent="#1C7293"
-          icon={Globe}
-          d={{ cogs: 27, ads: 36, shipping: 4, fees: 5.5, marketer: 3, fixed: 5000, refRev: 625400, refLabel: 'Jan–May 均', adsLabel: '广告 Meta Ads' }}
-        />
-        <ChannelPlanner
-          title="Offline (Diamond Drink)"
-          accent="#0F766E"
-          icon={Store}
-          d={{ cogs: 38, ads: 0, shipping: 5, fees: 0.5, marketer: 3, fixed: 0, refRev: 125663, refLabel: 'Feb', adsLabel: '广告(线下通常 0)' }}
-        />
+
+      {/* Channel + month selectors */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex gap-1.5">
+          {(['online', 'offline', 'overall'] as const).map(c => (
+            <button key={c} onClick={() => setChannel(c)}
+              className={cn('text-sm px-4 py-1.5 rounded-md border font-medium', channel === c ? 'text-white' : 'hover:bg-muted')}
+              style={channel === c ? { background: accent, borderColor: accent } : {}}>
+              {c === 'online' ? 'Online' : c === 'offline' ? 'Offline' : 'Overall (合并)'}
+            </button>
+          ))}
+        </div>
+        <select value={month} onChange={e => setMonth(e.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
+          {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+        </select>
+        {channel === 'offline' && !OFFLINE[month] && (
+          <span className="text-xs text-orange-600">该月没有线下 P&L 数据,已归零,可自行输入。</span>
+        )}
       </div>
+
+      <Card>
+        <CardContent className="p-4">
+          <EditablePlan key={channel + month} plan={plan} days={DAYS[month] ?? 30} accent={accent} />
+        </CardContent>
+      </Card>
+
       <p className="text-xs text-muted-foreground">
-        提示:线上净利率下滑主要是广告占比从 31% 升到 41%。想看「把广告控制在 30% 要做多少营收」,把上面「广告 Meta Ads」改成 30 即可,贡献率和所需营收会立即更新。
+        用法:切到 Online / May,把「广告 Ad Spend」改小看净利升多少;或改「Total Sales」和各产品数量做预测。每日广告 = 广告 ÷ 当月天数,方便你排每天预算。
       </p>
     </div>
   )
