@@ -24,6 +24,7 @@ const ONLINE: Record<string, Plan> = {
   "May'26": { sales: 611191.50, ads: 230694.44, other: 71671.41, fixed: 4000, marketerPct: 3, qty: [2, 2978, 49, 804, 0, 125] },
 }
 const OFFLINE: Record<string, Plan> = {
+  "Jan'26": { sales: 108499.20, ads: 0, other: 5858.37, fixed: 0, marketerPct: 3, qty: [40, 636, 251, 279, 0, 0] },
   "Feb'26": { sales: 125662.50, ads: 0, other: 6553.43, fixed: 0, marketerPct: 3, qty: [27, 736, 370, 349, 0, 0] },
 }
 const MONTHS = ["Jan'26", "Feb'26", "Mar'26", "Apr'26", "May'26"]
@@ -176,7 +177,7 @@ export default function ProfitTargetTab() {
           {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
         {channel === 'offline' && !OFFLINE[month] && (
-          <span className="text-xs text-orange-600">该月没有线下 P&L 数据,已归零,可自行输入。</span>
+          <span className="text-xs text-orange-600">No offline P&L for this month — set to 0, you can fill it in.</span>
         )}
       </div>
 

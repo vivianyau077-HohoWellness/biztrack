@@ -245,6 +245,25 @@ const S: Statement[] = [
     ],
   },
   {
+    id: 'off-jan', label: "Offline · Jan'26", totalRevenue: 108499.20, totalExpenses: 49551.67, netProfit: 58947.53,
+    revenue: [{ label: 'Offline Sales', amt: 108499.20 }],
+    sections: [
+      { name: 'Product Related Costing', subtotal: 40438.32, items: [
+        { label: 'Dhealthy 330ml Cactus Gel (25.07 × 40)', amt: 1002.80 },
+        { label: 'Diamond Drink 500ml (49.35 × 636)', amt: 31386.60 },
+        { label: 'Diamond Drink 25gm (2.30 × 251)', amt: 577.30 },
+        { label: 'Diamond Drink 25ml×10 Box (26.78 × 279)', amt: 7471.62 },
+      ] },
+      { name: 'Shipping Fee', subtotal: 5099.46, items: [
+        { label: 'Postage Charges', amt: 5099.46 },
+      ] },
+      { name: 'Other Expenses', subtotal: 4013.89, items: [
+        { label: 'Packaging Fee', amt: 758.91 },
+        { label: 'Hoho Wellness Marketer (3%)', amt: 3254.98 },
+      ] },
+    ],
+  },
+  {
     id: 'off-feb', label: "Offline · Feb'26", totalRevenue: 125662.50, totalExpenses: 57519.02, netProfit: 68143.49,
     revenue: [{ label: 'Offline Sales', amt: 125662.50 }],
     sections: [
@@ -324,7 +343,7 @@ export default function PnlDetail() {
         </div>
 
         {!hasData ? (
-          <p className="text-sm text-muted-foreground py-8 text-center">该月此渠道没有 P&L 数据。</p>
+          <p className="text-sm text-muted-foreground py-8 text-center">No P&L data for this channel / month.</p>
         ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
