@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge'
 import { Plus, FolderKanban, ArrowRight } from 'lucide-react'
 import PasswordGate from '@/components/shared/PasswordGate'
+import ProfitTargetTab from '../analytics/_components/ProfitTargetTab'
 
 export default function ProjectsPage() {
   return (
@@ -93,6 +94,12 @@ function ProjectsInner() {
           </Table>
         </div>
       )}
+
+      <div className="mt-10 border-t pt-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-1">Profit Target</h2>
+        <p className="text-sm text-muted-foreground mb-4">目标利润倒推 —— 输入想要的净利/利润率,算出需要做多少 Sales。</p>
+        <ProfitTargetTab />
+      </div>
 
       <AddProjectModal
         open={showModal}
