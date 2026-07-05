@@ -26,6 +26,9 @@ const ONLINE: Record<string, Plan> = {
 const OFFLINE: Record<string, Plan> = {
   "Jan'26": { sales: 108499.20, ads: 0, other: 5858.37, fixed: 0, marketerPct: 3, qty: [40, 636, 251, 279, 0, 0] },
   "Feb'26": { sales: 125662.50, ads: 0, other: 6553.43, fixed: 0, marketerPct: 3, qty: [27, 736, 370, 349, 0, 0] },
+  "Mar'26": { sales: 97428.50, ads: 0, other: 4603.99, fixed: 0, marketerPct: 3, qty: [4, 535, 240, 755, 0, 9] },
+  "Apr'26": { sales: 98193.90, ads: 0, other: 4820.30, fixed: 0, marketerPct: 3, qty: [0, 563, 230, 305, 0, 14] },
+  "May'26": { sales: 147365.75, ads: 0, other: 5594.70, fixed: 0, marketerPct: 3, qty: [0, 692, 152, 548, 0, 11] },
 }
 const MONTHS = ["Jan'26", "Feb'26", "Mar'26", "Apr'26", "May'26"]
 const DAYS: Record<string, number> = { "Jan'26": 31, "Feb'26": 28, "Mar'26": 31, "Apr'26": 30, "May'26": 31 }

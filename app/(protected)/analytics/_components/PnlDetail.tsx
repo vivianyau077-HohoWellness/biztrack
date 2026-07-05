@@ -282,6 +282,58 @@ const S: Statement[] = [
       ] },
     ],
   },
+  {
+    id: 'off-mar', label: "Offline · Mar'26", totalRevenue: 97428.50, totalExpenses: 54937.98, netProfit: 42490.53,
+    revenue: [{ label: 'Offline Sales', amt: 86929.90 }, { label: 'Herbal Farmer', amt: 10498.60 }],
+    sections: [
+      { name: 'Product Related Costing', subtotal: 47411.13, items: [
+        { label: 'Dhealthy 330ml Cactus Gel (25.07 × 4)', amt: 100.28 },
+        { label: 'Diamond Drink 500ml (49.35 × 535)', amt: 26402.25 },
+        { label: 'Diamond Drink 25gm (2.30 × 240)', amt: 552.00 },
+        { label: 'Diamond Drink 25ml×10 Box (26.78 × 755)', amt: 20218.90 },
+        { label: 'Dhealthy 215ml Cactus Gel (15.30 × 9)', amt: 137.70 },
+      ] },
+      { name: 'Shipping Fee', subtotal: 4085.71, items: [{ label: 'Postage Charges', amt: 4085.71 }] },
+      { name: 'Other Expenses', subtotal: 3441.14, items: [
+        { label: 'Packaging Fee', amt: 518.28 },
+        { label: 'Hoho Wellness Marketer (3%)', amt: 2922.86 },
+      ] },
+    ],
+  },
+  {
+    id: 'off-apr', label: "Offline · Apr'26", totalRevenue: 98193.90, totalExpenses: 44461.27, netProfit: 53732.63,
+    revenue: [{ label: 'Offline Sales', amt: 98193.90 }],
+    sections: [
+      { name: 'Product Related Costing', subtotal: 36695.15, items: [
+        { label: 'Diamond Drink 500ml (49.35 × 563)', amt: 27784.05 },
+        { label: 'Diamond Drink 25gm (2.30 × 230)', amt: 529.00 },
+        { label: 'Diamond Drink 25ml×10 Box (26.78 × 305)', amt: 8167.90 },
+        { label: 'Dhealthy 215ml Cactus Gel (15.30 × 14)', amt: 214.20 },
+      ] },
+      { name: 'Shipping Fee', subtotal: 4320.53, items: [{ label: 'Postage Charges', amt: 4320.53 }] },
+      { name: 'Other Expenses', subtotal: 3445.59, items: [
+        { label: 'Packaging Fee', amt: 499.77 },
+        { label: 'Hoho Wellness Marketer (3%)', amt: 2945.82 },
+      ] },
+    ],
+  },
+  {
+    id: 'off-may', label: "Offline · May'26", totalRevenue: 147365.75, totalExpenses: 59359.21, netProfit: 88006.54,
+    revenue: [{ label: 'Offline Sales', amt: 119261.10 }, { label: 'Herbal Farmer', amt: 28104.65 }],
+    sections: [
+      { name: 'Product Related Costing', subtotal: 49343.54, items: [
+        { label: 'Diamond Drink 500ml (49.35 × 692)', amt: 34150.20 },
+        { label: 'Diamond Drink 25gm (2.30 × 152)', amt: 349.60 },
+        { label: 'Diamond Drink 25ml×10 Box (26.78 × 548)', amt: 14675.44 },
+        { label: 'Dhealthy 215ml Cactus Gel (15.30 × 11)', amt: 168.30 },
+      ] },
+      { name: 'Shipping Fee', subtotal: 5020.89, items: [{ label: 'Postage Charges', amt: 5020.89 }] },
+      { name: 'Other Expenses', subtotal: 4994.78, items: [
+        { label: 'Packaging Fee', amt: 573.81 },
+        { label: 'Hoho Wellness Marketer (3%)', amt: 4420.97 },
+      ] },
+    ],
+  },
 ]
 
 function rm(n: number) { return (n < 0 ? '-RM ' : 'RM ') + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
