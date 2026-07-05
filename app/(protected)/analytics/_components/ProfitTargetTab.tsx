@@ -39,9 +39,10 @@ function ChannelPlanner({ title, accent, icon: Icon, d }: { title: string; accen
   const [fees, setFees] = useState(d.fees)
   const [marketer, setMarketer] = useState(d.marketer)
   const [fixed, setFixed] = useState(d.fixed)
-  const [mode, setMode] = useState<'profit' | 'margin'>('profit')
+  const [mode, setMode] = useState<'profit' | 'margin' | 'sales'>('sales')
   const [targetProfit, setTargetProfit] = useState(150000)
   const [targetMargin, setTargetMargin] = useState(30)
+  const [targetSales, setTargetSales] = useState(Math.round(d.refRev))
 
   const variablePct = cogs + ads + shipping + fees + marketer
   const cm = 100 - variablePct
@@ -50,7 +51,10 @@ function ChannelPlanner({ title, accent, icon: Icon, d }: { title: string; accen
 
   let requiredRev = Infinity
   let note = ''
-  if (mode === 'profit') {
+  if (mode === 'sales') {
+    requiredRev = targetSales
+    if (cmR <= 0) note = '变动成本 ≥ 100%,贡献率为负,营收越大亏越多。请降低成本 %。'
+  } else if (mode === 'profit') {
     requiredRev = cmR > 0 ? (fixed + targetProfit) / cmR : Infinity
     if (cmR <= 0) note = '变动成本 ≥ 100%,贡献率为负,无法盈利。请降低成本 %。'
   } else {
@@ -98,10 +102,13 @@ function ChannelPlanner({ title, accent, icon: Icon, d }: { title: string; accen
         {/* Target */}
         <div>
           <div className="flex gap-1.5 mb-2">
-            <button onClick={() => setMode('profit')} className={cn('flex-1 text-xs py-1.5 rounded-md border font-medium', mode === 'profit' ? 'text-white' : 'hover:bg-muted')} style={mode === 'profit' ? { background: accent, borderColor: accent } : {}}>目标净利 (RM)</button>
-            <button onClick={() => setMode('margin')} className={cn('flex-1 text-xs py-1.5 rounded-md border font-medium', mode === 'margin' ? 'text-white' : 'hover:bg-muted')} style={mode === 'margin' ? { background: accent, borderColor: accent } : {}}>目标利润率 (%)</button>
+            <button onClick={() => setMode('sales')} className={cn('flex-1 text-xs py-1.5 rounded-md border font-medium', mode === 'sales' ? 'text-white' : 'hover:bg-muted')} style={mode === 'sales' ? { background: accent, borderColor: accent } : {}}>输入营收 → 净利</button>
+            <button onClick={() => setMode('profit')} className={cn('flex-1 text-xs py-1.5 rounded-md border font-medium', mode === 'profit' ? 'text-white' : 'hover:bg-muted')} style={mode === 'profit' ? { background: accent, borderColor: accent } : {}}>目标净利</button>
+            <button onClick={() => setMode('margin')} className={cn('flex-1 text-xs py-1.5 rounded-md border font-medium', mode === 'margin' ? 'text-white' : 'hover:bg-muted')} style={mode === 'margin' ? { background: accent, borderColor: accent } : {}}>目标利润率</button>
           </div>
-          {mode === 'profit' ? (
+          {mode === 'sales' ? (
+            <Field label="输入月营收 Total Sales" val={targetSales} set={setTargetSales} suffix="RM" />
+          ) : mode === 'profit' ? (
             <Field label="每月想赚的净利" val={targetProfit} set={setTargetProfit} suffix="RM" />
           ) : (
             <Field label="想达到的净利率" val={targetMargin} set={setTargetMargin} suffix="%" />
@@ -110,17 +117,37 @@ function ChannelPlanner({ title, accent, icon: Icon, d }: { title: string; accen
 
         {/* Result */}
         <div className="rounded-lg p-3" style={{ background: accent + '14' }}>
-          <p className="text-xs text-muted-foreground">需要做到的月营收 Sales</p>
-          <p className="text-3xl font-bold" style={{ color: accent }}>{rm(requiredRev)}</p>
-          {note ? (
-            <p className="text-xs text-red-600 mt-1">{note}</p>
+          {mode === 'sales' ? (
+            <>
+              <p className="text-xs text-muted-foreground">预计净利 Net Profit</p>
+              <p className="text-3xl font-bold" style={{ color: impliedProfit >= 0 ? accent : '#C0392B' }}>{rm(impliedProfit)}</p>
+              {note ? (
+                <p className="text-xs text-red-600 mt-1">{note}</p>
+              ) : (
+                <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+                  <div className="flex justify-between"><span>净利率 Net %</span><span className="font-medium text-foreground">{isFinite(impliedMargin) ? impliedMargin.toFixed(1) : '—'}%</span></div>
+                  <div className="flex justify-between"><span>输入的营收</span><span className="font-medium text-foreground">{rm(targetSales)}</span></div>
+                  <div className="flex justify-between"><span>毛利(贡献) = 营收 × {cm.toFixed(1)}%</span><span className="font-medium text-foreground">{rm(cmR * targetSales)}</span></div>
+                  <div className="flex justify-between"><span>(-) 固定成本</span><span className="font-medium text-foreground">{rm(fixed)}</span></div>
+                  <div className="flex justify-between"><span>保本营收 (break-even)</span><span className="font-medium text-foreground">{rm(breakeven)}</span></div>
+                </div>
+              )}
+            </>
           ) : (
-            <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
-              <div className="flex justify-between"><span>预计净利</span><span className="font-medium text-foreground">{rm(impliedProfit)} ({isFinite(impliedMargin) ? impliedMargin.toFixed(1) : '—'}%)</span></div>
-              <div className="flex justify-between"><span>保本营收 (break-even)</span><span className="font-medium text-foreground">{rm(breakeven)}</span></div>
-              <div className="flex justify-between"><span>参考:{d.refLabel} 营收</span><span className="font-medium text-foreground">{rm(d.refRev)}</span></div>
-              <div className="flex justify-between"><span>vs 参考需增长</span><span className={cn('font-medium', gap > 0 ? 'text-orange-600' : 'text-green-600')}>{isFinite(gap) ? `${gap >= 0 ? '+' : ''}${rm(gap)} (${gapPct >= 0 ? '+' : ''}${isFinite(gapPct) ? gapPct.toFixed(0) : '—'}%)` : '—'}</span></div>
-            </div>
+            <>
+              <p className="text-xs text-muted-foreground">需要做到的月营收 Sales</p>
+              <p className="text-3xl font-bold" style={{ color: accent }}>{rm(requiredRev)}</p>
+              {note ? (
+                <p className="text-xs text-red-600 mt-1">{note}</p>
+              ) : (
+                <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+                  <div className="flex justify-between"><span>预计净利</span><span className="font-medium text-foreground">{rm(impliedProfit)} ({isFinite(impliedMargin) ? impliedMargin.toFixed(1) : '—'}%)</span></div>
+                  <div className="flex justify-between"><span>保本营收 (break-even)</span><span className="font-medium text-foreground">{rm(breakeven)}</span></div>
+                  <div className="flex justify-between"><span>参考:{d.refLabel} 营收</span><span className="font-medium text-foreground">{rm(d.refRev)}</span></div>
+                  <div className="flex justify-between"><span>vs 参考需增长</span><span className={cn('font-medium', gap > 0 ? 'text-orange-600' : 'text-green-600')}>{isFinite(gap) ? `${gap >= 0 ? '+' : ''}${rm(gap)} (${gapPct >= 0 ? '+' : ''}${isFinite(gapPct) ? gapPct.toFixed(0) : '—'}%)` : '—'}</span></div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </CardContent>
