@@ -113,7 +113,10 @@ export async function computeDdSalesMatrix() {
     rb.set(m, y)
   }
 
-  const months = Array.from(new Set([...ob.keys(), ...rb.keys()])).filter(Boolean).sort()
+  const monthSet = new Set<string>()
+  for (const k of Array.from(ob.keys())) monthSet.add(k)
+  for (const k of Array.from(rb.keys())) monthSet.add(k)
+  const months = Array.from(monthSet).filter(Boolean).sort()
   const R = (n: number) => Math.round(n)
   const div = (a: number, b: number) => (b ? a / b : 0)
   const chSum = (x: OB, names: string[]) => names.reduce((s, n) => s + (x.ch.get(n) ?? 0), 0)
