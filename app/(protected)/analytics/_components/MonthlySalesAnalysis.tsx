@@ -9,7 +9,7 @@ type MonthMetrics = {
   month: string
   totalSales: number
   totalOrder: number
-  fbBeauty: number; fbRepair: number; whatsapp: number; shopee: number; website: number; lazada: number
+  fbBeauty: number; fbRepair: number; fbSG: number; whatsapp: number; shopee: number; website: number; lazada: number; others: number
   roas: number; adSpend: number
   totalLead: number; cpl: number
   newOrder: number; newFbSales: number; newWaSales: number
@@ -41,10 +41,12 @@ const ROWS: Row[] = [
   { label: 'Total Online Order', key: 'totalOrder', fmt: 'num', bold: true },
   { label: 'FB (焕肤王)', key: 'fbBeauty', fmt: 'rm' },
   { label: 'FB (修复)', key: 'fbRepair', fmt: 'rm' },
+  { label: 'FB SG', key: 'fbSG', fmt: 'rm' },
   { label: 'Whatsapp', key: 'whatsapp', fmt: 'rm' },
   { label: 'Shopee', key: 'shopee', fmt: 'rm' },
   { label: 'Website', key: 'website', fmt: 'rm' },
   { label: 'Lazada', key: 'lazada', fmt: 'rm' },
+  { label: 'Others (Staff/Change/etc.)', key: 'others', fmt: 'rm' },
   { label: 'ROAS', key: 'roas', fmt: 'x' },
   { label: 'Ads Spend', key: 'adSpend', fmt: 'rm' },
   { label: '', spacer: true },

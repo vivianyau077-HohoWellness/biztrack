@@ -50,13 +50,14 @@ const SG_CH = ['FB SG', 'FB SG MY', 'Shopee SG', 'WhatsApp SG', 'WhatsApp SG ENG
 const FB_ALL = [...BEAUTY_CH, ...REPAIR_CH, 'FB SG', 'FB SG MY', 'FB SG ENG']
 const WA_ALL = ['WhatsApp', 'WhatsApp Eng', 'WhatsApp API', 'WhatsApp SG', 'WhatsApp SG ENG']
 const SHOPEE_ALL = ['Shopee', 'Shopee SG']
+const FBSG_CH = ['FB SG', 'FB SG MY', 'FB SG ENG']
 const inSet = (c: string, s: string[]) => s.includes(c)
 
 export type MonthMetrics = {
   month: string
   totalSales: number
   totalOrder: number
-  fbBeauty: number; fbRepair: number; whatsapp: number; shopee: number; website: number; lazada: number
+  fbBeauty: number; fbRepair: number; fbSG: number; whatsapp: number; shopee: number; website: number; lazada: number; others: number
   roas: number; adSpend: number
   totalLead: number; cpl: number
   newOrder: number; newFbSales: number; newWaSales: number
@@ -144,9 +145,10 @@ export async function computeDdSalesMatrix() {
       month: m,
       totalSales: R(x.sales),
       totalOrder: x.orders,
-      fbBeauty: R(chSum(x, BEAUTY_CH)), fbRepair: R(chSum(x, REPAIR_CH)),
+      fbBeauty: R(chSum(x, BEAUTY_CH)), fbRepair: R(chSum(x, REPAIR_CH)), fbSG: R(chSum(x, FBSG_CH)),
       whatsapp: R(chSum(x, WA_ALL)), shopee: R(chSum(x, SHOPEE_ALL)),
       website: R(chSum(x, ['Website'])), lazada: R(chSum(x, ['Lazada'])),
+      others: R(x.sales - chSum(x, BEAUTY_CH) - chSum(x, REPAIR_CH) - chSum(x, FBSG_CH) - chSum(x, WA_ALL) - chSum(x, SHOPEE_ALL) - chSum(x, ['Website']) - chSum(x, ['Lazada'])),
       roas: Math.round(div(x.sales, rep.ad) * 100) / 100, adSpend: R(rep.ad),
       totalLead: R(rep.leads), cpl: R(div(rep.ad, rep.leads)),
       newOrder: rep.newOrder, newFbSales: R(x.newFb), newWaSales: R(x.newWa),
