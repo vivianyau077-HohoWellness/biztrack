@@ -174,8 +174,14 @@ function EditablePlan({ plan, days, accent }: { plan: Plan; days: number; accent
       {/* Leads & conversion funnel */}
       <div className="rounded-lg border p-3">
         <p className="text-xs font-semibold mb-2">Leads & 转化(广告漏斗)</p>
-        <Field label="平均客单价 AOV" val={aov} set={setAov} suffix="RM" />
-        <Field label="转化率 Conversion (lead → 成交)" val={conv} set={setConv} suffix="%" />
+        <div className="flex items-center justify-between gap-2 py-1 text-xs">
+          <span className="text-muted-foreground">平均客单价 AOV</span>
+          <span className="flex items-center gap-1"><NumInput val={aov} set={setAov} /><span className="text-muted-foreground w-3">RM</span></span>
+        </div>
+        <div className="flex items-center justify-between gap-2 py-1 text-xs">
+          <span className="text-muted-foreground">转化率 Conversion (lead → 成交)</span>
+          <span className="flex items-center gap-1"><NumInput w="w-16" val={conv} set={setConv} /><span className="text-muted-foreground w-3">%</span></span>
+        </div>
         <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
           <div className="flex justify-between"><span>成交单数 / 月</span><span className="font-medium text-foreground">{Math.round(orders).toLocaleString()} 单 (每天 ≈ {days ? Math.round(orders / days) : 0})</span></div>
           <div className="flex justify-between"><span>需要 Leads / 月</span><span className="font-medium text-foreground">{Math.round(leads).toLocaleString()} (每天 ≈ {days ? Math.round(leads / days) : 0})</span></div>
