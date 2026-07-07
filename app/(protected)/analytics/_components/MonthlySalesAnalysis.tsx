@@ -79,7 +79,6 @@ function fmtVal(v: number, fmt?: Fmt) {
 
 export default function MonthlySalesAnalysis() {
   const [month, setMonth] = useState('')
-  const [targets, setTargets] = useState<Record<string, number>>({})
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['sales-matrix'],
@@ -94,30 +93,32 @@ export default function MonthlySalesAnalysis() {
   if (isLoading || !data) return <div className="h-40 bg-muted/30 rounded-lg animate-pulse" />
 
   const months = data.months
-  const sel = month || months[months.length - 1] || ''
-  const met = data.metrics.find(m => m.month === sel)
+  const curMonth = months[months.length - 1] || ''            // current (latest) month
+  const sel = month || months[months.length - 2] || curMonth  // month to compare
+  const selMet = data.metrics.find(m => m.month === sel)
+  const curMet = data.metrics.find(m => m.month === curMonth)
 
   return (
     <Card>
       <CardContent className="p-4">
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-sm text-muted-foreground">Month</span>
+          <span className="text-sm text-muted-foreground">Compare month</span>
           <select value={sel} onChange={e => setMonth(e.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
             {months.map(m => <option key={m} value={m}>{mlabel(m)}</option>)}
           </select>
-          <span className="text-xs text-muted-foreground">Set a Target → see Deviance (gap to chase)</span>
+          <span className="text-xs text-muted-foreground">Deviance = {mlabel(sel)} − Current ({mlabel(curMonth)})</span>
         </div>
 
-        {!met ? (
-          <p className="text-sm text-muted-foreground py-8 text-center">No data for this month.</p>
+        {!selMet || !curMet ? (
+          <p className="text-sm text-muted-foreground py-8 text-center">No data.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-collapse">
               <thead>
                 <tr className="bg-muted/50">
                   <th className="px-3 py-2 text-left font-semibold min-w-[220px]">Metric</th>
-                  <th className="px-3 py-2 text-right font-semibold w-40">Target</th>
-                  <th className="px-3 py-2 text-right font-semibold w-32">Current</th>
+                  <th className="px-3 py-2 text-right font-semibold w-32">{mlabel(sel)}</th>
+                  <th className="px-3 py-2 text-right font-semibold w-32">Current ({mlabel(curMonth)})</th>
                   <th className="px-3 py-2 text-right font-semibold w-32">Deviance</th>
                 </tr>
               </thead>
@@ -125,21 +126,16 @@ export default function MonthlySalesAnalysis() {
                 {ROWS.map((row, i) => {
                   if (row.spacer) return <tr key={i}><td colSpan={4} className="h-2" /></tr>
                   const key = row.key as keyof MonthMetrics
-                  const current = met[key] as number
-                  const defTarget = key === 'totalSales' ? met.goal : 0
-                  const target = key in targets ? targets[key] : defTarget
-                  const dev = target - current
+                  const selV = selMet[key] as number
+                  const curV = curMet[key] as number
+                  const dev = selV - curV
                   return (
                     <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
                       <td className={'px-3 py-1.5 text-left ' + (row.bold ? 'font-semibold' : 'text-muted-foreground')}>{row.label}</td>
-                      <td className="px-2 py-1 text-right">
-                        <input type="number" value={target}
-                          onChange={e => setTargets(t => ({ ...t, [key]: parseFloat(e.target.value) || 0 }))}
-                          className="w-32 h-7 rounded-md border border-input bg-background px-2 text-right text-xs" />
-                      </td>
-                      <td className={'px-3 py-1.5 text-right whitespace-nowrap ' + (row.bold ? 'font-semibold' : '')}>{fmtVal(current, row.fmt)}</td>
-                      <td className={cn('px-3 py-1.5 text-right whitespace-nowrap font-medium', target ? (dev > 0 ? 'text-orange-600' : 'text-green-600') : 'text-muted-foreground')}>
-                        {target ? fmtVal(dev, row.fmt) : '—'}
+                      <td className={'px-3 py-1.5 text-right whitespace-nowrap ' + (row.bold ? 'font-semibold' : '')}>{fmtVal(selV, row.fmt)}</td>
+                      <td className={'px-3 py-1.5 text-right whitespace-nowrap ' + (row.bold ? 'font-semibold' : '')}>{fmtVal(curV, row.fmt)}</td>
+                      <td className={cn('px-3 py-1.5 text-right whitespace-nowrap font-medium', dev > 0 ? 'text-orange-600' : dev < 0 ? 'text-green-600' : 'text-muted-foreground')}>
+                        {(dev > 0 ? '+' : '') + fmtVal(dev, row.fmt)}
                       </td>
                     </tr>
                   )
@@ -148,7 +144,7 @@ export default function MonthlySalesAnalysis() {
             </table>
           </div>
         )}
-        <p className="text-[11px] text-muted-foreground mt-2">Deviance = Target − Current (正数 = 还差多少要追). Total Online Sales 的 Target 预填月目标。Live from Lark.</p>
+        <p className="text-[11px] text-muted-foreground mt-2">Deviance = selected month − current month. Live from Lark.</p>
       </CardContent>
     </Card>
   )
