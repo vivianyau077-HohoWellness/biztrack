@@ -21,8 +21,8 @@ export default function AdLeadPlanner() {
   const [roas, setRoas] = useState(3)
   const [days, setDays] = useState(30)
   const [pages, setPages] = useState<Page[]>([
-    { name: '焕肤王 (Beauty)', note: '受众大 · AOV 低 · 冲 lead 量 + 压 CPL', color: '#22a06b', share: 60, aov: 550, conv: 4 },
-    { name: '修复 (Wound)', note: '受众窄 · AOV 高 · 意向强转化高', color: '#c0392b', share: 40, aov: 900, conv: 8 },
+    { name: 'Beauty Page', note: 'Big audience · low AOV · push lead volume + lower CPL', color: '#22a06b', share: 60, aov: 550, conv: 4 },
+    { name: 'Repair Page', note: 'Niche · high AOV · strong intent, higher conversion', color: '#c0392b', share: 40, aov: 900, conv: 8 },
   ])
 
   const upd = (i: number, k: keyof Page, v: number) =>
@@ -48,18 +48,18 @@ export default function AdLeadPlanner() {
         {/* Top controls */}
         <div className="flex flex-wrap items-end gap-4">
           <label className="text-xs">
-            <span className="block text-muted-foreground mb-1">Online 目标营收 / 月</span>
+            <span className="block text-muted-foreground mb-1">Online sales target / month</span>
             <span className="flex items-center gap-1"><NumInput w="w-32" val={target} set={setTarget} /><span className="text-muted-foreground">RM</span></span>
           </label>
           <label className="text-xs">
-            <span className="block text-muted-foreground mb-1">ROAS 保底</span>
+            <span className="block text-muted-foreground mb-1">ROAS floor</span>
             <NumInput w="w-16" val={roas} set={setRoas} />
           </label>
           <label className="text-xs">
-            <span className="block text-muted-foreground mb-1">天数 / 月</span>
+            <span className="block text-muted-foreground mb-1">Days / month</span>
             <NumInput w="w-16" val={days} set={setDays} />
           </label>
-          {totalShare !== 100 && <span className="text-xs text-orange-600 self-center">两个 page 占比合计 {totalShare}%(建议 =100%)</span>}
+          {totalShare !== 100 && <span className="text-xs text-orange-600 self-center">Page shares total {totalShare}% (should be 100%)</span>}
         </div>
 
         {/* Two page cards */}
@@ -73,20 +73,20 @@ export default function AdLeadPlanner() {
               <p className="text-[11px] text-muted-foreground mb-2">{r.note}</p>
 
               <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">营收占比</span><span className="flex items-center gap-1"><NumInput w="w-16" val={r.share} set={v => upd(i, 'share', v)} />%</span></div>
-                <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">AOV 客单价</span><span className="flex items-center gap-1"><NumInput w="w-20" val={r.aov} set={v => upd(i, 'aov', v)} />RM</span></div>
-                <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">转化率 (lead→单)</span><span className="flex items-center gap-1"><NumInput w="w-16" val={r.conv} set={v => upd(i, 'conv', v)} />%</span></div>
+                <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">Sales share</span><span className="flex items-center gap-1"><NumInput w="w-16" val={r.share} set={v => upd(i, 'share', v)} />%</span></div>
+                <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">AOV</span><span className="flex items-center gap-1"><NumInput w="w-20" val={r.aov} set={v => upd(i, 'aov', v)} />RM</span></div>
+                <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">Conversion (lead→order)</span><span className="flex items-center gap-1"><NumInput w="w-16" val={r.conv} set={v => upd(i, 'conv', v)} />%</span></div>
               </div>
 
               <div className="mt-3 rounded-md p-2 space-y-0.5 text-xs" style={{ background: r.color + '12' }}>
-                <div className="flex justify-between"><span className="text-muted-foreground">营收</span><span className="font-semibold">{rm(r.sales)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">成交套数 / 月</span><span className="font-medium">{num(r.orders)} 套 (每天 ≈ {days ? num(r.orders / days) : 0})</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">需要 Leads / 月</span><span className="font-medium">{num(r.leads)}</span></div>
-                <div className="flex justify-between"><span className="font-semibold" style={{ color: r.color }}>每天要多少 Lead</span><span className="font-bold" style={{ color: r.color }}>{days ? num(r.leads / days) : 0}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">CPL 每个 lead 成本</span><span className="font-medium">{rm(r.cpl)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">CPA 每单广告成本</span><span className="font-medium">{rm(r.cpa)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">广告 / 月</span><span className="font-medium">{rm(r.ad)}</span></div>
-                <div className="flex justify-between"><span className="font-semibold" style={{ color: r.color }}>广告 / 天</span><span className="font-bold" style={{ color: r.color }}>{days ? rm(r.ad / days) : '—'}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Sales</span><span className="font-semibold">{rm(r.sales)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Orders / month</span><span className="font-medium">{num(r.orders)} (≈ {days ? num(r.orders / days) : 0}/day)</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Leads needed / month</span><span className="font-medium">{num(r.leads)}</span></div>
+                <div className="flex justify-between"><span className="font-semibold" style={{ color: r.color }}>Leads / day</span><span className="font-bold" style={{ color: r.color }}>{days ? num(r.leads / days) : 0}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">CPL (cost per lead)</span><span className="font-medium">{rm(r.cpl)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">CPA (cost per order)</span><span className="font-medium">{rm(r.cpa)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Ad spend / month</span><span className="font-medium">{rm(r.ad)}</span></div>
+                <div className="flex justify-between"><span className="font-semibold" style={{ color: r.color }}>Ad spend / day</span><span className="font-bold" style={{ color: r.color }}>{days ? rm(r.ad / days) : '—'}</span></div>
               </div>
             </div>
           ))}
@@ -94,17 +94,17 @@ export default function AdLeadPlanner() {
 
         {/* Online total */}
         <div className="rounded-lg p-3 bg-muted/40 text-xs">
-          <p className="font-semibold text-sm mb-1">Online 合计</p>
+          <p className="font-semibold text-sm mb-1">Online total</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <div><span className="text-muted-foreground">营收</span><div className="font-semibold">{rm(tot.sales)}</div></div>
-            <div><span className="text-muted-foreground">成交套数/月</span><div className="font-semibold">{num(tot.orders)} 套</div></div>
-            <div><span className="text-muted-foreground">Leads/天</span><div className="font-semibold">{days ? num(tot.leads / days) : 0}</div></div>
-            <div><span className="text-muted-foreground">广告/天</span><div className="font-semibold">{days ? rm(tot.ad / days) : '—'}</div></div>
+            <div><span className="text-muted-foreground">Sales</span><div className="font-semibold">{rm(tot.sales)}</div></div>
+            <div><span className="text-muted-foreground">Orders / month</span><div className="font-semibold">{num(tot.orders)}</div></div>
+            <div><span className="text-muted-foreground">Leads / day</span><div className="font-semibold">{days ? num(tot.leads / days) : 0}</div></div>
+            <div><span className="text-muted-foreground">Ad / day</span><div className="font-semibold">{days ? rm(tot.ad / days) : '—'}</div></div>
           </div>
         </div>
 
         <p className="text-[11px] text-muted-foreground">
-          先在上面 Profit Target 找出「要达到目标净利需要的 Online 营收」,填进这里的「Online 目标营收」,再按两个 page 的占比 / AOV / 转化率分配。默认值是我按你数据给的起点,请用你真实的 CPL / 转化率覆盖。
+          First use Profit Target to find the Online sales needed for your profit goal, enter it as “Online sales target” here, then split by each page’s share / AOV / conversion. Defaults are a starting point — replace with your real CPL / conversion.
         </p>
       </CardContent>
     </Card>

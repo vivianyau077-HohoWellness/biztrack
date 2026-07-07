@@ -385,7 +385,7 @@ export default function PnlDetail() {
               <button key={c} onClick={() => setCh(c)}
                 className={cn('text-xs px-3 py-1.5 rounded-md border font-medium', ch === c ? 'text-white' : 'hover:bg-muted')}
                 style={ch === c ? { background: accent, borderColor: accent } : {}}>
-                {c === 'online' ? 'Online' : c === 'offline' ? 'Offline' : 'Overall (合并)'}
+                {c === 'online' ? 'Online' : c === 'offline' ? 'Offline' : 'Overall'}
               </button>
             ))}
           </div>

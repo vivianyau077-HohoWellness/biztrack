@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button'
 // after the correct password is entered. Not persisted — re-prompts every visit.
 export default function PasswordGate({
   endpoint,
-  title = '此页面受保护',
-  description = '内容涉及机密,请输入密码查看。',
+  title = 'This page is protected',
+  description = 'This content is confidential. Enter the password to view.',
   children,
 }: {
   endpoint: string
@@ -35,9 +35,9 @@ export default function PasswordGate({
         body: JSON.stringify({ password: pw }),
       })
       if (res.ok) setUnlocked(true)
-      else setErr('密码错误,请重试。')
+      else setErr('Wrong password, try again.')
     } catch {
-      setErr('出错了,请再试一次。')
+      setErr('Something went wrong, please try again.')
     } finally {
       setLoading(false)
     }
@@ -56,12 +56,12 @@ export default function PasswordGate({
           autoFocus
           value={pw}
           onChange={e => setPw(e.target.value)}
-          placeholder="输入密码"
+          placeholder="Enter password"
           className="mt-5 w-full h-10 rounded-md border border-input bg-background px-3 text-sm text-center"
         />
         {err && <p className="mt-2 text-sm text-red-600">{err}</p>}
         <Button type="submit" className="mt-4 w-full" disabled={loading || !pw}>
-          {loading ? '验证中…' : '解锁'}
+          {loading ? 'Checking…' : 'Unlock'}
         </Button>
       </form>
     </div>

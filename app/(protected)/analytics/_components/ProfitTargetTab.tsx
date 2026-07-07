@@ -84,8 +84,8 @@ function EditablePlan({ plan, days, accent }: { plan: Plan; days: number; accent
       {/* Total Sales on top */}
       <div className="rounded-lg p-3 flex items-center justify-between" style={{ background: accent + '14' }}>
         <div>
-          <p className="text-xs text-muted-foreground">Total Sales (月营收)</p>
-          <p className="text-[11px] text-muted-foreground">改这个数字试算</p>
+          <p className="text-xs text-muted-foreground">Total Sales (per month)</p>
+          <p className="text-[11px] text-muted-foreground">Edit this number to simulate</p>
         </div>
         <div className="flex items-center gap-1">
           <input type="number" value={sales} onChange={e => setSales(parseFloat(e.target.value) || 0)}
@@ -96,15 +96,15 @@ function EditablePlan({ plan, days, accent }: { plan: Plan; days: number; accent
 
       {/* Product Related Costing — key in quantity */}
       <div>
-        <p className="text-xs font-semibold text-muted-foreground mb-1">Product Related Costing — 输入数量</p>
+        <p className="text-xs font-semibold text-muted-foreground mb-1">Product Related Costing — enter quantity</p>
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b bg-muted/50 text-muted-foreground">
-                <th className="px-3 py-1.5 text-left font-medium">产品</th>
-                <th className="px-2 py-1.5 text-right font-medium">单位成本</th>
-                <th className="px-2 py-1.5 text-right font-medium">数量 Qty</th>
-                <th className="px-3 py-1.5 text-right font-medium">小计</th>
+                <th className="px-3 py-1.5 text-left font-medium">Product</th>
+                <th className="px-2 py-1.5 text-right font-medium">Unit Cost</th>
+                <th className="px-2 py-1.5 text-right font-medium">Qty</th>
+                <th className="px-3 py-1.5 text-right font-medium">Subtotal</th>
               </tr>
             </thead>
             <tbody>
@@ -117,7 +117,7 @@ function EditablePlan({ plan, days, accent }: { plan: Plan; days: number; accent
                 </tr>
               ))}
               <tr className="bg-muted/30 font-semibold">
-                <td className="px-3 py-1.5" colSpan={3}>COGS 小计 · {pct(cogs, sales).toFixed(1)}% of sales</td>
+                <td className="px-3 py-1.5" colSpan={3}>COGS subtotal · {pct(cogs, sales).toFixed(1)}% of sales</td>
                 <td className="px-3 py-1.5 text-right">{rm(cogs)}</td>
               </tr>
             </tbody>
@@ -128,66 +128,66 @@ function EditablePlan({ plan, days, accent }: { plan: Plan; days: number; accent
       {/* Other cost inputs */}
       <div className="rounded-lg border divide-y px-3">
         <div className="flex items-center justify-between gap-2 py-1.5 text-xs">
-          <span className="text-muted-foreground">广告 Ad Spend (输入 RM)</span>
+          <span className="text-muted-foreground">Ad Spend (RM)</span>
           <span className="flex items-center gap-2">
-            <span className="text-[11px] text-green-700">每日 ≈ {rm(dailyAds)} <span className="text-muted-foreground">(÷{days}天)</span></span>
+            <span className="text-[11px] text-green-700">≈ {rm(dailyAds)}/day <span className="text-muted-foreground">(÷{days})</span></span>
             <NumInput val={ads} set={setAds} />
             <span className="text-muted-foreground w-3">RM</span>
           </span>
         </div>
         <div className="flex items-center justify-between gap-2 py-1.5 text-xs">
-          <span className="text-muted-foreground">按 ROAS 反推广告 (广告 = 营收 ÷ ROAS)</span>
+          <span className="text-muted-foreground">Set ad by ROAS (Ad = Sales ÷ ROAS)</span>
           <span className="flex items-center gap-2">
-            <span className="text-[11px] text-muted-foreground">现在 ROAS ≈ {roas.toFixed(2)}</span>
+            <span className="text-[11px] text-muted-foreground">Current ROAS ≈ {roas.toFixed(2)}</span>
             <NumInput w="w-16" val={roasInput} set={v => { setRoasInput(v); if (v > 0) setAds(sales / v) }} />
           </span>
         </div>
         <div className="flex items-center justify-between gap-2 py-1.5 text-xs">
-          <span className="text-muted-foreground">其他运营费(运费+佣金+包装+税等)</span>
+          <span className="text-muted-foreground">Other operating cost (shipping + commission + packaging + tax)</span>
           <span className="flex items-center gap-1"><NumInput val={other} set={setOther} /><span className="text-muted-foreground w-3">RM</span></span>
         </div>
         <div className="flex items-center justify-between gap-2 py-1.5 text-xs">
-          <span className="text-muted-foreground">Marketer 抽成 = {rm(marketer)}</span>
+          <span className="text-muted-foreground">Marketer fee = {rm(marketer)}</span>
           <span className="flex items-center gap-1"><NumInput w="w-16" val={marketerPct} set={setMarketerPct} /><span className="text-muted-foreground w-3">%</span></span>
         </div>
         <div className="flex items-center justify-between gap-2 py-1.5 text-xs">
-          <span className="text-muted-foreground">固定成本 / 月 (Overhead 等)</span>
+          <span className="text-muted-foreground">Fixed cost / month (overhead etc.)</span>
           <span className="flex items-center gap-1"><NumInput val={fixed} set={setFixed} /><span className="text-muted-foreground w-3">RM</span></span>
         </div>
       </div>
 
       {/* Result */}
       <div className="rounded-lg p-3" style={{ background: (net >= 0 ? accent : '#C0392B') + '14' }}>
-        <p className="text-xs text-muted-foreground">预计净利 Net Profit</p>
+        <p className="text-xs text-muted-foreground">Net Profit</p>
         <p className="text-3xl font-bold" style={{ color: net >= 0 ? accent : '#C0392B' }}>{rm(net)} <span className="text-lg">· {netPct.toFixed(1)}%</span></p>
         <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
           <div className="flex justify-between"><span>Total Sales</span><span className="font-medium text-foreground">{rm(sales)}</span></div>
-          <div className="flex justify-between"><span>(-) COGS 产品成本</span><span className="font-medium text-foreground">{rm(cogs)} ({pct(cogs, sales).toFixed(0)}%)</span></div>
-          <div className="flex justify-between"><span>(-) 广告 Ads</span><span className="font-medium text-foreground">{rm(ads)} ({pct(ads, sales).toFixed(0)}%)</span></div>
-          <div className="flex justify-between"><span>(-) 其他运营费</span><span className="font-medium text-foreground">{rm(other)} ({pct(other, sales).toFixed(0)}%)</span></div>
-          <div className="flex justify-between"><span>(-) Marketer 抽成</span><span className="font-medium text-foreground">{rm(marketer)}</span></div>
-          <div className="flex justify-between"><span>(-) 固定成本</span><span className="font-medium text-foreground">{rm(fixed)}</span></div>
-          <div className="flex justify-between border-t pt-1 mt-1"><span>= 总成本</span><span className="font-medium text-foreground">{rm(totalCost)} ({pct(totalCost, sales).toFixed(0)}%)</span></div>
+          <div className="flex justify-between"><span>(-) COGS</span><span className="font-medium text-foreground">{rm(cogs)} ({pct(cogs, sales).toFixed(0)}%)</span></div>
+          <div className="flex justify-between"><span>(-) Ads</span><span className="font-medium text-foreground">{rm(ads)} ({pct(ads, sales).toFixed(0)}%)</span></div>
+          <div className="flex justify-between"><span>(-) Other operating</span><span className="font-medium text-foreground">{rm(other)} ({pct(other, sales).toFixed(0)}%)</span></div>
+          <div className="flex justify-between"><span>(-) Marketer fee</span><span className="font-medium text-foreground">{rm(marketer)}</span></div>
+          <div className="flex justify-between"><span>(-) Fixed cost</span><span className="font-medium text-foreground">{rm(fixed)}</span></div>
+          <div className="flex justify-between border-t pt-1 mt-1"><span>= Total cost</span><span className="font-medium text-foreground">{rm(totalCost)} ({pct(totalCost, sales).toFixed(0)}%)</span></div>
         </div>
       </div>
 
       {/* Leads & conversion funnel */}
       <div className="rounded-lg border p-3">
-        <p className="text-xs font-semibold mb-2">Leads & 转化(广告漏斗)</p>
+        <p className="text-xs font-semibold mb-2">Leads & Conversion (ad funnel)</p>
         <div className="flex items-center justify-between gap-2 py-1 text-xs">
-          <span className="text-muted-foreground">平均客单价 AOV</span>
+          <span className="text-muted-foreground">AOV (avg order value)</span>
           <span className="flex items-center gap-1"><NumInput val={aov} set={setAov} /><span className="text-muted-foreground w-3">RM</span></span>
         </div>
         <div className="flex items-center justify-between gap-2 py-1 text-xs">
-          <span className="text-muted-foreground">转化率 Conversion (lead → 成交)</span>
+          <span className="text-muted-foreground">Conversion rate (lead → order)</span>
           <span className="flex items-center gap-1"><NumInput w="w-16" val={conv} set={setConv} /><span className="text-muted-foreground w-3">%</span></span>
         </div>
         <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
-          <div className="flex justify-between"><span>成交单数 / 月</span><span className="font-medium text-foreground">{Math.round(orders).toLocaleString()} 单 (每天 ≈ {days ? Math.round(orders / days) : 0})</span></div>
-          <div className="flex justify-between"><span>需要 Leads / 月</span><span className="font-medium text-foreground">{Math.round(leads).toLocaleString()} (每天 ≈ {days ? Math.round(leads / days) : 0})</span></div>
-          <div className="flex justify-between"><span>每个 Lead 成本 CPL</span><span className="font-medium text-foreground">{rm(cpl)}</span></div>
-          <div className="flex justify-between"><span>每单广告成本 CPA</span><span className="font-medium text-foreground">{rm(cpo)}</span></div>
-          <div className="flex justify-between"><span>广告 / 天</span><span className="font-medium text-foreground">{rm(dailyAds)}</span></div>
+          <div className="flex justify-between"><span>Orders / month</span><span className="font-medium text-foreground">{Math.round(orders).toLocaleString()} (≈ {days ? Math.round(orders / days) : 0}/day)</span></div>
+          <div className="flex justify-between"><span>Leads needed / month</span><span className="font-medium text-foreground">{Math.round(leads).toLocaleString()} (≈ {days ? Math.round(leads / days) : 0}/day)</span></div>
+          <div className="flex justify-between"><span>Cost per lead (CPL)</span><span className="font-medium text-foreground">{rm(cpl)}</span></div>
+          <div className="flex justify-between"><span>Cost per order (CPA)</span><span className="font-medium text-foreground">{rm(cpo)}</span></div>
+          <div className="flex justify-between"><span>Ad spend / day</span><span className="font-medium text-foreground">{rm(dailyAds)}</span></div>
         </div>
       </div>
     </div>
@@ -209,7 +209,7 @@ export default function ProfitTargetTab() {
             <button key={c} onClick={() => setChannel(c)}
               className={cn('text-sm px-4 py-1.5 rounded-md border font-medium', channel === c ? 'text-white' : 'hover:bg-muted')}
               style={channel === c ? { background: accent, borderColor: accent } : {}}>
-              {c === 'online' ? 'Online' : c === 'offline' ? 'Offline' : 'Overall (合并)'}
+              {c === 'online' ? 'Online' : c === 'offline' ? 'Offline' : 'Overall'}
             </button>
           ))}
         </div>
