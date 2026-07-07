@@ -25,6 +25,7 @@ export default function AdLeadPlanner() {
   const [month, setMonth] = useState('')
   const [target, setTarget] = useState(0)
   const [days, setDays] = useState(30)
+  const [pageTargets, setPageTargets] = useState<Record<string, number>>({})
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['sales-matrix'],
@@ -117,7 +118,8 @@ export default function AdLeadPlanner() {
             const conv = p.leads ? p.orders / p.leads : 0
             const roas = p.ad ? p.sales / p.ad : 0
             const cpl = p.leads ? p.ad / p.leads : 0
-            const projSales = share(p.sales) * tgt
+            const defProj = share(p.sales) * tgt
+            const projSales = p.name in pageTargets ? pageTargets[p.name] : defProj
             const projOrders = aov ? projSales / aov : 0
             const projLeads = conv ? projOrders / conv : 0
             const projAd = roas ? projSales / roas : 0
@@ -130,9 +132,15 @@ export default function AdLeadPlanner() {
                   <div className="flex justify-between"><span className="text-muted-foreground">Conversion</span><span>{(conv * 100).toFixed(1)}%</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">CPL</span><span>{rm(cpl)}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">ROAS</span><span>{roas.toFixed(2)}</span></div>
-                  <div className="text-muted-foreground col-span-2 font-medium mt-2">Projected @ target</div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Sales</span><span className="font-medium">{rm(projSales)}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Orders</span><span className="font-medium">{num(projOrders)}</span></div>
+                  <div className="text-muted-foreground col-span-2 font-medium mt-2">Target for this page (editable)</div>
+                  <div className="flex justify-between items-center col-span-2">
+                    <span className="text-muted-foreground">Target sales</span>
+                    <span className="flex items-center gap-1">
+                      <input type="number" value={Math.round(projSales)} onChange={e => setPageTargets(t => ({ ...t, [p.name]: parseFloat(e.target.value) || 0 }))} className="w-28 h-7 rounded-md border border-input bg-background px-2 text-right text-xs" />
+                      <span className="text-muted-foreground">RM</span>
+                    </span>
+                  </div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Orders needed</span><span className="font-medium">{num(projOrders)}</span></div>
                   <div className="flex justify-between"><span className="font-semibold" style={{ color: p.color }}>Leads / day</span><span className="font-bold" style={{ color: p.color }}>{days ? num(projLeads / days) : '—'}</span></div>
                   <div className="flex justify-between"><span className="font-semibold" style={{ color: p.color }}>Ad / day</span><span className="font-bold" style={{ color: p.color }}>{days ? rm(projAd / days) : '—'}</span></div>
                 </div>
