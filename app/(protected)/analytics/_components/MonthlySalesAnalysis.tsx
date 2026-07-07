@@ -1,7 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 
 type MonthMetrics = {
   month: string
@@ -14,6 +16,7 @@ type MonthMetrics = {
   newConv: number; repeatConv: number; overallConv: number
   vipOrder: number; vipSales: number
   newAov: number; repeatAov: number; vipAov: number; overallAov: number
+  goal: number
 }
 type Data = { months: string[]; metrics: MonthMetrics[] }
 
@@ -75,6 +78,9 @@ function fmtVal(v: number, fmt?: Fmt) {
 }
 
 export default function MonthlySalesAnalysis() {
+  const [month, setMonth] = useState('')
+  const [targets, setTargets] = useState<Record<string, number>>({})
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['sales-matrix'],
     queryFn: async () => {
@@ -87,39 +93,62 @@ export default function MonthlySalesAnalysis() {
   if (error) return <p className="text-sm text-red-600">Failed to load sales analysis.</p>
   if (isLoading || !data) return <div className="h-40 bg-muted/30 rounded-lg animate-pulse" />
 
-  const byMonth = new Map(data.metrics.map(m => [m.month, m]))
+  const months = data.months
+  const sel = month || months[months.length - 1] || ''
+  const met = data.metrics.find(m => m.month === sel)
 
   return (
     <Card>
-      <CardContent className="p-0">
-        <div className="overflow-x-auto">
-          <table className="text-xs border-collapse">
-            <thead>
-              <tr className="bg-muted/50">
-                <th className="sticky left-0 z-10 bg-muted/50 px-3 py-2 text-left font-semibold min-w-[220px]">Metric</th>
-                {data.months.map(m => (
-                  <th key={m} className="px-3 py-2 text-right font-semibold min-w-[110px] whitespace-nowrap">{mlabel(m)}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {ROWS.map((row, i) => {
-                if (row.spacer) return <tr key={i}><td colSpan={data.months.length + 1} className="h-2" /></tr>
-                return (
-                  <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
-                    <td className={'sticky left-0 z-10 bg-white px-3 py-1.5 text-left ' + (row.bold ? 'font-semibold' : 'text-muted-foreground')}>{row.label}</td>
-                    {data.months.map(m => {
-                      const met = byMonth.get(m)
-                      const v = met && row.key ? (met[row.key] as number) : 0
-                      return <td key={m} className={'px-3 py-1.5 text-right whitespace-nowrap ' + (row.bold ? 'font-semibold' : '')}>{fmtVal(v, row.fmt)}</td>
-                    })}
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-sm text-muted-foreground">Month</span>
+          <select value={sel} onChange={e => setMonth(e.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
+            {months.map(m => <option key={m} value={m}>{mlabel(m)}</option>)}
+          </select>
+          <span className="text-xs text-muted-foreground">Set a Target → see Deviance (gap to chase)</span>
         </div>
-        <p className="text-[11px] text-muted-foreground p-3">Live from Lark. Sales / orders / New-Repeat / VIP / AOV from the order table; Ads (after SST), Leads (PMed), ROAS &amp; CPL from the Race Report. Leads not split New/Repeat in source.</p>
+
+        {!met ? (
+          <p className="text-sm text-muted-foreground py-8 text-center">No data for this month.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="bg-muted/50">
+                  <th className="px-3 py-2 text-left font-semibold min-w-[220px]">Metric</th>
+                  <th className="px-3 py-2 text-right font-semibold w-40">Target</th>
+                  <th className="px-3 py-2 text-right font-semibold w-32">Current</th>
+                  <th className="px-3 py-2 text-right font-semibold w-32">Deviance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ROWS.map((row, i) => {
+                  if (row.spacer) return <tr key={i}><td colSpan={4} className="h-2" /></tr>
+                  const key = row.key as keyof MonthMetrics
+                  const current = met[key] as number
+                  const defTarget = key === 'totalSales' ? met.goal : 0
+                  const target = key in targets ? targets[key] : defTarget
+                  const dev = target - current
+                  return (
+                    <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
+                      <td className={'px-3 py-1.5 text-left ' + (row.bold ? 'font-semibold' : 'text-muted-foreground')}>{row.label}</td>
+                      <td className="px-2 py-1 text-right">
+                        <input type="number" value={target}
+                          onChange={e => setTargets(t => ({ ...t, [key]: parseFloat(e.target.value) || 0 }))}
+                          className="w-32 h-7 rounded-md border border-input bg-background px-2 text-right text-xs" />
+                      </td>
+                      <td className={'px-3 py-1.5 text-right whitespace-nowrap ' + (row.bold ? 'font-semibold' : '')}>{fmtVal(current, row.fmt)}</td>
+                      <td className={cn('px-3 py-1.5 text-right whitespace-nowrap font-medium', target ? (dev > 0 ? 'text-orange-600' : 'text-green-600') : 'text-muted-foreground')}>
+                        {target ? fmtVal(dev, row.fmt) : '—'}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="text-[11px] text-muted-foreground mt-2">Deviance = Target − Current (正数 = 还差多少要追). Total Online Sales 的 Target 预填月目标。Live from Lark.</p>
       </CardContent>
     </Card>
   )

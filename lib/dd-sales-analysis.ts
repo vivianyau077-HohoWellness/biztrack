@@ -57,6 +57,7 @@ export type MonthMetrics = {
   newConv: number; repeatConv: number; overallConv: number
   vipOrder: number; vipSales: number
   newAov: number; repeatAov: number; vipAov: number; overallAov: number
+  goal: number
 }
 
 // Metrics-as-rows × months-as-columns matrix (all months at once).
@@ -98,7 +99,7 @@ export async function computeDdSalesMatrix() {
     if (vip === 'Malaysia VIP' || vip === 'Singapore VIP') { x.vipOrder++; x.vipSales += price }
   }
 
-  const rb = new Map<string, { ad: number; leads: number }>()
+  const rb = new Map<string, { ad: number; leads: number; goal: number }>()
   for (const r of reportRecs) {
     const f = r.fields as Record<string, unknown>
     const m = monthOf(fdateMs(f['Date']))
@@ -108,8 +109,10 @@ export async function computeDdSalesMatrix() {
       + fnum(f['Total Ad Spent SG']) + fnum(f['WA Ads Spend (SG) (SST)'])
     const leads = fnum(f['PMed (焕肤王)']) + fnum(f['WA PMed (焕肤王)']) + fnum(f['PMed (钻石露)'])
       + fnum(f['WA PMed (钻石露)']) + fnum(f['SG Total Pm']) + fnum(f['WA Pmed (SG)'])
-    const y = rb.get(m) ?? { ad: 0, leads: 0 }
+    const y = rb.get(m) ?? { ad: 0, leads: 0, goal: 0 }
     y.ad += ad; y.leads += leads
+    const g = fnum(f['Goal Sales'])
+    if (g > y.goal) y.goal = g // same per month; take the value
     rb.set(m, y)
   }
 
@@ -123,7 +126,7 @@ export async function computeDdSalesMatrix() {
 
   const metrics: MonthMetrics[] = months.map(m => {
     const x = ob.get(m) ?? getOB(m)
-    const rep = rb.get(m) ?? { ad: 0, leads: 0 }
+    const rep = rb.get(m) ?? { ad: 0, leads: 0, goal: 0 }
     return {
       month: m,
       totalSales: R(x.sales),
@@ -140,6 +143,7 @@ export async function computeDdSalesMatrix() {
       vipOrder: x.vipOrder, vipSales: R(x.vipSales),
       newAov: R(div(x.newSales, x.newOrder)), repeatAov: R(div(x.repeatSales, x.repeatOrder)),
       vipAov: R(div(x.vipSales, x.vipOrder)), overallAov: R(div(x.sales, x.orders)),
+      goal: R(rep.goal),
     }
   })
 
