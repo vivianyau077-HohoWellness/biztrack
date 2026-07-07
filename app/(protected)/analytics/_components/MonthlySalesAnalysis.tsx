@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 type MonthMetrics = {
   month: string
   totalSales: number
+  totalOrder: number
   fbBeauty: number; fbRepair: number; whatsapp: number; shopee: number; website: number; lazada: number
   roas: number; adSpend: number
   totalLead: number; cpl: number
@@ -37,6 +38,7 @@ type Row = { label: string; key?: keyof MonthMetrics; fmt?: Fmt; bold?: boolean;
 
 const ROWS: Row[] = [
   { label: 'Total Online Sales', key: 'totalSales', fmt: 'rm', bold: true },
+  { label: 'Total Online Order', key: 'totalOrder', fmt: 'num', bold: true },
   { label: 'FB (焕肤王)', key: 'fbBeauty', fmt: 'rm' },
   { label: 'FB (修复)', key: 'fbRepair', fmt: 'rm' },
   { label: 'Whatsapp', key: 'whatsapp', fmt: 'rm' },

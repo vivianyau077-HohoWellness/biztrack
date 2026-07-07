@@ -38,6 +38,12 @@ function fdateMs(v: unknown): number {
 }
 const monthOf = (ms: number) => (ms ? new Date(ms).toISOString().slice(0, 7) : '')
 
+// The LIST API returns formula single-select as option IDs — map them to names.
+const NR_MAP: Record<string, string> = { optjM3sSTm: 'New', opt5RJTkyU: 'Repeat', opt1A1ejf7: 'No' }
+const VIP_MAP: Record<string, string> = { optqKyjYh5: 'Malaysia VIP', optm49F7wB: 'Singapore VIP', optlAbV6WH: 'Inactive VIP' }
+const nrVal = (v: unknown) => { const s = fstr(v); return NR_MAP[s] ?? s }
+const vipVal = (v: unknown) => { const s = fstr(v); return VIP_MAP[s] ?? s }
+
 const BEAUTY_CH = ['【焕肤】FB ', '【焕肤】FB', '焕肤 ENG']
 const REPAIR_CH = ['【伤口】FB', '伤口 ENG']
 const SG_CH = ['FB SG', 'FB SG MY', 'Shopee SG', 'WhatsApp SG', 'WhatsApp SG ENG', 'FB SG ENG']
@@ -49,6 +55,7 @@ const inSet = (c: string, s: string[]) => s.includes(c)
 export type MonthMetrics = {
   month: string
   totalSales: number
+  totalOrder: number
   fbBeauty: number; fbRepair: number; whatsapp: number; shopee: number; website: number; lazada: number
   roas: number; adSpend: number
   totalLead: number; cpl: number
@@ -88,8 +95,8 @@ export async function computeDdSalesMatrix() {
     const channel = fstr(f['Channel'])
     if (channel === 'Return') continue
     const price = fnum(f['Total Price']) || fnum(f['Price Domain'])
-    const nr = fstr(f['AUTO N/R'])
-    const vip = fstr(f['AUTO VIP'])
+    const nr = nrVal(f['AUTO N/R'])
+    const vip = vipVal(f['AUTO VIP'])
     const x = getOB(m)
     x.sales += price; x.orders++
     x.ch.set(channel || '(unknown)', (x.ch.get(channel || '(unknown)') ?? 0) + price)
@@ -136,6 +143,7 @@ export async function computeDdSalesMatrix() {
     return {
       month: m,
       totalSales: R(x.sales),
+      totalOrder: x.orders,
       fbBeauty: R(chSum(x, BEAUTY_CH)), fbRepair: R(chSum(x, REPAIR_CH)),
       whatsapp: R(chSum(x, WA_ALL)), shopee: R(chSum(x, SHOPEE_ALL)),
       website: R(chSum(x, ['Website'])), lazada: R(chSum(x, ['Lazada'])),
