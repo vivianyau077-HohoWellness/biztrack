@@ -1,13 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { computeDdSalesAnalysis } from '@/lib/dd-sales-analysis'
+import { NextResponse } from 'next/server'
+import { computeDdSalesMatrix } from '@/lib/dd-sales-analysis'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const month = req.nextUrl.searchParams.get('month') || new Date().toISOString().slice(0, 7)
-    const data = await computeDdSalesAnalysis(month)
+    const data = await computeDdSalesMatrix()
     return NextResponse.json(data)
   } catch (e) {
     console.error('[sales-analysis] error:', e)

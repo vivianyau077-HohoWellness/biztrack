@@ -41,6 +41,107 @@ const monthOf = (ms: number) => (ms ? new Date(ms).toISOString().slice(0, 7) : '
 const BEAUTY_CH = ['【焕肤】FB ', '【焕肤】FB', '焕肤 ENG']
 const REPAIR_CH = ['【伤口】FB', '伤口 ENG']
 const SG_CH = ['FB SG', 'FB SG MY', 'Shopee SG', 'WhatsApp SG', 'WhatsApp SG ENG', 'FB SG ENG']
+const FB_ALL = [...BEAUTY_CH, ...REPAIR_CH, 'FB SG', 'FB SG MY', 'FB SG ENG']
+const WA_ALL = ['WhatsApp', 'WhatsApp Eng', 'WhatsApp API', 'WhatsApp SG', 'WhatsApp SG ENG']
+const SHOPEE_ALL = ['Shopee', 'Shopee SG']
+const inSet = (c: string, s: string[]) => s.includes(c)
+
+export type MonthMetrics = {
+  month: string
+  totalSales: number
+  fbBeauty: number; fbRepair: number; whatsapp: number; shopee: number; website: number; lazada: number
+  roas: number; adSpend: number
+  totalLead: number; cpl: number
+  newOrder: number; newFbSales: number; newWaSales: number
+  repeatOrder: number; repeatFbSales: number; repeatWaSales: number
+  newConv: number; repeatConv: number; overallConv: number
+  vipOrder: number; vipSales: number
+  newAov: number; repeatAov: number; vipAov: number; overallAov: number
+}
+
+// Metrics-as-rows × months-as-columns matrix (all months at once).
+export async function computeDdSalesMatrix() {
+  const [orderRecs, reportRecs] = await Promise.all([
+    fetchLarkRecords(T_ORDER, APP),
+    fetchLarkRecords(T_REPORT, APP),
+  ])
+
+  type OB = {
+    sales: number; orders: number
+    ch: Map<string, number>
+    newOrder: number; newSales: number; repeatOrder: number; repeatSales: number
+    newFb: number; newWa: number; repFb: number; repWa: number
+    vipOrder: number; vipSales: number
+  }
+  const ob = new Map<string, OB>()
+  const getOB = (m: string) => {
+    let x = ob.get(m)
+    if (!x) { x = { sales: 0, orders: 0, ch: new Map(), newOrder: 0, newSales: 0, repeatOrder: 0, repeatSales: 0, newFb: 0, newWa: 0, repFb: 0, repWa: 0, vipOrder: 0, vipSales: 0 }; ob.set(m, x) }
+    return x
+  }
+
+  for (const r of orderRecs) {
+    const f = r.fields as Record<string, unknown>
+    const m = monthOf(fdateMs(f['Date']))
+    if (!m) continue
+    const channel = fstr(f['Channel'])
+    if (channel === 'Return') continue
+    const price = fnum(f['Total Price']) || fnum(f['Price Domain'])
+    const nr = fstr(f['AUTO N/R'])
+    const vip = fstr(f['AUTO VIP'])
+    const x = getOB(m)
+    x.sales += price; x.orders++
+    x.ch.set(channel || '(unknown)', (x.ch.get(channel || '(unknown)') ?? 0) + price)
+    const isFb = inSet(channel, FB_ALL), isWa = inSet(channel, WA_ALL)
+    if (nr === 'New') { x.newOrder++; x.newSales += price; if (isFb) x.newFb += price; if (isWa) x.newWa += price }
+    else if (nr === 'Repeat') { x.repeatOrder++; x.repeatSales += price; if (isFb) x.repFb += price; if (isWa) x.repWa += price }
+    if (vip === 'Malaysia VIP' || vip === 'Singapore VIP') { x.vipOrder++; x.vipSales += price }
+  }
+
+  const rb = new Map<string, { ad: number; leads: number }>()
+  for (const r of reportRecs) {
+    const f = r.fields as Record<string, unknown>
+    const m = monthOf(fdateMs(f['Date']))
+    if (!m) continue
+    const ad = fnum(f['FB Ad Cost After SST (焕肤王) (RM)']) + fnum(f['WA Ads Spend (焕肤王) (SST)'])
+      + fnum(f['FB Ad Cost After SST (钻石露) (RM)']) + fnum(f['WA Ads Spend (钻石露) (SST)'])
+      + fnum(f['Total Ad Spent SG']) + fnum(f['WA Ads Spend (SG) (SST)'])
+    const leads = fnum(f['PMed (焕肤王)']) + fnum(f['WA PMed (焕肤王)']) + fnum(f['PMed (钻石露)'])
+      + fnum(f['WA PMed (钻石露)']) + fnum(f['SG Total Pm']) + fnum(f['WA Pmed (SG)'])
+    const y = rb.get(m) ?? { ad: 0, leads: 0 }
+    y.ad += ad; y.leads += leads
+    rb.set(m, y)
+  }
+
+  const months = Array.from(new Set([...ob.keys(), ...rb.keys()])).filter(Boolean).sort()
+  const R = (n: number) => Math.round(n)
+  const div = (a: number, b: number) => (b ? a / b : 0)
+  const chSum = (x: OB, names: string[]) => names.reduce((s, n) => s + (x.ch.get(n) ?? 0), 0)
+
+  const metrics: MonthMetrics[] = months.map(m => {
+    const x = ob.get(m) ?? getOB(m)
+    const rep = rb.get(m) ?? { ad: 0, leads: 0 }
+    return {
+      month: m,
+      totalSales: R(x.sales),
+      fbBeauty: R(chSum(x, BEAUTY_CH)), fbRepair: R(chSum(x, REPAIR_CH)),
+      whatsapp: R(chSum(x, WA_ALL)), shopee: R(chSum(x, SHOPEE_ALL)),
+      website: R(chSum(x, ['Website'])), lazada: R(chSum(x, ['Lazada'])),
+      roas: Math.round(div(x.sales, rep.ad) * 100) / 100, adSpend: R(rep.ad),
+      totalLead: R(rep.leads), cpl: R(div(rep.ad, rep.leads)),
+      newOrder: x.newOrder, newFbSales: R(x.newFb), newWaSales: R(x.newWa),
+      repeatOrder: x.repeatOrder, repeatFbSales: R(x.repFb), repeatWaSales: R(x.repWa),
+      newConv: Math.round(div(x.newOrder, rep.leads) * 1000) / 10,
+      repeatConv: Math.round(div(x.repeatOrder, rep.leads) * 1000) / 10,
+      overallConv: Math.round(div(x.orders, rep.leads) * 1000) / 10,
+      vipOrder: x.vipOrder, vipSales: R(x.vipSales),
+      newAov: R(div(x.newSales, x.newOrder)), repeatAov: R(div(x.repeatSales, x.repeatOrder)),
+      vipAov: R(div(x.vipSales, x.vipOrder)), overallAov: R(div(x.sales, x.orders)),
+    }
+  })
+
+  return { months, metrics }
+}
 
 export async function computeDdSalesAnalysis(month: string) {
   const [orderRecs, reportRecs] = await Promise.all([

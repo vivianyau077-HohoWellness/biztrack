@@ -1,141 +1,126 @@
 'use client'
 
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
 
-type Agg = { orders: number; sales: number; aov: number }
-type PageRow = { name: string; ad: number; leads: number; sales: number; cpl: number; roas: number }
-type Data = {
+type MonthMetrics = {
   month: string
-  total: Agg; new: Agg; repeat: Agg; vip: Agg
-  channels: { channel: string; orders: number; sales: number; pct: number }[]
-  ads: { beauty: number; repair: number; sg: number; total: number }
-  leads: { beauty: number; repair: number; sg: number; total: number }
-  roas: number
-  forecast: { actual: number; estimated: number; goal: number; toGoalPct: number }
-  pages: PageRow[]
+  totalSales: number
+  fbBeauty: number; fbRepair: number; whatsapp: number; shopee: number; website: number; lazada: number
+  roas: number; adSpend: number
+  totalLead: number; cpl: number
+  newOrder: number; newFbSales: number; newWaSales: number
+  repeatOrder: number; repeatFbSales: number; repeatWaSales: number
+  newConv: number; repeatConv: number; overallConv: number
+  vipOrder: number; vipSales: number
+  newAov: number; repeatAov: number; vipAov: number; overallAov: number
 }
+type Data = { months: string[]; metrics: MonthMetrics[] }
 
-const MONTHS = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07']
-const MLABEL: Record<string, string> = { '2026-01': "Jan'26", '2026-02': "Feb'26", '2026-03': "Mar'26", '2026-04': "Apr'26", '2026-05': "May'26", '2026-06': "Jun'26", '2026-07': "Jul'26" }
+const MLABEL: Record<string, string> = {
+  '2026-01': "Jan'26", '2026-02': "Feb'26", '2026-03': "Mar'26", '2026-04': "Apr'26",
+  '2026-05': "May'26", '2026-06': "Jun'26", '2026-07': "Jul'26", '2026-08': "Aug'26",
+  '2026-09': "Sep'26", '2026-10': "Oct'26", '2026-11': "Nov'26", '2026-12': "Dec'26",
+}
+const mlabel = (m: string) => MLABEL[m] ?? m
 
-function rm(n: number) { if (!isFinite(n)) return '—'; return 'RM ' + Math.round(n).toLocaleString() }
+function rm(n: number) { return 'RM ' + Math.round(n).toLocaleString() }
+function n0(n: number) { return Math.round(n).toLocaleString() }
+function pc(n: number) { return n.toFixed(1) + '%' }
+function x2(n: number) { return n.toFixed(2) }
 
-function StatCard({ title, a, color }: { title: string; a: Agg; color: string }) {
-  return (
-    <div className="rounded-lg border p-3">
-      <p className="text-xs font-semibold mb-1" style={{ color }}>{title}</p>
-      <div className="text-xl font-bold">{rm(a.sales)}</div>
-      <div className="text-xs text-muted-foreground mt-0.5">{a.orders.toLocaleString()} orders · AOV {rm(a.aov)}</div>
-    </div>
-  )
+type Fmt = 'rm' | 'num' | 'pct' | 'x'
+type Row = { label: string; key?: keyof MonthMetrics; fmt?: Fmt; bold?: boolean; spacer?: boolean }
+
+const ROWS: Row[] = [
+  { label: 'Total Online Sales', key: 'totalSales', fmt: 'rm', bold: true },
+  { label: 'FB (焕肤王)', key: 'fbBeauty', fmt: 'rm' },
+  { label: 'FB (修复)', key: 'fbRepair', fmt: 'rm' },
+  { label: 'Whatsapp', key: 'whatsapp', fmt: 'rm' },
+  { label: 'Shopee', key: 'shopee', fmt: 'rm' },
+  { label: 'Website', key: 'website', fmt: 'rm' },
+  { label: 'Lazada', key: 'lazada', fmt: 'rm' },
+  { label: 'ROAS', key: 'roas', fmt: 'x' },
+  { label: 'Ads Spend', key: 'adSpend', fmt: 'rm' },
+  { label: '', spacer: true },
+  { label: 'Total Lead', key: 'totalLead', fmt: 'num' },
+  { label: 'CPL', key: 'cpl', fmt: 'rm' },
+  { label: '', spacer: true },
+  { label: 'New Order', key: 'newOrder', fmt: 'num', bold: true },
+  { label: 'New FB Sales', key: 'newFbSales', fmt: 'rm' },
+  { label: 'New Whatsapp Sales', key: 'newWaSales', fmt: 'rm' },
+  { label: '', spacer: true },
+  { label: 'Repeat Order', key: 'repeatOrder', fmt: 'num', bold: true },
+  { label: 'Repeat FB Sales', key: 'repeatFbSales', fmt: 'rm' },
+  { label: 'Repeat Whatsapp Sales', key: 'repeatWaSales', fmt: 'rm' },
+  { label: 'New Order Conversion Rate %', key: 'newConv', fmt: 'pct' },
+  { label: 'Repeat Order Conversion Rate %', key: 'repeatConv', fmt: 'pct' },
+  { label: '', spacer: true },
+  { label: 'Overall Conversion Rate %', key: 'overallConv', fmt: 'pct' },
+  { label: '', spacer: true },
+  { label: 'VIP Order', key: 'vipOrder', fmt: 'num', bold: true },
+  { label: 'VIP Sales', key: 'vipSales', fmt: 'rm' },
+  { label: '', spacer: true },
+  { label: 'New Order AOV', key: 'newAov', fmt: 'rm' },
+  { label: 'Repeat Order AOV', key: 'repeatAov', fmt: 'rm' },
+  { label: 'VIP AOV', key: 'vipAov', fmt: 'rm' },
+  { label: 'Overall AOV', key: 'overallAov', fmt: 'rm', bold: true },
+]
+
+function fmtVal(v: number, fmt?: Fmt) {
+  if (fmt === 'rm') return rm(v)
+  if (fmt === 'pct') return pc(v)
+  if (fmt === 'x') return x2(v)
+  return n0(v)
 }
 
 export default function MonthlySalesAnalysis() {
-  const [month, setMonth] = useState('2026-05')
   const { data, isLoading, error } = useQuery({
-    queryKey: ['sales-analysis', month],
+    queryKey: ['sales-matrix'],
     queryFn: async () => {
-      const res = await fetch(`/api/analytics/sales-analysis?month=${month}`)
+      const res = await fetch('/api/analytics/sales-analysis')
       if (!res.ok) throw new Error('Failed to load')
       return res.json() as Promise<Data>
     },
   })
 
+  if (error) return <p className="text-sm text-red-600">Failed to load sales analysis.</p>
+  if (isLoading || !data) return <div className="h-40 bg-muted/30 rounded-lg animate-pulse" />
+
+  const byMonth = new Map(data.metrics.map(m => [m.month, m]))
+
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground">Month</span>
-        <select value={month} onChange={e => setMonth(e.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
-          {MONTHS.map(m => <option key={m} value={m}>{MLABEL[m]}</option>)}
-        </select>
-      </div>
-
-      {error ? (
-        <p className="text-sm text-red-600">Failed to load sales analysis.</p>
-      ) : isLoading || !data ? (
-        <div className="h-40 bg-muted/30 rounded-lg animate-pulse" />
-      ) : (
-        <Card><CardContent className="p-4 space-y-4">
-          {/* Forecast vs actual */}
-          <div className="rounded-lg p-3 bg-muted/40">
-            <p className="text-xs font-semibold mb-2">Month forecast vs actual</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-              <div><span className="block text-muted-foreground mb-0.5">Actual so far</span><div className="font-bold text-base">{rm(data.forecast.actual)}</div></div>
-              <div><span className="block text-muted-foreground mb-0.5">Forecast (full month)</span><div className="font-bold text-base">{rm(data.forecast.estimated)}</div></div>
-              <div><span className="block text-muted-foreground mb-0.5">Goal / target</span><div className="font-bold text-base">{data.forecast.goal ? rm(data.forecast.goal) : '—'}</div></div>
-              <div><span className="block text-muted-foreground mb-0.5">Actual vs goal</span><div className={'font-bold text-base ' + (data.forecast.toGoalPct >= 100 ? 'text-green-600' : 'text-orange-600')}>{data.forecast.goal ? data.forecast.toGoalPct + '%' : '—'}</div></div>
-            </div>
-          </div>
-
-          {/* New / Repeat / VIP / Overall */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <StatCard title="New Sales" a={data.new} color="#22a06b" />
-            <StatCard title="Repeat Sales" a={data.repeat} color="#2f77c9" />
-            <StatCard title="VIP Sales" a={data.vip} color="#7e57c2" />
-            <StatCard title="Overall" a={data.total} color="#0e2a33" />
-          </div>
-
-          {/* Ads & efficiency (auto from report) */}
-          <div className="rounded-lg border p-3">
-            <p className="text-xs font-semibold mb-2">Ads &amp; Efficiency (from Race Report, after SST)</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-              <div><span className="block text-muted-foreground mb-0.5">Total ad spend</span><div className="font-bold text-base">{rm(data.ads.total)}</div></div>
-              <div><span className="block text-muted-foreground mb-0.5">Total leads (PMed)</span><div className="font-bold text-base">{data.leads.total.toLocaleString()}</div></div>
-              <div><span className="block text-muted-foreground mb-0.5">ROAS (Sales ÷ Ads)</span><div className="font-bold text-base">{data.roas.toFixed(2)}</div></div>
-              <div><span className="block text-muted-foreground mb-0.5">CPL (Ads ÷ Leads)</span><div className="font-bold text-base">{rm(data.leads.total ? data.ads.total / data.leads.total : 0)}</div></div>
-            </div>
-          </div>
-
-          {/* Per-page */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {data.pages.map(p => (
-              <div key={p.name} className="rounded-lg border p-3">
-                <p className="text-sm font-semibold mb-2">{p.name}</p>
-                <div className="space-y-0.5 text-xs">
-                  <div className="flex justify-between"><span className="text-muted-foreground">Ad spend</span><span className="font-medium">{rm(p.ad)}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Leads (PMed)</span><span className="font-medium">{p.leads.toLocaleString()}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">CPL</span><span className="font-bold">{rm(p.cpl)}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Sales (FB channel)</span><span className="font-medium">{rm(p.sales)}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">ROAS</span><span className="font-bold">{p.roas.toFixed(2)}</span></div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Sales by platform */}
-          <div className="rounded-lg border overflow-hidden">
-            <div className="px-3 py-2 bg-muted/50 text-xs font-semibold">Sales by platform / channel</div>
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b text-muted-foreground">
-                  <th className="px-3 py-1.5 text-left font-medium">Channel</th>
-                  <th className="px-3 py-1.5 text-right font-medium">Orders</th>
-                  <th className="px-3 py-1.5 text-right font-medium">Sales</th>
-                  <th className="px-3 py-1.5 text-right font-medium">% of sales</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.channels.length === 0 ? (
-                  <tr><td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">No orders this month.</td></tr>
-                ) : data.channels.map(c => (
-                  <tr key={c.channel} className="border-b last:border-0">
-                    <td className="px-3 py-1.5">{c.channel}</td>
-                    <td className="px-3 py-1.5 text-right">{c.orders.toLocaleString()}</td>
-                    <td className="px-3 py-1.5 text-right">{rm(c.sales)}</td>
-                    <td className="px-3 py-1.5 text-right">{c.pct}%</td>
-                  </tr>
+    <Card>
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <table className="text-xs border-collapse">
+            <thead>
+              <tr className="bg-muted/50">
+                <th className="sticky left-0 z-10 bg-muted/50 px-3 py-2 text-left font-semibold min-w-[220px]">Metric</th>
+                {data.months.map(m => (
+                  <th key={m} className="px-3 py-2 text-right font-semibold min-w-[110px] whitespace-nowrap">{mlabel(m)}</th>
                 ))}
-              </tbody>
-            </table>
-          </div>
-
-          <p className="text-[11px] text-muted-foreground">
-            Ads (after SST) &amp; leads (PMed) per page and New/Repeat come from the Race Report; VIP &amp; channel breakdown from the order table. All live from Lark.
-          </p>
-        </CardContent></Card>
-      )}
-    </div>
+              </tr>
+            </thead>
+            <tbody>
+              {ROWS.map((row, i) => {
+                if (row.spacer) return <tr key={i}><td colSpan={data.months.length + 1} className="h-2" /></tr>
+                return (
+                  <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
+                    <td className={'sticky left-0 z-10 bg-white px-3 py-1.5 text-left ' + (row.bold ? 'font-semibold' : 'text-muted-foreground')}>{row.label}</td>
+                    {data.months.map(m => {
+                      const met = byMonth.get(m)
+                      const v = met && row.key ? (met[row.key] as number) : 0
+                      return <td key={m} className={'px-3 py-1.5 text-right whitespace-nowrap ' + (row.bold ? 'font-semibold' : '')}>{fmtVal(v, row.fmt)}</td>
+                    })}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-[11px] text-muted-foreground p-3">Live from Lark. Sales / orders / New-Repeat / VIP / AOV from the order table; Ads (after SST), Leads (PMed), ROAS &amp; CPL from the Race Report. Leads not split New/Repeat in source.</p>
+      </CardContent>
+    </Card>
   )
 }
