@@ -66,6 +66,9 @@ export type MonthMetrics = {
   vipOrder: number; vipSales: number
   newAov: number; repeatAov: number; vipAov: number; overallAov: number
   goal: number
+  adBeauty: number; adRepair: number; adSGspend: number
+  leadBeauty: number; leadRepair: number; leadSGn: number
+  ordBeauty: number; ordRepair: number
 }
 
 // Metrics-as-rows × months-as-columns matrix (all months at once).
@@ -81,11 +84,12 @@ export async function computeDdSalesMatrix() {
     newOrder: number; newSales: number; repeatOrder: number; repeatSales: number
     newFb: number; newWa: number; repFb: number; repWa: number
     vipOrder: number; vipSales: number
+    ordBeauty: number; ordRepair: number
   }
   const ob = new Map<string, OB>()
   const getOB = (m: string) => {
     let x = ob.get(m)
-    if (!x) { x = { sales: 0, orders: 0, ch: new Map(), newOrder: 0, newSales: 0, repeatOrder: 0, repeatSales: 0, newFb: 0, newWa: 0, repFb: 0, repWa: 0, vipOrder: 0, vipSales: 0 }; ob.set(m, x) }
+    if (!x) { x = { sales: 0, orders: 0, ch: new Map(), newOrder: 0, newSales: 0, repeatOrder: 0, repeatSales: 0, newFb: 0, newWa: 0, repFb: 0, repWa: 0, vipOrder: 0, vipSales: 0, ordBeauty: 0, ordRepair: 0 }; ob.set(m, x) }
     return x
   }
 
@@ -105,22 +109,24 @@ export async function computeDdSalesMatrix() {
     if (nr === 'New') { x.newOrder++; x.newSales += price; if (isFb) x.newFb += price; if (isWa) x.newWa += price }
     else if (nr === 'Repeat') { x.repeatOrder++; x.repeatSales += price; if (isFb) x.repFb += price; if (isWa) x.repWa += price }
     if (vip === 'Malaysia VIP' || vip === 'Singapore VIP') { x.vipOrder++; x.vipSales += price }
+    if (inSet(channel, BEAUTY_CH)) x.ordBeauty++
+    if (inSet(channel, REPAIR_CH)) x.ordRepair++
   }
 
-  type RB = { ad: number; leads: number; goal: number; newOrder: number; repeatOrder: number; newSales: number; repeatSales: number }
-  const emptyRB = (): RB => ({ ad: 0, leads: 0, goal: 0, newOrder: 0, repeatOrder: 0, newSales: 0, repeatSales: 0 })
+  type RB = { adB: number; adR: number; adSG: number; ldB: number; ldR: number; ldSG: number; goal: number; newOrder: number; repeatOrder: number; newSales: number; repeatSales: number }
+  const emptyRB = (): RB => ({ adB: 0, adR: 0, adSG: 0, ldB: 0, ldR: 0, ldSG: 0, goal: 0, newOrder: 0, repeatOrder: 0, newSales: 0, repeatSales: 0 })
   const rb = new Map<string, RB>()
   for (const r of reportRecs) {
     const f = r.fields as Record<string, unknown>
     const m = monthOf(fdateMs(f['Date']))
     if (!m) continue
-    const ad = fnum(f['FB Ad Cost After SST (焕肤王) (RM)']) + fnum(f['WA Ads Spend (焕肤王) (SST)'])
-      + fnum(f['FB Ad Cost After SST (钻石露) (RM)']) + fnum(f['WA Ads Spend (钻石露) (SST)'])
-      + fnum(f['Total Ad Spent SG']) + fnum(f['WA Ads Spend (SG) (SST)'])
-    const leads = fnum(f['PMed (焕肤王)']) + fnum(f['WA PMed (焕肤王)']) + fnum(f['PMed (钻石露)'])
-      + fnum(f['WA PMed (钻石露)']) + fnum(f['SG Total Pm']) + fnum(f['WA Pmed (SG)'])
     const y = rb.get(m) ?? emptyRB()
-    y.ad += ad; y.leads += leads
+    y.adB += fnum(f['FB Ad Cost After SST (焕肤王) (RM)']) + fnum(f['WA Ads Spend (焕肤王) (SST)'])
+    y.adR += fnum(f['FB Ad Cost After SST (钻石露) (RM)']) + fnum(f['WA Ads Spend (钻石露) (SST)'])
+    y.adSG += fnum(f['Total Ad Spent SG']) + fnum(f['WA Ads Spend (SG) (SST)'])
+    y.ldB += fnum(f['PMed (焕肤王)']) + fnum(f['WA PMed (焕肤王)'])
+    y.ldR += fnum(f['PMed (钻石露)']) + fnum(f['WA PMed (钻石露)'])
+    y.ldSG += fnum(f['SG Total Pm']) + fnum(f['WA Pmed (SG)'])
     y.newOrder += fnum(f['New Order'])
     y.repeatOrder += fnum(f['Repeat Order'])
     y.newSales += fnum(f['Total New Sales'])
@@ -141,6 +147,8 @@ export async function computeDdSalesMatrix() {
   const metrics: MonthMetrics[] = months.map(m => {
     const x = ob.get(m) ?? getOB(m)
     const rep = rb.get(m) ?? emptyRB()
+    const totAd = rep.adB + rep.adR + rep.adSG
+    const totLd = rep.ldB + rep.ldR + rep.ldSG
     return {
       month: m,
       totalSales: R(x.sales),
@@ -149,17 +157,20 @@ export async function computeDdSalesMatrix() {
       whatsapp: R(chSum(x, WA_ALL)), shopee: R(chSum(x, SHOPEE_ALL)),
       website: R(chSum(x, ['Website'])), lazada: R(chSum(x, ['Lazada'])),
       others: R(x.sales - chSum(x, BEAUTY_CH) - chSum(x, REPAIR_CH) - chSum(x, FBSG_CH) - chSum(x, WA_ALL) - chSum(x, SHOPEE_ALL) - chSum(x, ['Website']) - chSum(x, ['Lazada'])),
-      roas: Math.round(div(x.sales, rep.ad) * 100) / 100, adSpend: R(rep.ad),
-      totalLead: R(rep.leads), cpl: R(div(rep.ad, rep.leads)),
+      roas: Math.round(div(x.sales, totAd) * 100) / 100, adSpend: R(totAd),
+      totalLead: R(totLd), cpl: R(div(totAd, totLd)),
       newOrder: rep.newOrder, newFbSales: R(x.newFb), newWaSales: R(x.newWa),
       repeatOrder: rep.repeatOrder, repeatFbSales: R(x.repFb), repeatWaSales: R(x.repWa),
-      newConv: Math.round(div(rep.newOrder, rep.leads) * 1000) / 10,
-      repeatConv: Math.round(div(rep.repeatOrder, rep.leads) * 1000) / 10,
-      overallConv: Math.round(div(x.orders, rep.leads) * 1000) / 10,
+      newConv: Math.round(div(rep.newOrder, totLd) * 1000) / 10,
+      repeatConv: Math.round(div(rep.repeatOrder, totLd) * 1000) / 10,
+      overallConv: Math.round(div(x.orders, totLd) * 1000) / 10,
       vipOrder: x.vipOrder, vipSales: R(x.vipSales),
       newAov: R(div(rep.newSales, rep.newOrder)), repeatAov: R(div(rep.repeatSales, rep.repeatOrder)),
       vipAov: R(div(x.vipSales, x.vipOrder)), overallAov: R(div(x.sales, x.orders)),
       goal: R(rep.goal),
+      adBeauty: R(rep.adB), adRepair: R(rep.adR), adSGspend: R(rep.adSG),
+      leadBeauty: R(rep.ldB), leadRepair: R(rep.ldR), leadSGn: R(rep.ldSG),
+      ordBeauty: x.ordBeauty, ordRepair: x.ordRepair,
     }
   })
 

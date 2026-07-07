@@ -1,110 +1,148 @@
 'use client'
 
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
-import { cn } from '@/lib/utils'
 
-function rm(n: number) { if (!isFinite(n)) return '—'; return 'RM ' + Math.round(n).toLocaleString() }
-function num(n: number) { if (!isFinite(n)) return '—'; return Math.round(n).toLocaleString() }
-
-type Page = { name: string; note: string; color: string; share: number; aov: number; conv: number }
-
-function NumInput({ val, set, w = 'w-24' }: { val: number; set: (n: number) => void; w?: string }) {
-  return (
-    <input type="number" value={val} onChange={e => set(parseFloat(e.target.value) || 0)}
-      className={cn(w, 'h-7 rounded-md border border-input bg-background px-2 text-right text-sm')} />
-  )
+type M = {
+  month: string; totalSales: number
+  fbBeauty: number; fbRepair: number; fbSG: number; whatsapp: number; shopee: number; website: number; lazada: number; others: number
+  adBeauty: number; adRepair: number; adSGspend: number
+  leadBeauty: number; leadRepair: number; leadSGn: number
+  ordBeauty: number; ordRepair: number
 }
+type Data = { months: string[]; metrics: M[] }
+
+const MLABEL: Record<string, string> = {
+  '2026-01': "Jan'26", '2026-02': "Feb'26", '2026-03': "Mar'26", '2026-04': "Apr'26",
+  '2026-05': "May'26", '2026-06': "Jun'26", '2026-07': "Jul'26",
+}
+const mlabel = (m: string) => MLABEL[m] ?? m
+const rm = (n: number) => (isFinite(n) ? 'RM ' + Math.round(n).toLocaleString() : '—')
+const num = (n: number) => (isFinite(n) ? Math.round(n).toLocaleString() : '—')
 
 export default function AdLeadPlanner() {
-  const [target, setTarget] = useState(693000) // online sales target / month
-  const [roas, setRoas] = useState(3)
+  const [month, setMonth] = useState('')
+  const [target, setTarget] = useState(0)
   const [days, setDays] = useState(30)
-  const [pages, setPages] = useState<Page[]>([
-    { name: 'Beauty Page', note: 'Big audience · low AOV · push lead volume + lower CPL', color: '#22a06b', share: 60, aov: 550, conv: 4 },
-    { name: 'Repair Page', note: 'Niche · high AOV · strong intent, higher conversion', color: '#c0392b', share: 40, aov: 900, conv: 8 },
-  ])
 
-  const upd = (i: number, k: keyof Page, v: number) =>
-    setPages(ps => ps.map((p, j) => j === i ? { ...p, [k]: v } : p))
-
-  const rows = pages.map(p => {
-    const sales = target * p.share / 100
-    const orders = p.aov > 0 ? sales / p.aov : 0
-    const leads = p.conv > 0 ? orders / (p.conv / 100) : 0
-    const ad = roas > 0 ? sales / roas : 0
-    const cpl = leads > 0 ? ad / leads : 0
-    const cpa = orders > 0 ? ad / orders : 0
-    return { ...p, sales, orders, leads, ad, cpl, cpa }
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['sales-matrix'],
+    queryFn: async () => {
+      const res = await fetch('/api/analytics/sales-analysis')
+      if (!res.ok) throw new Error('Failed to load')
+      return res.json() as Promise<Data>
+    },
   })
-  const tot = rows.reduce((a, r) => ({
-    sales: a.sales + r.sales, orders: a.orders + r.orders, leads: a.leads + r.leads, ad: a.ad + r.ad,
-  }), { sales: 0, orders: 0, leads: 0, ad: 0 })
-  const totalShare = pages.reduce((s, p) => s + p.share, 0)
+
+  if (error) return <p className="text-sm text-red-600">Failed to load.</p>
+  if (isLoading || !data) return <div className="h-40 bg-muted/30 rounded-lg animate-pulse" />
+
+  const months = data.months
+  const ref = month || months[months.length - 1] || ''
+  const m = data.metrics.find(x => x.month === ref)
+  if (!m) return <p className="text-sm text-muted-foreground">No data.</p>
+
+  const tgt = target || m.totalSales
+  const share = (v: number) => (m.totalSales ? v / m.totalSales : 0)
+
+  const channels = [
+    { label: 'FB (焕肤王)', sales: m.fbBeauty },
+    { label: 'FB (修复)', sales: m.fbRepair },
+    { label: 'FB SG', sales: m.fbSG },
+    { label: 'Whatsapp', sales: m.whatsapp },
+    { label: 'Shopee', sales: m.shopee },
+    { label: 'Website', sales: m.website },
+    { label: 'Lazada', sales: m.lazada },
+    { label: 'Others', sales: m.others },
+  ]
+
+  const pages = [
+    { name: 'Beauty (焕肤王)', color: '#22a06b', sales: m.fbBeauty, orders: m.ordBeauty, ad: m.adBeauty, leads: m.leadBeauty },
+    { name: 'Repair (钻石露)', color: '#c0392b', sales: m.fbRepair, orders: m.ordRepair, ad: m.adRepair, leads: m.leadRepair },
+  ]
 
   return (
     <Card>
       <CardContent className="p-4 space-y-4">
-        {/* Top controls */}
         <div className="flex flex-wrap items-end gap-4">
           <label className="text-xs">
-            <span className="block text-muted-foreground mb-1">Online sales target / month</span>
-            <span className="flex items-center gap-1"><NumInput w="w-32" val={target} set={setTarget} /><span className="text-muted-foreground">RM</span></span>
+            <span className="block text-muted-foreground mb-1">Reference month (history)</span>
+            <select value={ref} onChange={e => setMonth(e.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-sm">
+              {months.map(mm => <option key={mm} value={mm}>{mlabel(mm)}</option>)}
+            </select>
           </label>
           <label className="text-xs">
-            <span className="block text-muted-foreground mb-1">ROAS floor</span>
-            <NumInput w="w-16" val={roas} set={setRoas} />
+            <span className="block text-muted-foreground mb-1">Target total online sales</span>
+            <span className="flex items-center gap-1">
+              <input type="number" value={tgt} onChange={e => setTarget(parseFloat(e.target.value) || 0)} className="w-32 h-8 rounded-md border border-input bg-background px-2 text-right text-sm" />
+              <span className="text-muted-foreground">RM</span>
+            </span>
           </label>
           <label className="text-xs">
             <span className="block text-muted-foreground mb-1">Days / month</span>
-            <NumInput w="w-16" val={days} set={setDays} />
+            <input type="number" value={days} onChange={e => setDays(parseFloat(e.target.value) || 30)} className="w-16 h-8 rounded-md border border-input bg-background px-2 text-right text-sm" />
           </label>
-          {totalShare !== 100 && <span className="text-xs text-orange-600 self-center">Page shares total {totalShare}% (should be 100%)</span>}
         </div>
 
-        {/* Two page cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {rows.map((r, i) => (
-            <div key={r.name} className="rounded-lg border p-3" style={{ borderColor: r.color + '55' }}>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ background: r.color }} />
-                <span className="font-semibold text-sm">{r.name}</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground mb-2">{r.note}</p>
-
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">Sales share</span><span className="flex items-center gap-1"><NumInput w="w-16" val={r.share} set={v => upd(i, 'share', v)} />%</span></div>
-                <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">AOV</span><span className="flex items-center gap-1"><NumInput w="w-20" val={r.aov} set={v => upd(i, 'aov', v)} />RM</span></div>
-                <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">Conversion (lead→order)</span><span className="flex items-center gap-1"><NumInput w="w-16" val={r.conv} set={v => upd(i, 'conv', v)} />%</span></div>
-              </div>
-
-              <div className="mt-3 rounded-md p-2 space-y-0.5 text-xs" style={{ background: r.color + '12' }}>
-                <div className="flex justify-between"><span className="text-muted-foreground">Sales</span><span className="font-semibold">{rm(r.sales)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Orders / month</span><span className="font-medium">{num(r.orders)} (≈ {days ? num(r.orders / days) : 0}/day)</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Leads needed / month</span><span className="font-medium">{num(r.leads)}</span></div>
-                <div className="flex justify-between"><span className="font-semibold" style={{ color: r.color }}>Leads / day</span><span className="font-bold" style={{ color: r.color }}>{days ? num(r.leads / days) : 0}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">CPL (cost per lead)</span><span className="font-medium">{rm(r.cpl)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">CPA (cost per order)</span><span className="font-medium">{rm(r.cpa)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Ad spend / month</span><span className="font-medium">{rm(r.ad)}</span></div>
-                <div className="flex justify-between"><span className="font-semibold" style={{ color: r.color }}>Ad spend / day</span><span className="font-bold" style={{ color: r.color }}>{days ? rm(r.ad / days) : '—'}</span></div>
-              </div>
-            </div>
-          ))}
+        {/* Channel mix (history → projected at target) */}
+        <div className="rounded-lg border overflow-hidden">
+          <div className="px-3 py-2 bg-muted/50 text-xs font-semibold">Channel mix — {mlabel(ref)} history → projected at target</div>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b text-muted-foreground">
+                <th className="px-3 py-1.5 text-left font-medium">Channel</th>
+                <th className="px-3 py-1.5 text-right font-medium">{mlabel(ref)} sales</th>
+                <th className="px-3 py-1.5 text-right font-medium">Share %</th>
+                <th className="px-3 py-1.5 text-right font-medium">Projected sales</th>
+              </tr>
+            </thead>
+            <tbody>
+              {channels.map(c => (
+                <tr key={c.label} className="border-b last:border-0">
+                  <td className="px-3 py-1.5">{c.label}</td>
+                  <td className="px-3 py-1.5 text-right">{rm(c.sales)}</td>
+                  <td className="px-3 py-1.5 text-right">{(share(c.sales) * 100).toFixed(1)}%</td>
+                  <td className="px-3 py-1.5 text-right font-medium">{rm(share(c.sales) * tgt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
-        {/* Online total */}
-        <div className="rounded-lg p-3 bg-muted/40 text-xs">
-          <p className="font-semibold text-sm mb-1">Online total</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <div><span className="text-muted-foreground">Sales</span><div className="font-semibold">{rm(tot.sales)}</div></div>
-            <div><span className="text-muted-foreground">Orders / month</span><div className="font-semibold">{num(tot.orders)}</div></div>
-            <div><span className="text-muted-foreground">Leads / day</span><div className="font-semibold">{days ? num(tot.leads / days) : 0}</div></div>
-            <div><span className="text-muted-foreground">Ad / day</span><div className="font-semibold">{days ? rm(tot.ad / days) : '—'}</div></div>
-          </div>
+        {/* Per-page lead / ad plan (from real conversion & CPL) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {pages.map(p => {
+            const aov = p.orders ? p.sales / p.orders : 0
+            const conv = p.leads ? p.orders / p.leads : 0
+            const roas = p.ad ? p.sales / p.ad : 0
+            const cpl = p.leads ? p.ad / p.leads : 0
+            const projSales = share(p.sales) * tgt
+            const projOrders = aov ? projSales / aov : 0
+            const projLeads = conv ? projOrders / conv : 0
+            const projAd = roas ? projSales / roas : 0
+            return (
+              <div key={p.name} className="rounded-lg border p-3" style={{ borderColor: p.color + '55' }}>
+                <p className="text-sm font-semibold mb-2" style={{ color: p.color }}>{p.name}</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+                  <div className="text-muted-foreground col-span-2 font-medium mt-1">Actual ({mlabel(ref)})</div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">AOV</span><span>{rm(aov)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Conversion</span><span>{(conv * 100).toFixed(1)}%</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">CPL</span><span>{rm(cpl)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">ROAS</span><span>{roas.toFixed(2)}</span></div>
+                  <div className="text-muted-foreground col-span-2 font-medium mt-2">Projected @ target</div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Sales</span><span className="font-medium">{rm(projSales)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Orders</span><span className="font-medium">{num(projOrders)}</span></div>
+                  <div className="flex justify-between"><span className="font-semibold" style={{ color: p.color }}>Leads / day</span><span className="font-bold" style={{ color: p.color }}>{days ? num(projLeads / days) : '—'}</span></div>
+                  <div className="flex justify-between"><span className="font-semibold" style={{ color: p.color }}>Ad / day</span><span className="font-bold" style={{ color: p.color }}>{days ? rm(projAd / days) : '—'}</span></div>
+                </div>
+              </div>
+            )
+          })}
         </div>
 
         <p className="text-[11px] text-muted-foreground">
-          First use Profit Target to find the Online sales needed for your profit goal, enter it as “Online sales target” here, then split by each page’s share / AOV / conversion. Defaults are a starting point — replace with your real CPL / conversion.
+          Prediction uses {mlabel(ref)}&apos;s real channel mix, AOV, conversion &amp; CPL per page. Change the reference month or target to re-plan. Live from Lark.
         </p>
       </CardContent>
     </Card>

@@ -9,27 +9,15 @@ import AdLeadPlanner from '../analytics/_components/AdLeadPlanner'
 import MonthlySalesAnalysis from '../analytics/_components/MonthlySalesAnalysis'
 
 export default function ProjectsPage() {
-  return (
-    <PasswordGate
-      endpoint="/api/projects/unlock"
-      title="Projects — Protected"
-      description="This page contains confidential data. Enter the password to view."
-    >
-      <ProjectsInner />
-    </PasswordGate>
-  )
-}
-
-function ProjectsInner() {
   useCleanupDialogArtifacts()
 
   return (
     <div>
-      <PageHeader title="Diamond Drink — Business Dashboard" description="Sales analysis, forecast, profit target & ad planning" />
+      <PageHeader title="Diamond Drink — Business Dashboard" description="Sales analysis, profit target & ad planning" />
 
       <div className="mt-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-1">Monthly Sales Analysis</h2>
-        <p className="text-sm text-muted-foreground mb-3">By platform · New / Repeat / VIP orders, sales &amp; AOV · ROAS &amp; CPL · month forecast vs actual.</p>
+        <p className="text-sm text-muted-foreground mb-3">By platform · New / Repeat / VIP orders, sales &amp; AOV · ROAS &amp; CPL · month vs current.</p>
         <MonthlySalesAnalysis />
       </div>
 
@@ -39,14 +27,21 @@ function ProjectsInner() {
       </div>
 
       <div className="mt-8 border-t pt-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-1">Ad &amp; Lead Planning (Online — 2 Pages)</h2>
-        <p className="text-sm text-muted-foreground mb-3">Beauty Page / Repair Page separately: leads/day, CPL, AOV, ad/day.</p>
+        <h2 className="text-lg font-semibold text-gray-900 mb-1">Ad &amp; Lead Planning</h2>
+        <p className="text-sm text-muted-foreground mb-3">Predicts each channel from your past sales mix; plans leads / CPL / ad budget per page.</p>
         <AdLeadPlanner />
       </div>
 
+      {/* P&L — separately, password-protected */}
       <div className="mt-8 border-t pt-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-3">P&L</h2>
-        <PnlDetail />
+        <h2 className="text-lg font-semibold text-gray-900 mb-3">Profit &amp; Loss</h2>
+        <PasswordGate
+          endpoint="/api/projects/unlock"
+          title="Profit &amp; Loss — Protected"
+          description="This section contains confidential P&L data. Enter the password to view."
+        >
+          <PnlDetail />
+        </PasswordGate>
       </div>
     </div>
   )
