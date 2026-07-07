@@ -13,6 +13,7 @@ import { Plus, FolderKanban, ArrowRight } from 'lucide-react'
 import PasswordGate from '@/components/shared/PasswordGate'
 import ProfitTargetTab from '../analytics/_components/ProfitTargetTab'
 import PnlDetail from '../analytics/_components/PnlDetail'
+import AdLeadPlanner from '../analytics/_components/AdLeadPlanner'
 
 export default function ProjectsPage() {
   return (
@@ -104,6 +105,12 @@ function ProjectsInner() {
       <div className="mt-8">
         <h2 className="text-lg font-semibold text-gray-900 mb-3">Profit Target</h2>
         <ProfitTargetTab />
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold text-gray-900 mb-1">广告 & Lead 规划 (Online 两个 Page)</h2>
+        <p className="text-sm text-muted-foreground mb-3">焕肤王 / 修复 分开算:各自 lead/天、CPL、AOV、广告/天。</p>
+        <AdLeadPlanner />
       </div>
 
       <AddProjectModal
