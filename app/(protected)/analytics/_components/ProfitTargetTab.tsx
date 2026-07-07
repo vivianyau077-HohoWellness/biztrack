@@ -61,6 +61,9 @@ function EditablePlan({ plan, days, accent }: { plan: Plan; days: number; accent
   const [other, setOther] = useState(plan.other)
   const [marketerPct, setMarketerPct] = useState(plan.marketerPct)
   const [fixed, setFixed] = useState(plan.fixed)
+  const [roasInput, setRoasInput] = useState(3)
+  const [aov, setAov] = useState(700)
+  const [conv, setConv] = useState(5)
 
   const cogs = CATALOG.reduce((s, _c, i) => s + units[i] * qty[i], 0)
   const marketer = sales * marketerPct / 100
@@ -68,6 +71,13 @@ function EditablePlan({ plan, days, accent }: { plan: Plan; days: number; accent
   const net = sales - totalCost
   const netPct = pct(net, sales)
   const dailyAds = days ? ads / days : 0
+
+  // Lead & conversion funnel
+  const roas = ads > 0 ? sales / ads : 0
+  const orders = aov > 0 ? sales / aov : 0
+  const leads = conv > 0 ? orders / (conv / 100) : 0
+  const cpl = leads > 0 ? ads / leads : 0
+  const cpo = orders > 0 ? ads / orders : 0
 
   return (
     <div className="space-y-4">
@@ -126,6 +136,13 @@ function EditablePlan({ plan, days, accent }: { plan: Plan; days: number; accent
           </span>
         </div>
         <div className="flex items-center justify-between gap-2 py-1.5 text-xs">
+          <span className="text-muted-foreground">按 ROAS 反推广告 (广告 = 营收 ÷ ROAS)</span>
+          <span className="flex items-center gap-2">
+            <span className="text-[11px] text-muted-foreground">现在 ROAS ≈ {roas.toFixed(2)}</span>
+            <NumInput w="w-16" val={roasInput} set={v => { setRoasInput(v); if (v > 0) setAds(sales / v) }} />
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-2 py-1.5 text-xs">
           <span className="text-muted-foreground">其他运营费(运费+佣金+包装+税等)</span>
           <span className="flex items-center gap-1"><NumInput val={other} set={setOther} /><span className="text-muted-foreground w-3">RM</span></span>
         </div>
@@ -151,6 +168,20 @@ function EditablePlan({ plan, days, accent }: { plan: Plan; days: number; accent
           <div className="flex justify-between"><span>(-) Marketer 抽成</span><span className="font-medium text-foreground">{rm(marketer)}</span></div>
           <div className="flex justify-between"><span>(-) 固定成本</span><span className="font-medium text-foreground">{rm(fixed)}</span></div>
           <div className="flex justify-between border-t pt-1 mt-1"><span>= 总成本</span><span className="font-medium text-foreground">{rm(totalCost)} ({pct(totalCost, sales).toFixed(0)}%)</span></div>
+        </div>
+      </div>
+
+      {/* Leads & conversion funnel */}
+      <div className="rounded-lg border p-3">
+        <p className="text-xs font-semibold mb-2">Leads & 转化(广告漏斗)</p>
+        <Field label="平均客单价 AOV" val={aov} set={setAov} suffix="RM" />
+        <Field label="转化率 Conversion (lead → 成交)" val={conv} set={setConv} suffix="%" />
+        <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+          <div className="flex justify-between"><span>成交单数 / 月</span><span className="font-medium text-foreground">{Math.round(orders).toLocaleString()} 单 (每天 ≈ {days ? Math.round(orders / days) : 0})</span></div>
+          <div className="flex justify-between"><span>需要 Leads / 月</span><span className="font-medium text-foreground">{Math.round(leads).toLocaleString()} (每天 ≈ {days ? Math.round(leads / days) : 0})</span></div>
+          <div className="flex justify-between"><span>每个 Lead 成本 CPL</span><span className="font-medium text-foreground">{rm(cpl)}</span></div>
+          <div className="flex justify-between"><span>每单广告成本 CPA</span><span className="font-medium text-foreground">{rm(cpo)}</span></div>
+          <div className="flex justify-between"><span>广告 / 天</span><span className="font-medium text-foreground">{rm(dailyAds)}</span></div>
         </div>
       </div>
     </div>
