@@ -106,7 +106,7 @@ export default function MonthlySalesAnalysis() {
           <select value={sel} onChange={e => setMonth(e.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
             {months.map(m => <option key={m} value={m}>{mlabel(m)}</option>)}
           </select>
-          <span className="text-xs text-muted-foreground">Deviance = {mlabel(sel)} − Current ({mlabel(curMonth)})</span>
+          <span className="text-xs text-muted-foreground">Deviance = Current ({mlabel(curMonth)}) − {mlabel(sel)}</span>
         </div>
 
         {!selMet || !curMet ? (
@@ -128,13 +128,13 @@ export default function MonthlySalesAnalysis() {
                   const key = row.key as keyof MonthMetrics
                   const selV = selMet[key] as number
                   const curV = curMet[key] as number
-                  const dev = selV - curV
+                  const dev = curV - selV // current − selected: negative = current behind
                   return (
                     <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
                       <td className={'px-3 py-1.5 text-left ' + (row.bold ? 'font-semibold' : 'text-muted-foreground')}>{row.label}</td>
                       <td className={'px-3 py-1.5 text-right whitespace-nowrap ' + (row.bold ? 'font-semibold' : '')}>{fmtVal(selV, row.fmt)}</td>
                       <td className={'px-3 py-1.5 text-right whitespace-nowrap ' + (row.bold ? 'font-semibold' : '')}>{fmtVal(curV, row.fmt)}</td>
-                      <td className={cn('px-3 py-1.5 text-right whitespace-nowrap font-medium', dev > 0 ? 'text-orange-600' : dev < 0 ? 'text-green-600' : 'text-muted-foreground')}>
+                      <td className={cn('px-3 py-1.5 text-right whitespace-nowrap font-medium', dev < 0 ? 'text-orange-600' : dev > 0 ? 'text-green-600' : 'text-muted-foreground')}>
                         {(dev > 0 ? '+' : '') + fmtVal(dev, row.fmt)}
                       </td>
                     </tr>

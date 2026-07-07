@@ -23,7 +23,7 @@ function fstr(v: unknown): string {
   if (typeof v === 'number') return String(v)
   if (Array.isArray(v)) return v.map(x => (typeof x === 'string' ? x : ((x as { text?: string; name?: string })?.text ?? (x as { name?: string })?.name ?? ''))).join('').trim()
   const o = v as { value?: unknown; text?: string; name?: string }
-  if (Array.isArray(o.value)) return o.value.map(x => (typeof x === 'string' ? x : ((x as { text?: string })?.text ?? ''))).join('').trim()
+  if (Array.isArray(o.value)) return o.value.map(x => (typeof x === 'string' ? x : ((x as { text?: string; name?: string })?.text ?? (x as { name?: string })?.name ?? ''))).join('').trim()
   if (o.text) return String(o.text).trim()
   if (o.name) return String(o.name).trim()
   return ''
@@ -99,7 +99,9 @@ export async function computeDdSalesMatrix() {
     if (vip === 'Malaysia VIP' || vip === 'Singapore VIP') { x.vipOrder++; x.vipSales += price }
   }
 
-  const rb = new Map<string, { ad: number; leads: number; goal: number }>()
+  type RB = { ad: number; leads: number; goal: number; newOrder: number; repeatOrder: number; newSales: number; repeatSales: number }
+  const emptyRB = (): RB => ({ ad: 0, leads: 0, goal: 0, newOrder: 0, repeatOrder: 0, newSales: 0, repeatSales: 0 })
+  const rb = new Map<string, RB>()
   for (const r of reportRecs) {
     const f = r.fields as Record<string, unknown>
     const m = monthOf(fdateMs(f['Date']))
@@ -109,8 +111,12 @@ export async function computeDdSalesMatrix() {
       + fnum(f['Total Ad Spent SG']) + fnum(f['WA Ads Spend (SG) (SST)'])
     const leads = fnum(f['PMed (焕肤王)']) + fnum(f['WA PMed (焕肤王)']) + fnum(f['PMed (钻石露)'])
       + fnum(f['WA PMed (钻石露)']) + fnum(f['SG Total Pm']) + fnum(f['WA Pmed (SG)'])
-    const y = rb.get(m) ?? { ad: 0, leads: 0, goal: 0 }
+    const y = rb.get(m) ?? emptyRB()
     y.ad += ad; y.leads += leads
+    y.newOrder += fnum(f['New Order'])
+    y.repeatOrder += fnum(f['Repeat Order'])
+    y.newSales += fnum(f['Total New Sales'])
+    y.repeatSales += fnum(f['Total Repeat Sales'])
     const g = fnum(f['Goal Sales'])
     if (g > y.goal) y.goal = g // same per month; take the value
     rb.set(m, y)
@@ -126,7 +132,7 @@ export async function computeDdSalesMatrix() {
 
   const metrics: MonthMetrics[] = months.map(m => {
     const x = ob.get(m) ?? getOB(m)
-    const rep = rb.get(m) ?? { ad: 0, leads: 0, goal: 0 }
+    const rep = rb.get(m) ?? emptyRB()
     return {
       month: m,
       totalSales: R(x.sales),
@@ -135,13 +141,13 @@ export async function computeDdSalesMatrix() {
       website: R(chSum(x, ['Website'])), lazada: R(chSum(x, ['Lazada'])),
       roas: Math.round(div(x.sales, rep.ad) * 100) / 100, adSpend: R(rep.ad),
       totalLead: R(rep.leads), cpl: R(div(rep.ad, rep.leads)),
-      newOrder: x.newOrder, newFbSales: R(x.newFb), newWaSales: R(x.newWa),
-      repeatOrder: x.repeatOrder, repeatFbSales: R(x.repFb), repeatWaSales: R(x.repWa),
-      newConv: Math.round(div(x.newOrder, rep.leads) * 1000) / 10,
-      repeatConv: Math.round(div(x.repeatOrder, rep.leads) * 1000) / 10,
+      newOrder: rep.newOrder, newFbSales: R(x.newFb), newWaSales: R(x.newWa),
+      repeatOrder: rep.repeatOrder, repeatFbSales: R(x.repFb), repeatWaSales: R(x.repWa),
+      newConv: Math.round(div(rep.newOrder, rep.leads) * 1000) / 10,
+      repeatConv: Math.round(div(rep.repeatOrder, rep.leads) * 1000) / 10,
       overallConv: Math.round(div(x.orders, rep.leads) * 1000) / 10,
       vipOrder: x.vipOrder, vipSales: R(x.vipSales),
-      newAov: R(div(x.newSales, x.newOrder)), repeatAov: R(div(x.repeatSales, x.repeatOrder)),
+      newAov: R(div(rep.newSales, rep.newOrder)), repeatAov: R(div(rep.repeatSales, rep.repeatOrder)),
       vipAov: R(div(x.vipSales, x.vipOrder)), overallAov: R(div(x.sales, x.orders)),
       goal: R(rep.goal),
     }
