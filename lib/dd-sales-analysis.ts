@@ -68,9 +68,17 @@ export async function computeDdSalesAnalysis(month: string) {
   // ── From Race Report (daily): sum for the month ────────────────────────────
   let totalSales = 0, newOrders = 0, newSales = 0, repeatOrders = 0, repeatSales = 0
   let adB = 0, adR = 0, adSG = 0, ldB = 0, ldR = 0, ldSG = 0
+  let maxMs = 0, fcActual = 0, fcEst = 0, fcGoal = 0
   for (const r of reportRecs) {
     const f = r.fields as Record<string, unknown>
-    if (monthOf(fdateMs(f['Date'])) !== month) continue
+    const ms = fdateMs(f['Date'])
+    if (monthOf(ms) !== month) continue
+    if (ms > maxMs) {
+      maxMs = ms
+      fcActual = fnum(f['Accumulated Sales Amount'])
+      fcEst = fnum(f['Estimated Sales of the Month'])
+      fcGoal = fnum(f['Goal Sales'])
+    }
     totalSales += fnum(f['Total Sales'])
     newOrders += fnum(f['New Order'])
     repeatOrders += fnum(f['Repeat Order'])
@@ -109,6 +117,12 @@ export async function computeDdSalesAnalysis(month: string) {
     ads: { beauty: round(adB), repair: round(adR), sg: round(adSG), total: round(totalAd) },
     leads: { beauty: round(ldB), repair: round(ldR), sg: round(ldSG), total: round(totalLeads) },
     roas: roasOf(totalSales, totalAd),
+    forecast: {
+      actual: round(fcActual || totalSales),
+      estimated: round(fcEst || totalSales),
+      goal: round(fcGoal),
+      toGoalPct: fcGoal ? Math.round(((fcActual || totalSales) / fcGoal) * 100) : 0,
+    },
     pages: [
       page('Beauty (焕肤王)', adB, ldB, channelSales(BEAUTY_CH)),
       page('Repair (钻石露)', adR, ldR, channelSales(REPAIR_CH)),

@@ -13,6 +13,7 @@ type Data = {
   ads: { beauty: number; repair: number; sg: number; total: number }
   leads: { beauty: number; repair: number; sg: number; total: number }
   roas: number
+  forecast: { actual: number; estimated: number; goal: number; toGoalPct: number }
   pages: PageRow[]
 }
 
@@ -57,6 +58,17 @@ export default function MonthlySalesAnalysis() {
         <div className="h-40 bg-muted/30 rounded-lg animate-pulse" />
       ) : (
         <Card><CardContent className="p-4 space-y-4">
+          {/* Forecast vs actual */}
+          <div className="rounded-lg p-3 bg-muted/40">
+            <p className="text-xs font-semibold mb-2">Month forecast vs actual</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              <div><span className="block text-muted-foreground mb-0.5">Actual so far</span><div className="font-bold text-base">{rm(data.forecast.actual)}</div></div>
+              <div><span className="block text-muted-foreground mb-0.5">Forecast (full month)</span><div className="font-bold text-base">{rm(data.forecast.estimated)}</div></div>
+              <div><span className="block text-muted-foreground mb-0.5">Goal / target</span><div className="font-bold text-base">{data.forecast.goal ? rm(data.forecast.goal) : '—'}</div></div>
+              <div><span className="block text-muted-foreground mb-0.5">Actual vs goal</span><div className={'font-bold text-base ' + (data.forecast.toGoalPct >= 100 ? 'text-green-600' : 'text-orange-600')}>{data.forecast.goal ? data.forecast.toGoalPct + '%' : '—'}</div></div>
+            </div>
+          </div>
+
           {/* New / Repeat / VIP / Overall */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard title="New Sales" a={data.new} color="#22a06b" />
