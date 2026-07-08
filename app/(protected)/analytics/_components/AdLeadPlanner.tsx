@@ -34,6 +34,11 @@ export default function AdLeadPlanner() {
   const [target, setTarget] = useState(0)
   const [chTgt, setChTgt] = useState<Record<string, number>>({})
   const [ov, setOv] = useState<Record<string, number>>({})
+  const [cogsPct, setCogsPct] = useState(27)
+  const [otherPct, setOtherPct] = useState(12)
+  const [mktPct, setMktPct] = useState(3)
+  const [fixed, setFixed] = useState(4000)
+  const [adOverride, setAdOverride] = useState<number | null>(null)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['sales-matrix'],
@@ -82,8 +87,21 @@ export default function AdLeadPlanner() {
     mkPage('Repair (钻石露)', 'FB (修复)', '#c0392b', m.leadRepair, m.adRepair, m.rNewOrd, m.rNewSales, m.rRepOrd, m.rRepSales),
   ]
 
+  // ── Net profit bridge ─────────────────────────────────────────
+  const funnelAd = pages.reduce((s, p) => s + (isFinite(p.adSpend) ? p.adSpend : 0), 0)
+  const totalAd = adOverride != null ? adOverride : funnelAd
+  const cogs = tgt * cogsPct / 100
+  const otherOp = tgt * otherPct / 100
+  const mktFee = tgt * mktPct / 100
+  const totalCost = cogs + totalAd + otherOp + mktFee + fixed
+  const net = tgt - totalCost
+  const netPct = tgt ? (net / tgt) * 100 : 0
+  const blendedRoas = totalAd > 0 ? tgt / totalAd : 0
+
   const recs: string[] = []
   if (tgt > m.totalSales) recs.push(`Target ${rm(tgt)} is ${Math.round((tgt / m.totalSales - 1) * 100)}% above ${mlabel(ref)} (${rm(m.totalSales)}).`)
+  recs.push(`Projected net profit ${rm(net)} (${netPct.toFixed(1)}% margin) at blended ROAS ${blendedRoas.toFixed(2)}. Ads = ${rm(totalAd)}, the biggest swing factor.`)
+  if (blendedRoas > 0 && blendedRoas < 3) recs.push(`⚠ Blended ROAS ${blendedRoas.toFixed(2)} is below 3 — profit is thin. Lift repeat orders (no ad cost) or improve ad efficiency to protect margin.`)
   pages.forEach(p => {
     recs.push(`${p.name}: needs ${num(p.newOrders)} new orders → ${days ? num(p.newLeads / days) : '—'} new leads/day, ~${days ? rm(p.adSpend / days) : '—'}/day (CPL ${rm(p.cpl)}, conversion ${p.newConv}%).`)
     if (p.newConv > 0 && p.newConv < 4) recs.push(`⚠ ${p.name}: new-customer conversion is only ${p.newConv}% — improve the sales script / filter leads, otherwise ad cost stays high.`)
@@ -194,6 +212,40 @@ export default function AdLeadPlanner() {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Net profit projection */}
+        <div className="rounded-lg border overflow-hidden">
+          <div className="px-3 py-2 bg-muted/50 text-xs font-semibold">Net profit projection (from your target + planned ads) — % editable, defaults = your online P&L history</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+            {/* inputs */}
+            <div className="border-b md:border-b-0 md:border-r divide-y px-3">
+              <div className="flex items-center justify-between py-1.5 text-xs"><span className="text-muted-foreground">Total online sales (target)</span><span className="font-semibold">{rm(tgt)}</span></div>
+              <div className="flex items-center justify-between gap-2 py-1.5 text-xs">
+                <span className="text-muted-foreground">Ad spend {adOverride == null ? '(from funnel)' : '(manual)'}</span>
+                <span className="flex items-center gap-1"><NumIn v={totalAd} set={setAdOverride} w="w-24" /><span className="text-muted-foreground w-3">RM</span></span>
+              </div>
+              <div className="flex items-center justify-between gap-2 py-1.5 text-xs"><span className="text-muted-foreground">COGS %</span><NumIn v={cogsPct} set={setCogsPct} w="w-16" /></div>
+              <div className="flex items-center justify-between gap-2 py-1.5 text-xs"><span className="text-muted-foreground">Other operating % (shipping/commission/packaging/SST)</span><NumIn v={otherPct} set={setOtherPct} w="w-16" /></div>
+              <div className="flex items-center justify-between gap-2 py-1.5 text-xs"><span className="text-muted-foreground">Marketer fee %</span><NumIn v={mktPct} set={setMktPct} w="w-16" /></div>
+              <div className="flex items-center justify-between gap-2 py-1.5 text-xs"><span className="text-muted-foreground">Fixed cost / month</span><span className="flex items-center gap-1"><NumIn v={fixed} set={setFixed} w="w-24" /><span className="text-muted-foreground w-3">RM</span></span></div>
+            </div>
+            {/* result */}
+            <div className="p-3" style={{ background: (net >= 0 ? '#22a06b' : '#c0392b') + '12' }}>
+              <p className="text-xs text-muted-foreground">Projected Net Profit</p>
+              <p className="text-2xl font-bold" style={{ color: net >= 0 ? '#22a06b' : '#c0392b' }}>{rm(net)} <span className="text-base">· {netPct.toFixed(1)}%</span></p>
+              <p className="text-[11px] text-muted-foreground mb-2">Blended ROAS {blendedRoas.toFixed(2)}</p>
+              <div className="space-y-0.5 text-xs text-muted-foreground">
+                <div className="flex justify-between"><span>Total sales</span><span className="font-medium text-foreground">{rm(tgt)}</span></div>
+                <div className="flex justify-between"><span>(−) COGS ({cogsPct}%)</span><span className="font-medium text-foreground">{rm(cogs)}</span></div>
+                <div className="flex justify-between"><span>(−) Ads</span><span className="font-medium text-foreground">{rm(totalAd)} ({tgt ? Math.round(totalAd / tgt * 100) : 0}%)</span></div>
+                <div className="flex justify-between"><span>(−) Other operating ({otherPct}%)</span><span className="font-medium text-foreground">{rm(otherOp)}</span></div>
+                <div className="flex justify-between"><span>(−) Marketer fee ({mktPct}%)</span><span className="font-medium text-foreground">{rm(mktFee)}</span></div>
+                <div className="flex justify-between"><span>(−) Fixed cost</span><span className="font-medium text-foreground">{rm(fixed)}</span></div>
+                <div className="flex justify-between border-t pt-1 mt-1"><span>= Total cost</span><span className="font-medium text-foreground">{rm(totalCost)} ({tgt ? Math.round(totalCost / tgt * 100) : 0}%)</span></div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Recommendations */}
