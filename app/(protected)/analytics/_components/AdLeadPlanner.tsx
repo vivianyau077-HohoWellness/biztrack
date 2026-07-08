@@ -75,7 +75,7 @@ export default function AdLeadPlanner() {
     const newOrders = newAov ? newSales / newAov : 0
     const newLeads = newConv > 0 ? newOrders / (newConv / 100) : 0
     const adSpend = newLeads * cpl
-    return { name, color, chKey, cpl, tSales, repOrd, repAov, repSales, newAov, newConv, newSales, newOrders, newLeads, adSpend, histLeads: leads }
+    return { name, color, chKey, cpl, tSales, repOrd, repAov, repSales, newAov, newConv, newSales, newOrders, newLeads, adSpend, histLeads: leads, histNewAov, histRepAov, histNewConv: Math.round(histNewConv * 1000) / 10, histRepOrd: repOrdH, histNewOrd: newOrdH }
   }
   const pages = [
     mkPage('Beauty (焕肤王)', 'FB (焕肤王)', '#22a06b', m.leadBeauty, m.adBeauty, m.bNewOrd, m.bNewSales, m.bRepOrd, m.bRepSales),
@@ -83,12 +83,12 @@ export default function AdLeadPlanner() {
   ]
 
   const recs: string[] = []
-  if (tgt > m.totalSales) recs.push(`目标 ${rm(tgt)} 比 ${mlabel(ref)}(${rm(m.totalSales)})增长 ${Math.round((tgt / m.totalSales - 1) * 100)}%。`)
+  if (tgt > m.totalSales) recs.push(`Target ${rm(tgt)} is ${Math.round((tgt / m.totalSales - 1) * 100)}% above ${mlabel(ref)} (${rm(m.totalSales)}).`)
   pages.forEach(p => {
-    recs.push(`${p.name}:新客要 ${num(p.newOrders)} 单 → 每天 ${days ? num(p.newLeads / days) : '—'} 个 new lead、广告约 ${days ? rm(p.adSpend / days) : '—'}/天(CPL ${rm(p.cpl)}、转化 ${p.newConv}%)。`)
-    if (p.newConv > 0 && p.newConv < 4) recs.push(`⚠ ${p.name} 新客转化只有 ${p.newConv}% —— 提升话术/过滤 lead,否则广告成本高。`)
+    recs.push(`${p.name}: needs ${num(p.newOrders)} new orders → ${days ? num(p.newLeads / days) : '—'} new leads/day, ~${days ? rm(p.adSpend / days) : '—'}/day (CPL ${rm(p.cpl)}, conversion ${p.newConv}%).`)
+    if (p.newConv > 0 && p.newConv < 4) recs.push(`⚠ ${p.name}: new-customer conversion is only ${p.newConv}% — improve the sales script / filter leads, otherwise ad cost stays high.`)
   })
-  recs.push('必须做:回头客靠 CRM/复购提醒(不烧广告);新客靠广告,维持 ROAS ≥ 3;每天盯 new lead 与成交。')
+  recs.push('Must do: drive repeat customers via CRM / re-purchase reminders (no ad spend); acquire new customers via ads while keeping ROAS ≥ 3; track new leads & closes daily.')
 
   return (
     <Card>
@@ -103,9 +103,47 @@ export default function AdLeadPlanner() {
           <label className="text-xs"><span className="block text-muted-foreground mb-1">Days / month</span><NumIn v={days} set={setDays} w="w-16" /></label>
         </div>
 
+        {/* Per-page historical actuals by month */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {[
+            { name: 'Beauty (焕肤王)', color: '#22a06b', no: 'bNewOrd', ns: 'bNewSales', ro: 'bRepOrd', rs: 'bRepSales' },
+            { name: 'Repair (钻石露)', color: '#c0392b', no: 'rNewOrd', ns: 'rNewSales', ro: 'rRepOrd', rs: 'rRepSales' },
+          ].map(pg => (
+            <div key={pg.name} className="rounded-lg border overflow-hidden">
+              <div className="px-3 py-2 text-xs font-semibold" style={{ background: pg.color + '15', color: pg.color }}>{pg.name} — actual history by month</div>
+              <table className="w-full text-xs">
+                <thead><tr className="border-b text-muted-foreground">
+                  <th className="px-2 py-1.5 text-left font-medium">Month</th>
+                  <th className="px-2 py-1.5 text-right font-medium">New ord</th>
+                  <th className="px-2 py-1.5 text-right font-medium">New AOV</th>
+                  <th className="px-2 py-1.5 text-right font-medium">Repeat ord</th>
+                  <th className="px-2 py-1.5 text-right font-medium">Repeat AOV</th>
+                </tr></thead>
+                <tbody>
+                  {data.metrics.map(mm => {
+                    const no = mm[pg.no as keyof M] as number
+                    const ns = mm[pg.ns as keyof M] as number
+                    const ro = mm[pg.ro as keyof M] as number
+                    const rs = mm[pg.rs as keyof M] as number
+                    return (
+                      <tr key={mm.month} className={'border-b last:border-0 ' + (mm.month === ref ? 'bg-muted/40 font-medium' : '')}>
+                        <td className="px-2 py-1 text-left">{mlabel(mm.month)}</td>
+                        <td className="px-2 py-1 text-right">{num(no)}</td>
+                        <td className="px-2 py-1 text-right">{no ? rm(ns / no) : '—'}</td>
+                        <td className="px-2 py-1 text-right">{num(ro)}</td>
+                        <td className="px-2 py-1 text-right">{ro ? rm(rs / ro) : '—'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+
         {/* Channel allocation */}
         <div className="rounded-lg border overflow-hidden">
-          <div className="px-3 py-2 bg-muted/50 text-xs font-semibold">Channel target (预填=历史占比×目标,可改)</div>
+          <div className="px-3 py-2 bg-muted/50 text-xs font-semibold">Channel target (default = historical share × target, editable)</div>
           <table className="w-full text-xs">
             <thead><tr className="border-b text-muted-foreground">
               <th className="px-3 py-1.5 text-left font-medium">Channel</th>
@@ -135,18 +173,18 @@ export default function AdLeadPlanner() {
               <p className="text-sm font-semibold mb-1" style={{ color: p.color }}>{p.name}</p>
               <div className="flex justify-between text-xs mb-2"><span className="text-muted-foreground">Page target sales</span><span className="font-semibold">{rm(p.tSales)}</span></div>
 
-              <p className="text-[11px] font-semibold text-muted-foreground">① Repeat 回头客(不靠广告)</p>
+              <p className="text-[11px] font-semibold text-muted-foreground">① Repeat customers (no ads)</p>
               <div className="space-y-1 text-xs mb-2">
-                <div className="flex items-center justify-between"><span className="text-muted-foreground">Repeat orders (可改)</span><NumIn v={p.repOrd} set={v => setOv(o => ({ ...o, [p.name + '_repOrd']: v }))} w="w-20" /></div>
-                <div className="flex items-center justify-between"><span className="text-muted-foreground">Repeat AOV (可改)</span><span className="flex items-center gap-1"><NumIn v={p.repAov} set={v => setOv(o => ({ ...o, [p.name + '_repAov']: v }))} w="w-20" />RM</span></div>
+                <div className="flex items-center justify-between"><span className="text-muted-foreground">Repeat orders <span className="text-[10px]">(hist {num(p.histRepOrd)})</span></span><NumIn v={p.repOrd} set={v => setOv(o => ({ ...o, [p.name + '_repOrd']: v }))} w="w-20" /></div>
+                <div className="flex items-center justify-between"><span className="text-muted-foreground">Repeat AOV <span className="text-[10px]">(hist {rm(p.histRepAov)})</span></span><span className="flex items-center gap-1"><NumIn v={p.repAov} set={v => setOv(o => ({ ...o, [p.name + '_repAov']: v }))} w="w-20" />RM</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">= Repeat sales</span><span className="font-medium">{rm(p.repSales)}</span></div>
               </div>
 
-              <p className="text-[11px] font-semibold text-muted-foreground">② New 新客(靠广告)</p>
+              <p className="text-[11px] font-semibold text-muted-foreground">② New customers (ad-driven)</p>
               <div className="space-y-1 text-xs">
                 <div className="flex justify-between"><span className="text-muted-foreground">New sales needed (target − repeat)</span><span className="font-medium">{rm(p.newSales)}</span></div>
-                <div className="flex items-center justify-between"><span className="text-muted-foreground">New AOV (可改)</span><span className="flex items-center gap-1"><NumIn v={p.newAov} set={v => setOv(o => ({ ...o, [p.name + '_newAov']: v }))} w="w-20" />RM</span></div>
-                <div className="flex items-center justify-between"><span className="text-muted-foreground">New conversion % (可改)</span><NumIn v={p.newConv} set={v => setOv(o => ({ ...o, [p.name + '_newConv']: v }))} w="w-16" /></div>
+                <div className="flex items-center justify-between"><span className="text-muted-foreground">New AOV <span className="text-[10px]">(hist {rm(p.histNewAov)})</span></span><span className="flex items-center gap-1"><NumIn v={p.newAov} set={v => setOv(o => ({ ...o, [p.name + '_newAov']: v }))} w="w-20" />RM</span></div>
+                <div className="flex items-center justify-between"><span className="text-muted-foreground">New conversion % <span className="text-[10px]">(hist {p.histNewConv}%)</span></span><NumIn v={p.newConv} set={v => setOv(o => ({ ...o, [p.name + '_newConv']: v }))} w="w-16" /></div>
               </div>
               <div className="mt-2 rounded-md p-2 space-y-0.5 text-xs" style={{ background: p.color + '10' }}>
                 <div className="flex justify-between"><span className="text-muted-foreground">New orders</span><span className="font-medium">{num(p.newOrders)}</span></div>
@@ -160,13 +198,13 @@ export default function AdLeadPlanner() {
 
         {/* Recommendations */}
         <div className="rounded-lg p-3" style={{ background: '#0e2a3312' }}>
-          <p className="text-xs font-semibold mb-1">建议 · 该做 / 必须做</p>
+          <p className="text-xs font-semibold mb-1">Recommendations · Should do / Must do</p>
           <ul className="space-y-1 text-xs text-foreground">
             {recs.map((r, i) => <li key={i} className="flex gap-1.5"><span className="text-muted-foreground">•</span><span>{r}</span></li>)}
           </ul>
         </div>
 
-        <p className="text-[11px] text-muted-foreground">每页拆 Repeat(回头客,不烧广告)+ New(新客,靠广告)。默认值 = {mlabel(ref)} 历史,每格可改。Live from Lark.</p>
+        <p className="text-[11px] text-muted-foreground">Each page splits into Repeat (existing customers, no ads) + New (new customers, ad-driven). Defaults = {mlabel(ref)} historical, every field editable. Live from Lark.</p>
       </CardContent>
     </Card>
   )
