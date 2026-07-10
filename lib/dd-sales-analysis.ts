@@ -1,4 +1,5 @@
 import { fetchLarkRecords } from './lark'
+import { computeDd2025Months } from './dd-sales-2025'
 
 // Monthly sales analysis for DD.
 //  - Ads (after SST) + leads (PMed) + New/Repeat orders & sales come from the
@@ -75,6 +76,7 @@ export type MonthMetrics = {
 
 // Metrics-as-rows × months-as-columns matrix (all months at once).
 export async function computeDdSalesMatrix() {
+  const p2025 = computeDd2025Months().catch((e) => { console.error('[dd-2025] failed:', e); return [] as MonthMetrics[] })
   const [orderRecs, reportRecs] = await Promise.all([
     fetchLarkRecords(T_ORDER, APP),
     fetchLarkRecords(T_REPORT, APP),
@@ -143,7 +145,7 @@ export async function computeDdSalesMatrix() {
   const monthSet = new Set<string>()
   for (const k of Array.from(ob.keys())) monthSet.add(k)
   for (const k of Array.from(rb.keys())) monthSet.add(k)
-  const months = Array.from(monthSet).filter(Boolean).sort()
+  const months = Array.from(monthSet).filter(k => !!k && k >= '2026-01').sort()
   const R = (n: number) => Math.round(n)
   const div = (a: number, b: number) => (b ? a / b : 0)
   const chSum = (x: OB, names: string[]) => names.reduce((s, n) => s + (x.ch.get(n) ?? 0), 0)
@@ -180,7 +182,10 @@ export async function computeDdSalesMatrix() {
     }
   })
 
-  return { months, metrics }
+  const metrics2025 = await p2025
+  const allMetrics = metrics2025.concat(metrics).sort((a, b) => a.month.localeCompare(b.month))
+  const allMonths = allMetrics.map(x => x.month)
+  return { months: allMonths, metrics: allMetrics }
 }
 
 export async function computeDdSalesAnalysis(month: string) {
