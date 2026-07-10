@@ -62,6 +62,7 @@ export default function SalesDistributionTab() {
     }
   })
 
+  const yearRows = rows.filter(r => r.raw.slice(0, 4) === yr)
   const selRow = rows.find(r => r.raw === sel)
 
   return (
@@ -74,17 +75,17 @@ export default function SalesDistributionTab() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Month</span>
+          <span className="text-sm text-muted-foreground">Year</span>
+          <select value={yr} onChange={e => setSelYear(e.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm font-medium">
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <span className="text-sm text-muted-foreground ml-1">Month</span>
           <select value={mo} onChange={e => setSelMonth(e.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
             {MONTH_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
-          <select value={yr} onChange={e => setSelYear(e.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
-            {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
       </div>
 
-      {/* Selected-month summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Card><CardContent className="p-4">
           <p className="text-xs text-muted-foreground">WhatsApp Sales · {mlabel(sel)}</p>
@@ -105,35 +106,33 @@ export default function SalesDistributionTab() {
 
       {!selRow && <p className="text-xs text-orange-600">No WhatsApp data for {mlabel(sel)}. Pick another month/year.</p>}
 
-      {/* Stacked bar chart — full trend, selected month highlighted */}
       <Card><CardContent className="p-4">
-        <p className="text-sm font-semibold mb-3">Monthly WhatsApp sales — New + Repeat (selected month highlighted)</p>
+        <p className="text-sm font-semibold mb-3">Monthly WhatsApp sales — New + Repeat · {yr} (selected month highlighted)</p>
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={rows} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+            <BarChart data={yearRows} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
               <XAxis dataKey="month" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} tickFormatter={(v: number) => 'RM' + (v / 1000) + 'k'} />
               <Tooltip formatter={(v: number, name: string) => [rm(v), name]} />
               <Legend />
               <Bar dataKey="newWa" stackId="wa" name="New" fill={NEW_C}>
-                {rows.map(r => <Cell key={r.raw} fillOpacity={r.raw === sel ? 1 : 0.5} />)}
+                {yearRows.map(r => <Cell key={r.raw} fillOpacity={r.raw === sel ? 1 : 0.5} />)}
               </Bar>
               <Bar dataKey="repWa" stackId="wa" name="Repeat" fill={REP_C} radius={[4, 4, 0, 0]}>
-                {rows.map(r => <Cell key={r.raw} fillOpacity={r.raw === sel ? 1 : 0.5} />)}
+                {yearRows.map(r => <Cell key={r.raw} fillOpacity={r.raw === sel ? 1 : 0.5} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
       </CardContent></Card>
 
-      {/* Table */}
       <Card><CardContent className="p-4">
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="bg-muted/50 text-xs">
-                <th className="px-3 py-2 text-left font-semibold">Month</th>
+                <th className="px-3 py-2 text-left font-semibold">Month · {yr}</th>
                 <th className="px-3 py-2 text-right font-semibold">WhatsApp Total</th>
                 <th className="px-3 py-2 text-right font-semibold" style={{ color: NEW_C }}>New Sales</th>
                 <th className="px-3 py-2 text-right font-semibold" style={{ color: NEW_C }}>New %</th>
@@ -142,7 +141,7 @@ export default function SalesDistributionTab() {
               </tr>
             </thead>
             <tbody>
-              {rows.map(r => (
+              {yearRows.map(r => (
                 <tr key={r.raw} className={'border-b last:border-0 ' + (r.raw === sel ? 'bg-primary/10 font-medium' : 'hover:bg-muted/20')}>
                   <td className="px-3 py-1.5 text-left font-medium">{r.month}</td>
                   <td className="px-3 py-1.5 text-right">{rm(r.waTotal)}</td>
