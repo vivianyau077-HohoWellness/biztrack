@@ -185,7 +185,7 @@ export default function AnalyticsPage() {
           />
         )}
         {activeTab === 'distribution' && (
-          <SalesDistributionTab />
+          <SalesDistributionTab dateFrom={dateFrom} dateTo={dateTo} />
         )}
         {activeTab === 'customers' && (
           <CustomerInsightsTab

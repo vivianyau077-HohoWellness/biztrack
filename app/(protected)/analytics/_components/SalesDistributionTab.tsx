@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, Cell } from 'recharts'
@@ -24,7 +24,9 @@ const rm = (n: number) => 'RM ' + Math.round(n).toLocaleString()
 const NEW_C = '#22a06b'
 const REP_C = '#1C7293'
 
-export default function SalesDistributionTab() {
+type Row = { raw: string; month: string; newWa: number; repWa: number; waTotal: number; newPct: number; repPct: number }
+
+export default function SalesDistributionTab({ dateFrom }: { dateFrom?: string; dateTo?: string }) {
   const [selYear, setSelYear] = useState('')
   const [selMonth, setSelMonth] = useState('')
 
@@ -43,11 +45,12 @@ export default function SalesDistributionTab() {
   const months = data.months
   const years = Array.from(new Set(months.map(mm => mm.slice(0, 4)))).sort()
   const latest = months[months.length - 1] || ''
-  const yr = selYear || latest.slice(0, 4)
+  const fromYear = dateFrom && dateFrom.length >= 4 ? dateFrom.slice(0, 4) : ''
+  const yr = selYear || fromYear || latest.slice(0, 4)
   const mo = selMonth || latest.slice(5, 7)
   const sel = yr + '-' + mo
 
-  const rows = data.metrics.map(m => {
+  const rows: Row[] = data.metrics.map(m => {
     const nw = m.newWaSales || 0
     const rw = m.repeatWaSales || 0
     const base = nw + rw
@@ -62,8 +65,10 @@ export default function SalesDistributionTab() {
     }
   })
 
+  const byRaw: Record<string, Row> = {}
+  rows.forEach(r => { byRaw[r.raw] = r })
   const yearRows = rows.filter(r => r.raw.slice(0, 4) === yr)
-  const selRow = rows.find(r => r.raw === sel)
+  const selRow = byRaw[sel]
 
   return (
     <div className="space-y-4">
@@ -104,8 +109,6 @@ export default function SalesDistributionTab() {
         </CardContent></Card>
       </div>
 
-      {!selRow && <p className="text-xs text-orange-600">No WhatsApp data for {mlabel(sel)}. Pick another month/year.</p>}
-
       <Card><CardContent className="p-4">
         <p className="text-sm font-semibold mb-3">Monthly WhatsApp sales — New + Repeat · {yr} (selected month highlighted)</p>
         <div className="h-72">
@@ -128,33 +131,47 @@ export default function SalesDistributionTab() {
       </CardContent></Card>
 
       <Card><CardContent className="p-4">
+        <p className="text-sm font-semibold mb-1">Same month, across years — New vs Repeat</p>
+        <p className="text-[11px] text-muted-foreground mb-3">Read across a row to compare the same month year-over-year. % = share of classified WhatsApp sales; RM under.</p>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
+          <table className="w-full text-xs border-collapse">
             <thead>
-              <tr className="bg-muted/50 text-xs">
-                <th className="px-3 py-2 text-left font-semibold">Month · {yr}</th>
-                <th className="px-3 py-2 text-right font-semibold">WhatsApp Total</th>
-                <th className="px-3 py-2 text-right font-semibold" style={{ color: NEW_C }}>New Sales</th>
-                <th className="px-3 py-2 text-right font-semibold" style={{ color: NEW_C }}>New %</th>
-                <th className="px-3 py-2 text-right font-semibold" style={{ color: REP_C }}>Repeat Sales</th>
-                <th className="px-3 py-2 text-right font-semibold" style={{ color: REP_C }}>Repeat %</th>
+              <tr className="bg-muted/50">
+                <th className="px-3 py-2 text-left font-semibold border-r" rowSpan={2}>Month</th>
+                {years.map(y => <th key={y} className="px-3 py-2 text-center font-semibold border-r" colSpan={2}>{y}</th>)}
+              </tr>
+              <tr className="bg-muted/50">
+                {years.map(y => (
+                  <Fragment key={y}>
+                    <th className="px-3 py-1.5 text-right font-medium" style={{ color: NEW_C }}>New</th>
+                    <th className="px-3 py-1.5 text-right font-medium border-r" style={{ color: REP_C }}>Repeat</th>
+                  </Fragment>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {yearRows.map(r => (
-                <tr key={r.raw} className={'border-b last:border-0 ' + (r.raw === sel ? 'bg-primary/10 font-medium' : 'hover:bg-muted/20')}>
-                  <td className="px-3 py-1.5 text-left font-medium">{r.month}</td>
-                  <td className="px-3 py-1.5 text-right">{rm(r.waTotal)}</td>
-                  <td className="px-3 py-1.5 text-right">{rm(r.newWa)}</td>
-                  <td className="px-3 py-1.5 text-right font-medium" style={{ color: NEW_C }}>{r.newPct.toFixed(1)}%</td>
-                  <td className="px-3 py-1.5 text-right">{rm(r.repWa)}</td>
-                  <td className="px-3 py-1.5 text-right font-medium" style={{ color: REP_C }}>{r.repPct.toFixed(1)}%</td>
+              {MONTH_OPTS.map(([mm, label]) => (
+                <tr key={mm} className={'border-b last:border-0 ' + (mm === mo ? 'bg-primary/10 font-medium' : 'hover:bg-muted/20')}>
+                  <td className="px-3 py-1.5 text-left font-medium border-r">{label}</td>
+                  {years.map(y => {
+                    const r = byRaw[y + '-' + mm]
+                    return (
+                      <Fragment key={y}>
+                        <td className="px-3 py-1.5 text-right">
+                          {r ? <><span style={{ color: NEW_C }} className="font-medium">{r.newPct.toFixed(1)}%</span><br /><span className="text-[10px] text-muted-foreground">{rm(r.newWa)}</span></> : <span className="text-muted-foreground">—</span>}
+                        </td>
+                        <td className="px-3 py-1.5 text-right border-r">
+                          {r ? <><span style={{ color: REP_C }} className="font-medium">{r.repPct.toFixed(1)}%</span><br /><span className="text-[10px] text-muted-foreground">{rm(r.repWa)}</span></> : <span className="text-muted-foreground">—</span>}
+                        </td>
+                      </Fragment>
+                    )
+                  })}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="text-[11px] text-muted-foreground mt-2">New % / Repeat % are shares of classified WhatsApp sales (New + Repeat). &quot;WhatsApp Total&quot; may exceed New + Repeat when some orders are not yet tagged.</p>
+        <p className="text-[11px] text-muted-foreground mt-2">&quot;—&quot; = no WhatsApp data that month. New % / Repeat % are shares of classified WhatsApp sales (New + Repeat).</p>
       </CardContent></Card>
     </div>
   )
