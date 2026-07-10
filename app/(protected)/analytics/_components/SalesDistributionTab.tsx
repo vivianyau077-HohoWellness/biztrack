@@ -1,8 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, Cell } from 'recharts'
 
 type M = {
   month: string
@@ -12,17 +13,21 @@ type M = {
 }
 type Data = { months: string[]; metrics: M[] }
 
-const MLABEL: Record<string, string> = {
-  '2026-01': "Jan'26", '2026-02': "Feb'26", '2026-03': "Mar'26", '2026-04': "Apr'26",
-  '2026-05': "May'26", '2026-06': "Jun'26", '2026-07': "Jul'26", '2026-08': "Aug'26",
-  '2026-09': "Sep'26", '2026-10': "Oct'26", '2026-11': "Nov'26", '2026-12': "Dec'26",
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const mlabel = (m: string) => {
+  if (!m || m.length < 7) return m
+  const mo = parseInt(m.slice(5, 7), 10)
+  return (MON[mo - 1] ?? m) + "'" + m.slice(2, 4)
 }
-const mlabel = (m: string) => MLABEL[m] ?? m
+const MONTH_OPTS: Array<[string, string]> = MON.map((l, i) => [(i < 9 ? '0' : '') + (i + 1), l])
 const rm = (n: number) => 'RM ' + Math.round(n).toLocaleString()
 const NEW_C = '#22a06b'
 const REP_C = '#1C7293'
 
 export default function SalesDistributionTab() {
+  const [selYear, setSelYear] = useState('')
+  const [selMonth, setSelMonth] = useState('')
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['sales-matrix'],
     queryFn: async () => {
@@ -35,11 +40,19 @@ export default function SalesDistributionTab() {
   if (error) return <p className="text-sm text-red-600">Failed to load sales distribution.</p>
   if (isLoading || !data) return <div className="h-64 bg-muted/30 rounded-lg animate-pulse" />
 
+  const months = data.months
+  const years = Array.from(new Set(months.map(mm => mm.slice(0, 4)))).sort()
+  const latest = months[months.length - 1] || ''
+  const yr = selYear || latest.slice(0, 4)
+  const mo = selMonth || latest.slice(5, 7)
+  const sel = yr + '-' + mo
+
   const rows = data.metrics.map(m => {
     const nw = m.newWaSales || 0
     const rw = m.repeatWaSales || 0
     const base = nw + rw
     return {
+      raw: m.month,
       month: mlabel(m.month),
       newWa: nw,
       repWa: rw,
@@ -49,45 +62,52 @@ export default function SalesDistributionTab() {
     }
   })
 
-  // Averages / insight
-  const totNew = rows.reduce((s, r) => s + r.newWa, 0)
-  const totRep = rows.reduce((s, r) => s + r.repWa, 0)
-  const totBase = totNew + totRep
-  const avgNewPct = totBase ? (totNew / totBase) * 100 : 0
-  const avgRepPct = totBase ? (totRep / totBase) * 100 : 0
-  const first = rows[0], last = rows[rows.length - 1]
-  const repTrend = first && last ? last.repPct - first.repPct : 0
+  const selRow = rows.find(r => r.raw === sel)
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900">WhatsApp — New vs Repeat Sales Distribution</h2>
-        <p className="text-sm text-muted-foreground">
-          Where WhatsApp customers&apos; sales land each month — New vs Repeat, classified by phone number &amp; AUTO N/R. Live from Lark.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">WhatsApp — New vs Repeat Sales Distribution</h2>
+          <p className="text-sm text-muted-foreground">
+            Where WhatsApp customers&apos; sales land — New vs Repeat, classified by phone number &amp; AUTO N/R. Live from Lark.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Month</span>
+          <select value={mo} onChange={e => setSelMonth(e.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
+            {MONTH_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+          <select value={yr} onChange={e => setSelYear(e.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
       </div>
 
-      {/* Summary cards */}
+      {/* Selected-month summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground">Total WhatsApp Sales (classified)</p>
-          <p className="text-2xl font-bold">{rm(totBase)}</p>
+          <p className="text-xs text-muted-foreground">WhatsApp Sales · {mlabel(sel)}</p>
+          <p className="text-2xl font-bold">{selRow ? rm(selRow.newWa + selRow.repWa) : '—'}</p>
+          {selRow && <p className="text-[11px] text-muted-foreground">Total incl. untagged: {rm(selRow.waTotal)}</p>}
         </CardContent></Card>
         <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground">New share (avg)</p>
-          <p className="text-2xl font-bold" style={{ color: NEW_C }}>{avgNewPct.toFixed(1)}%</p>
-          <p className="text-[11px] text-muted-foreground">{rm(totNew)}</p>
+          <p className="text-xs text-muted-foreground">New · {mlabel(sel)}</p>
+          <p className="text-2xl font-bold" style={{ color: NEW_C }}>{selRow ? selRow.newPct.toFixed(1) + '%' : '—'}</p>
+          {selRow && <p className="text-[11px] text-muted-foreground">{rm(selRow.newWa)}</p>}
         </CardContent></Card>
         <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground">Repeat share (avg)</p>
-          <p className="text-2xl font-bold" style={{ color: REP_C }}>{avgRepPct.toFixed(1)}%</p>
-          <p className="text-[11px] text-muted-foreground">{rm(totRep)}</p>
+          <p className="text-xs text-muted-foreground">Repeat · {mlabel(sel)}</p>
+          <p className="text-2xl font-bold" style={{ color: REP_C }}>{selRow ? selRow.repPct.toFixed(1) + '%' : '—'}</p>
+          {selRow && <p className="text-[11px] text-muted-foreground">{rm(selRow.repWa)}</p>}
         </CardContent></Card>
       </div>
 
-      {/* Stacked bar chart */}
+      {!selRow && <p className="text-xs text-orange-600">No WhatsApp data for {mlabel(sel)}. Pick another month/year.</p>}
+
+      {/* Stacked bar chart — full trend, selected month highlighted */}
       <Card><CardContent className="p-4">
-        <p className="text-sm font-semibold mb-3">Monthly WhatsApp sales — New + Repeat</p>
+        <p className="text-sm font-semibold mb-3">Monthly WhatsApp sales — New + Repeat (selected month highlighted)</p>
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={rows} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
@@ -96,8 +116,12 @@ export default function SalesDistributionTab() {
               <YAxis tick={{ fontSize: 12 }} tickFormatter={(v: number) => 'RM' + (v / 1000) + 'k'} />
               <Tooltip formatter={(v: number, name: string) => [rm(v), name]} />
               <Legend />
-              <Bar dataKey="newWa" stackId="wa" name="New" fill={NEW_C} radius={[0, 0, 0, 0]} />
-              <Bar dataKey="repWa" stackId="wa" name="Repeat" fill={REP_C} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="newWa" stackId="wa" name="New" fill={NEW_C}>
+                {rows.map(r => <Cell key={r.raw} fillOpacity={r.raw === sel ? 1 : 0.5} />)}
+              </Bar>
+              <Bar dataKey="repWa" stackId="wa" name="Repeat" fill={REP_C} radius={[4, 4, 0, 0]}>
+                {rows.map(r => <Cell key={r.raw} fillOpacity={r.raw === sel ? 1 : 0.5} />)}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -119,7 +143,7 @@ export default function SalesDistributionTab() {
             </thead>
             <tbody>
               {rows.map(r => (
-                <tr key={r.month} className="border-b last:border-0 hover:bg-muted/20">
+                <tr key={r.raw} className={'border-b last:border-0 ' + (r.raw === sel ? 'bg-primary/10 font-medium' : 'hover:bg-muted/20')}>
                   <td className="px-3 py-1.5 text-left font-medium">{r.month}</td>
                   <td className="px-3 py-1.5 text-right">{rm(r.waTotal)}</td>
                   <td className="px-3 py-1.5 text-right">{rm(r.newWa)}</td>
@@ -132,18 +156,6 @@ export default function SalesDistributionTab() {
           </table>
         </div>
         <p className="text-[11px] text-muted-foreground mt-2">New % / Repeat % are shares of classified WhatsApp sales (New + Repeat). &quot;WhatsApp Total&quot; may exceed New + Repeat when some orders are not yet tagged.</p>
-      </CardContent></Card>
-
-      {/* Insight */}
-      <Card><CardContent className="p-4">
-        <p className="text-xs font-semibold mb-1">Read-out</p>
-        <ul className="space-y-1 text-xs text-foreground">
-          <li className="flex gap-1.5"><span className="text-muted-foreground">•</span><span>On average, {avgRepPct.toFixed(0)}% of WhatsApp sales are repeat customers and {avgNewPct.toFixed(0)}% are new.</span></li>
-          {Math.abs(repTrend) >= 1 && (
-            <li className="flex gap-1.5"><span className="text-muted-foreground">•</span><span>Repeat share has {repTrend > 0 ? 'risen' : 'fallen'} {Math.abs(repTrend).toFixed(1)} pts from {first.month} to {last.month} — {repTrend > 0 ? 'retention is strengthening (cheaper, no ad cost).' : 'watch retention; leaning more on new (ad-funded) customers.'}</span></li>
-          )}
-          <li className="flex gap-1.5"><span className="text-muted-foreground">•</span><span>Repeat sales carry no ad cost, so a higher repeat share directly lifts net margin. Grow it via CRM / re-purchase reminders on WhatsApp.</span></li>
-        </ul>
       </CardContent></Card>
     </div>
   )

@@ -21,12 +21,13 @@ type MonthMetrics = {
 }
 type Data = { months: string[]; metrics: MonthMetrics[] }
 
-const MLABEL: Record<string, string> = {
-  '2026-01': "Jan'26", '2026-02': "Feb'26", '2026-03': "Mar'26", '2026-04': "Apr'26",
-  '2026-05': "May'26", '2026-06': "Jun'26", '2026-07': "Jul'26", '2026-08': "Aug'26",
-  '2026-09': "Sep'26", '2026-10': "Oct'26", '2026-11': "Nov'26", '2026-12': "Dec'26",
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const mlabel = (m: string) => {
+  if (!m || m.length < 7) return m
+  const mo = parseInt(m.slice(5, 7), 10)
+  return (MON[mo - 1] ?? m) + "'" + m.slice(2, 4)
 }
-const mlabel = (m: string) => MLABEL[m] ?? m
+const MONTH_OPTS: Array<[string, string]> = MON.map((l, i) => [(i < 9 ? '0' : '') + (i + 1), l])
 
 function rm(n: number) { return 'RM ' + Math.round(n).toLocaleString() }
 function n0(n: number) { return Math.round(n).toLocaleString() }
@@ -82,7 +83,8 @@ function fmtVal(v: number, fmt?: Fmt) {
 }
 
 export default function MonthlySalesAnalysis() {
-  const [month, setMonth] = useState('')
+  const [selYear, setSelYear] = useState('')
+  const [selMonth, setSelMonth] = useState('')
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['sales-matrix'],
@@ -98,17 +100,24 @@ export default function MonthlySalesAnalysis() {
 
   const months = data.months
   const curMonth = months[months.length - 1] || ''            // current (latest) month
-  const sel = month || months[months.length - 2] || curMonth  // month to compare
+  const defaultSel = months[months.length - 2] || curMonth
+  const yr = selYear || defaultSel.slice(0, 4)
+  const mo = selMonth || defaultSel.slice(5, 7)
+  const sel = yr + '-' + mo                                    // month to compare
+  const years = Array.from(new Set(months.map(mm => mm.slice(0, 4)))).sort()
   const selMet = data.metrics.find(m => m.month === sel)
   const curMet = data.metrics.find(m => m.month === curMonth)
 
   return (
     <Card>
       <CardContent className="p-4">
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
           <span className="text-sm text-muted-foreground">Compare month</span>
-          <select value={sel} onChange={e => setMonth(e.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
-            {months.map(m => <option key={m} value={m}>{mlabel(m)}</option>)}
+          <select value={mo} onChange={e => setSelMonth(e.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
+            {MONTH_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+          <select value={yr} onChange={e => setSelYear(e.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
           <span className="text-xs text-muted-foreground">Deviance = Current ({mlabel(curMonth)}) − {mlabel(sel)}</span>
         </div>
