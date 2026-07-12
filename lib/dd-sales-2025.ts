@@ -197,6 +197,7 @@ export async function computeDd2025Months(): Promise<MonthMetrics[]> {
       ordBeauty: x.ordBeauty, ordRepair: x.ordRepair,
       bNewOrd: x.bNewOrd, bNewSales: R(x.bNewSales), bRepOrd: x.bRepOrd, bRepSales: R(x.bRepSales),
       rNewOrd: x.rNewOrd, rNewSales: R(x.rNewSales), rRepOrd: x.rRepOrd, rRepSales: R(x.rRepSales),
+      sgNewSales: 0, sgRepSales: 0,
     }
   })
 }

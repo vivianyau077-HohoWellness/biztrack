@@ -101,6 +101,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
   let ordBeauty = 0, ordRepair = 0
   let bNewOrd = 0, bNewSales = 0, bRepOrd = 0, bRepSales = 0
   let rNewOrd = 0, rNewSales = 0, rRepOrd = 0, rRepSales = 0
+  let sgNewSales = 0, sgRepSales = 0
   for (const set of orderSets) {
     for (const r of set as Rec[]) {
       const f = r.fields
@@ -118,6 +119,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
       if (isVip(f['AUTO VIP'])) { vipOrder++; vipSales += price }
       if (inSet(channel, BEAUTY_CH)) { ordBeauty++; if (nr === 'New') { bNewOrd++; bNewSales += price } else if (nr === 'Repeat') { bRepOrd++; bRepSales += price } }
       if (inSet(channel, REPAIR_CH)) { ordRepair++; if (nr === 'New') { rNewOrd++; rNewSales += price } else if (nr === 'Repeat') { rRepOrd++; rRepSales += price } }
+      if (inSet(channel, FBSG_CH)) { if (nr === 'New') sgNewSales += price; else if (nr === 'Repeat') sgRepSales += price }
     }
   }
 
@@ -190,5 +192,6 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
     ordBeauty, ordRepair,
     bNewOrd, bNewSales: R(bNewSales), bRepOrd, bRepSales: R(bRepSales),
     rNewOrd, rNewSales: R(rNewSales), rRepOrd, rRepSales: R(rRepSales),
+    sgNewSales: R(sgNewSales), sgRepSales: R(sgRepSales),
   }
 }

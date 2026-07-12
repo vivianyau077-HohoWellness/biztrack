@@ -16,6 +16,7 @@ type MonthMetrics = {
   leadFbB: number; leadFbR: number; leadFbSG: number; leadWaB: number; leadWaR: number; leadWaSG: number
   newOrder: number; newFbSales: number; newWaSales: number
   repeatOrder: number; repeatFbSales: number; repeatWaSales: number
+  bNewSales: number; rNewSales: number; sgNewSales: number; bRepSales: number; rRepSales: number; sgRepSales: number
   newConv: number; repeatConv: number; overallConv: number
   vipOrder: number; vipSales: number
   newAov: number; repeatAov: number; vipAov: number; overallAov: number
@@ -71,11 +72,15 @@ const ROWS: Row[] = [
   { label: 'WA CPL SG', key: 'cplWaSG', fmt: 'rm' },
   { label: '', spacer: true },
   { label: 'New Order', key: 'newOrder', fmt: 'num', bold: true },
-  { label: 'New FB Sales', key: 'newFbSales', fmt: 'rm' },
+  { label: 'New FB Sales (焕肤王)', key: 'bNewSales', fmt: 'rm' },
+  { label: 'New FB Sales (修复)', key: 'rNewSales', fmt: 'rm' },
+  { label: 'New FB Sales (SG)', key: 'sgNewSales', fmt: 'rm' },
   { label: 'New Whatsapp Sales', key: 'newWaSales', fmt: 'rm' },
   { label: '', spacer: true },
   { label: 'Repeat Order', key: 'repeatOrder', fmt: 'num', bold: true },
-  { label: 'Repeat FB Sales', key: 'repeatFbSales', fmt: 'rm' },
+  { label: 'Repeat FB Sales (焕肤王)', key: 'bRepSales', fmt: 'rm' },
+  { label: 'Repeat FB Sales (修复)', key: 'rRepSales', fmt: 'rm' },
+  { label: 'Repeat FB Sales (SG)', key: 'sgRepSales', fmt: 'rm' },
   { label: 'Repeat Whatsapp Sales', key: 'repeatWaSales', fmt: 'rm' },
   { label: 'New Order Conversion Rate %', key: 'newConv', fmt: 'pct' },
   { label: 'Repeat Order Conversion Rate %', key: 'repeatConv', fmt: 'pct' },
