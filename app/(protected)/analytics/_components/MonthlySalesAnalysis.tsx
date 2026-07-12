@@ -146,14 +146,14 @@ export default function MonthlySalesAnalysis() {
         {!selMet || !curMet ? (
           <p className="text-sm text-muted-foreground py-8 text-center">No data.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div>
             <table className="w-full text-sm border-collapse table-fixed">
               <thead>
-                <tr className="bg-muted/50">
-                  <th className="px-4 py-2.5 text-left font-semibold" style={{ width: '34%' }}>Metric</th>
-                  <th className="px-4 py-2.5 text-right font-semibold" style={{ width: '22%' }}>{mlabel(sel)}</th>
-                  <th className="px-4 py-2.5 text-right font-semibold" style={{ width: '22%' }}>Current ({mlabel(curMonth)})</th>
-                  <th className="px-4 py-2.5 text-right font-semibold" style={{ width: '22%' }}>Deviance</th>
+                <tr>
+                  <th className="px-4 py-2.5 text-left font-semibold sticky top-0 z-10 bg-muted" style={{ width: '34%' }}>Metric</th>
+                  <th className="px-4 py-2.5 text-right font-semibold sticky top-0 z-10 bg-muted" style={{ width: '22%' }}>{mlabel(sel)}</th>
+                  <th className="px-4 py-2.5 text-right font-semibold sticky top-0 z-10 bg-muted" style={{ width: '22%' }}>Current ({mlabel(curMonth)})</th>
+                  <th className="px-4 py-2.5 text-right font-semibold sticky top-0 z-10 bg-muted" style={{ width: '22%' }}>Deviance</th>
                 </tr>
               </thead>
               <tbody>

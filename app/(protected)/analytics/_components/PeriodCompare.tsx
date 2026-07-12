@@ -146,14 +146,14 @@ export default function PeriodCompare() {
         ) : isLoading || !data ? (
           <div className="h-40 bg-muted/30 rounded-lg animate-pulse" />
         ) : (
-          <div className="overflow-x-auto">
+          <div>
             <table className="w-full text-sm border-collapse table-fixed">
               <thead>
-                <tr className="bg-muted/50">
-                  <th className="px-4 py-2.5 text-left font-semibold" style={{ width: '34%' }}>Metric</th>
-                  <th className="px-4 py-2.5 text-right font-semibold" style={{ color: '#1C7293', width: '22%' }}>A · {aFrom} → {aTo}</th>
-                  <th className="px-4 py-2.5 text-right font-semibold" style={{ color: '#7E57C2', width: '22%' }}>B · {bFrom} → {bTo}</th>
-                  <th className="px-4 py-2.5 text-right font-semibold" style={{ width: '22%' }}>Deviance</th>
+                <tr>
+                  <th className="px-4 py-2.5 text-left font-semibold sticky top-0 z-10 bg-muted" style={{ width: '34%' }}>Metric</th>
+                  <th className="px-4 py-2.5 text-right font-semibold sticky top-0 z-10 bg-muted" style={{ color: '#1C7293', width: '22%' }}>A · {aFrom} → {aTo}</th>
+                  <th className="px-4 py-2.5 text-right font-semibold sticky top-0 z-10 bg-muted" style={{ color: '#7E57C2', width: '22%' }}>B · {bFrom} → {bTo}</th>
+                  <th className="px-4 py-2.5 text-right font-semibold sticky top-0 z-10 bg-muted" style={{ width: '22%' }}>Deviance</th>
                 </tr>
               </thead>
               <tbody>
