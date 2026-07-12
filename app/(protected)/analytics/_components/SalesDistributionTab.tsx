@@ -134,7 +134,7 @@ export default function SalesDistributionTab({ dateFrom }: { dateFrom?: string; 
         <p className="text-sm font-semibold mb-1">Same month, across years — New vs Repeat</p>
         <p className="text-[11px] text-muted-foreground mb-3">Read across a row to compare the same month year-over-year. % = share of classified WhatsApp sales; RM under.</p>
         <div className="overflow-x-auto">
-          <table className="w-full text-xs border-collapse">
+          <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="bg-muted/50">
                 <th className="px-3 py-2 text-left font-semibold border-r" rowSpan={2}>Month</th>
@@ -158,10 +158,10 @@ export default function SalesDistributionTab({ dateFrom }: { dateFrom?: string; 
                     return (
                       <Fragment key={y}>
                         <td className="px-3 py-1.5 text-right">
-                          {r ? <><span style={{ color: NEW_C }} className="font-medium">{r.newPct.toFixed(1)}%</span><br /><span className="text-[10px] text-muted-foreground">{rm(r.newWa)}</span></> : <span className="text-muted-foreground">—</span>}
+                          {r ? <><span style={{ color: NEW_C }} className="font-medium">{r.newPct.toFixed(1)}%</span><br /><span className="text-sm text-muted-foreground">{rm(r.newWa)}</span></> : <span className="text-muted-foreground">—</span>}
                         </td>
                         <td className="px-3 py-1.5 text-right border-r">
-                          {r ? <><span style={{ color: REP_C }} className="font-medium">{r.repPct.toFixed(1)}%</span><br /><span className="text-[10px] text-muted-foreground">{rm(r.repWa)}</span></> : <span className="text-muted-foreground">—</span>}
+                          {r ? <><span style={{ color: REP_C }} className="font-medium">{r.repPct.toFixed(1)}%</span><br /><span className="text-sm text-muted-foreground">{rm(r.repWa)}</span></> : <span className="text-muted-foreground">—</span>}
                         </td>
                       </Fragment>
                     )
