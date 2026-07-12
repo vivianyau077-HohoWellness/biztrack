@@ -128,14 +128,14 @@ export default function AdLeadPlanner() {
             { name: 'Repair (钻石露)', color: '#c0392b', no: 'rNewOrd', ns: 'rNewSales', ro: 'rRepOrd', rs: 'rRepSales' },
           ].map(pg => (
             <div key={pg.name} className="rounded-lg border overflow-hidden">
-              <div className="px-3 py-2 text-xs font-semibold" style={{ background: pg.color + '15', color: pg.color }}>{pg.name} — actual history by month</div>
-              <table className="w-full text-xs">
+              <div className="px-3 py-2 text-sm font-semibold" style={{ background: pg.color + '15', color: pg.color }}>{pg.name} — actual history by month</div>
+              <table className="w-full text-sm">
                 <thead><tr className="border-b text-muted-foreground">
-                  <th className="px-2 py-1.5 text-left font-medium">Month</th>
-                  <th className="px-2 py-1.5 text-right font-medium">New ord</th>
-                  <th className="px-2 py-1.5 text-right font-medium">New AOV</th>
-                  <th className="px-2 py-1.5 text-right font-medium">Repeat ord</th>
-                  <th className="px-2 py-1.5 text-right font-medium">Repeat AOV</th>
+                  <th className="px-3 py-2 text-left font-medium">Month</th>
+                  <th className="px-3 py-2 text-right font-medium">New ord</th>
+                  <th className="px-3 py-2 text-right font-medium">New AOV</th>
+                  <th className="px-3 py-2 text-right font-medium">Repeat ord</th>
+                  <th className="px-3 py-2 text-right font-medium">Repeat AOV</th>
                 </tr></thead>
                 <tbody>
                   {data.metrics.map(mm => {
@@ -145,11 +145,11 @@ export default function AdLeadPlanner() {
                     const rs = mm[pg.rs as keyof M] as number
                     return (
                       <tr key={mm.month} className={'border-b last:border-0 ' + (mm.month === ref ? 'bg-muted/40 font-medium' : '')}>
-                        <td className="px-2 py-1 text-left">{mlabel(mm.month)}</td>
-                        <td className="px-2 py-1 text-right">{num(no)}</td>
-                        <td className="px-2 py-1 text-right">{no ? rm(ns / no) : '—'}</td>
-                        <td className="px-2 py-1 text-right">{num(ro)}</td>
-                        <td className="px-2 py-1 text-right">{ro ? rm(rs / ro) : '—'}</td>
+                        <td className="px-3 py-2 text-left">{mlabel(mm.month)}</td>
+                        <td className="px-3 py-2 text-right">{num(no)}</td>
+                        <td className="px-3 py-2 text-right">{no ? rm(ns / no) : '—'}</td>
+                        <td className="px-3 py-2 text-right">{num(ro)}</td>
+                        <td className="px-3 py-2 text-right">{ro ? rm(rs / ro) : '—'}</td>
                       </tr>
                     )
                   })}
@@ -161,25 +161,25 @@ export default function AdLeadPlanner() {
 
         {/* Channel allocation */}
         <div className="rounded-lg border overflow-hidden">
-          <div className="px-3 py-2 bg-muted/50 text-xs font-semibold">Channel target (default = historical share × target, editable)</div>
-          <table className="w-full text-xs">
+          <div className="px-3 py-2 bg-muted/50 text-sm font-semibold">Channel target (default = historical share × target, editable)</div>
+          <table className="w-full text-sm">
             <thead><tr className="border-b text-muted-foreground">
-              <th className="px-3 py-1.5 text-left font-medium">Channel</th>
-              <th className="px-3 py-1.5 text-right font-medium">{mlabel(ref)} sales</th>
-              <th className="px-3 py-1.5 text-right font-medium">Share %</th>
-              <th className="px-3 py-1.5 text-right font-medium">Your target</th>
+              <th className="px-3 py-2 text-left font-medium">Channel</th>
+              <th className="px-3 py-2 text-right font-medium">{mlabel(ref)} sales</th>
+              <th className="px-3 py-2 text-right font-medium">Share %</th>
+              <th className="px-3 py-2 text-right font-medium">Your target</th>
             </tr></thead>
             <tbody>
               {CH.map(c => (
                 <tr key={c} className="border-b last:border-0">
-                  <td className="px-3 py-1.5">{c}</td>
-                  <td className="px-3 py-1.5 text-right">{rm(chHist[c])}</td>
-                  <td className="px-3 py-1.5 text-right">{(m.totalSales ? chHist[c] / m.totalSales * 100 : 0).toFixed(1)}%</td>
-                  <td className="px-2 py-1 text-right"><NumIn v={chTarget(c)} set={v => setChTgt(t => ({ ...t, [c]: v }))} /></td>
+                  <td className="px-3 py-2">{c}</td>
+                  <td className="px-3 py-2 text-right">{rm(chHist[c])}</td>
+                  <td className="px-3 py-2 text-right">{(m.totalSales ? chHist[c] / m.totalSales * 100 : 0).toFixed(1)}%</td>
+                  <td className="px-3 py-1.5 text-right"><NumIn v={chTarget(c)} set={v => setChTgt(t => ({ ...t, [c]: v }))} /></td>
                 </tr>
               ))}
-              <tr className="bg-muted/30 font-semibold"><td className="px-3 py-1.5" colSpan={3}>Sum</td>
-                <td className={'px-3 py-1.5 text-right ' + (Math.abs(chSum - tgt) > 1 ? 'text-orange-600' : 'text-green-600')}>{rm(chSum)}</td></tr>
+              <tr className="bg-muted/30 font-semibold"><td className="px-3 py-2" colSpan={3}>Sum</td>
+                <td className={'px-3 py-2 text-right ' + (Math.abs(chSum - tgt) > 1 ? 'text-orange-600' : 'text-green-600')}>{rm(chSum)}</td></tr>
             </tbody>
           </table>
         </div>
