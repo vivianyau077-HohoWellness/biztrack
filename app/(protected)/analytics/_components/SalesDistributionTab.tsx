@@ -158,10 +158,10 @@ export default function SalesDistributionTab({ dateFrom }: { dateFrom?: string; 
                     return (
                       <Fragment key={y}>
                         <td className="px-3 py-1.5 text-right">
-                          {r ? <><span style={{ color: NEW_C }} className="font-medium">{r.newPct.toFixed(1)}%</span><br /><span className="text-sm text-muted-foreground">{rm(r.newWa)}</span></> : <span className="text-muted-foreground">—</span>}
+                          {r ? <><span style={{ color: NEW_C }} className="text-base font-semibold">{rm(r.newWa)}</span><br /><span className="text-xs text-muted-foreground">{r.newPct.toFixed(1)}%</span></> : <span className="text-muted-foreground">—</span>}
                         </td>
                         <td className="px-3 py-1.5 text-right border-r">
-                          {r ? <><span style={{ color: REP_C }} className="font-medium">{r.repPct.toFixed(1)}%</span><br /><span className="text-sm text-muted-foreground">{rm(r.repWa)}</span></> : <span className="text-muted-foreground">—</span>}
+                          {r ? <><span style={{ color: REP_C }} className="text-base font-semibold">{rm(r.repWa)}</span><br /><span className="text-xs text-muted-foreground">{r.repPct.toFixed(1)}%</span></> : <span className="text-muted-foreground">—</span>}
                         </td>
                       </Fragment>
                     )
