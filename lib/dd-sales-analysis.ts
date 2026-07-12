@@ -61,7 +61,7 @@ export type MonthMetrics = {
   totalOrder: number
   fbBeauty: number; fbRepair: number; fbSG: number; whatsapp: number; shopee: number; website: number; lazada: number; others: number
   roas: number; adSpend: number; adFB: number; adWA: number
-  totalLead: number; cpl: number
+  totalLead: number; cpl: number; cplBeauty: number; cplRepair: number; cplSG: number
   newOrder: number; newFbSales: number; newWaSales: number
   repeatOrder: number; repeatFbSales: number; repeatWaSales: number
   newConv: number; repeatConv: number; overallConv: number
@@ -120,8 +120,8 @@ export async function computeDdSalesMatrix() {
     if (inSet(channel, REPAIR_CH)) { x.ordRepair++; if (nr === 'New') { x.rNewOrd++; x.rNewSales += price } else if (nr === 'Repeat') { x.rRepOrd++; x.rRepSales += price } }
   }
 
-  type RB = { adB: number; adR: number; adSG: number; adWA: number; ldB: number; ldR: number; ldSG: number; goal: number; newOrder: number; repeatOrder: number; newSales: number; repeatSales: number }
-  const emptyRB = (): RB => ({ adB: 0, adR: 0, adSG: 0, adWA: 0, ldB: 0, ldR: 0, ldSG: 0, goal: 0, newOrder: 0, repeatOrder: 0, newSales: 0, repeatSales: 0 })
+  type RB = { adB: number; adR: number; adSG: number; adWA: number; ldB: number; ldR: number; ldSG: number; pmB: number; pmR: number; pmSG: number; goal: number; newOrder: number; repeatOrder: number; newSales: number; repeatSales: number }
+  const emptyRB = (): RB => ({ adB: 0, adR: 0, adSG: 0, adWA: 0, ldB: 0, ldR: 0, ldSG: 0, pmB: 0, pmR: 0, pmSG: 0, goal: 0, newOrder: 0, repeatOrder: 0, newSales: 0, repeatSales: 0 })
   const rb = new Map<string, RB>()
   for (const r of reportRecs) {
     const f = r.fields as Record<string, unknown>
@@ -135,6 +135,7 @@ export async function computeDdSalesMatrix() {
     y.ldB += fnum(f['PMed (焕肤王)']) + fnum(f['WA PMed (焕肤王)'])
     y.ldR += fnum(f['PMed (钻石露)']) + fnum(f['WA PMed (钻石露)'])
     y.ldSG += fnum(f['SG Total Pm']) + fnum(f['WA Pmed (SG)'])
+    y.pmB += fnum(f['PMed (焕肤王)']); y.pmR += fnum(f['PMed (钻石露)']); y.pmSG += fnum(f['SG Total Pm'])
     y.newOrder += fnum(f['New Order'])
     y.repeatOrder += fnum(f['Repeat Order'])
     y.newSales += fnum(f['Total New Sales'])
@@ -168,6 +169,7 @@ export async function computeDdSalesMatrix() {
       others: R(x.sales - chSum(x, BEAUTY_CH) - chSum(x, REPAIR_CH) - chSum(x, FBSG_CH) - chSum(x, WA_ALL) - chSum(x, SHOPEE_ALL) - chSum(x, ['Website']) - chSum(x, ['Lazada'])),
       roas: Math.round(div(x.sales, totAd) * 100) / 100, adSpend: R(totAd), adFB: R(adFB), adWA: R(rep.adWA),
       totalLead: R(totLd), cpl: R(div(totAd, totLd)),
+      cplBeauty: R(div(rep.adB, rep.pmB)), cplRepair: R(div(rep.adR, rep.pmR)), cplSG: R(div(rep.adSG, rep.pmSG)),
       newOrder: rep.newOrder, newFbSales: R(x.newFb), newWaSales: R(x.newWa),
       repeatOrder: rep.repeatOrder, repeatFbSales: R(x.repFb), repeatWaSales: R(x.repWa),
       newConv: Math.round(div(rep.newOrder, totLd) * 1000) / 10,

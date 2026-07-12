@@ -122,7 +122,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
   }
 
   // ── Report-level ────────────────────────────────
-  let adB = 0, adR = 0, adSG = 0, adWA = 0, ldB = 0, ldR = 0, ldSG = 0
+  let adB = 0, adR = 0, adSG = 0, adWA = 0, ldB = 0, ldR = 0, ldSG = 0, pmB = 0, pmR = 0, pmSG = 0
   let repNewOrder = 0, repRepeatOrder = 0, repNewSales = 0, repRepeatSales = 0, goal = 0
   for (const set of reportSets) {
     for (const r of set as Rec[]) {
@@ -143,6 +143,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
       const ldSum = pageLdB + pageLdR + pageLdSG
       if (ldSum > 0) { ldB += pageLdB; ldR += pageLdR; ldSG += pageLdSG }
       else { ldB += fnum(f['PMed']) }
+      pmB += fnum(f['PMed (焕肤王)']); pmR += fnum(f['PMed (钻石露)']); pmSG += fnum(f['SG Total Pm'])
       repNewOrder += fnum(f['New Order'])
       repRepeatOrder += fnum(f['Repeat Order'])
       repNewSales += fnum(f['Total New Sales']) || fnum(f['Total New Sales Amount'])
@@ -169,6 +170,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
     others: R(sales - chSum(BEAUTY_CH) - chSum(REPAIR_CH) - chSum(FBSG_CH) - chSum(WA_ALL) - chSum(SHOPEE_ALL) - chSum(['Website']) - chSum(['Lazada'])),
     roas: Math.round(div(sales, totAd) * 100) / 100, adSpend: R(totAd), adFB: R(adFB), adWA: R(adWA),
     totalLead: R(totLd), cpl: R(div(totAd, totLd)),
+    cplBeauty: R(div(adB, pmB)), cplRepair: R(div(adR, pmR)), cplSG: R(div(adSG, pmSG)),
     newOrder: repNewOrder, newFbSales: R(newFb), newWaSales: R(newWa),
     repeatOrder: repRepeatOrder, repeatFbSales: R(repFb), repeatWaSales: R(repWa),
     newConv: Math.round(div(repNewOrder, totLd) * 1000) / 10,

@@ -11,7 +11,8 @@ type MonthMetrics = {
   totalOrder: number
   fbBeauty: number; fbRepair: number; fbSG: number; whatsapp: number; shopee: number; website: number; lazada: number; others: number
   roas: number; adSpend: number; adFB: number; adWA: number
-  totalLead: number; cpl: number
+  totalLead: number; cpl: number; cplBeauty: number; cplRepair: number; cplSG: number
+  leadBeauty: number; leadRepair: number; leadSGn: number
   newOrder: number; newFbSales: number; newWaSales: number
   repeatOrder: number; repeatFbSales: number; repeatWaSales: number
   newConv: number; repeatConv: number; overallConv: number
@@ -53,8 +54,13 @@ const ROWS: Row[] = [
   { label: 'WhatsApp Ads Spend (SST)', key: 'adWA', fmt: 'rm' },
   { label: 'Total Ad Spend (SST)', key: 'adSpend', fmt: 'rm', bold: true },
   { label: '', spacer: true },
-  { label: 'Total Lead', key: 'totalLead', fmt: 'num' },
-  { label: 'CPL', key: 'cpl', fmt: 'rm' },
+  { label: 'Total Lead', key: 'totalLead', fmt: 'num', bold: true },
+  { label: 'Lead (焕肤王)', key: 'leadBeauty', fmt: 'num' },
+  { label: 'Lead (修复)', key: 'leadRepair', fmt: 'num' },
+  { label: 'Lead SG', key: 'leadSGn', fmt: 'num' },
+  { label: 'CPL (焕肤王)', key: 'cplBeauty', fmt: 'rm' },
+  { label: 'CPL (修复)', key: 'cplRepair', fmt: 'rm' },
+  { label: 'CPL SG', key: 'cplSG', fmt: 'rm' },
   { label: '', spacer: true },
   { label: 'New Order', key: 'newOrder', fmt: 'num', bold: true },
   { label: 'New FB Sales', key: 'newFbSales', fmt: 'rm' },
