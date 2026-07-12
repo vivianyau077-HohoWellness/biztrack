@@ -122,19 +122,21 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
   }
 
   // ── Report-level ────────────────────────────────
-  let adB = 0, adR = 0, adSG = 0, ldB = 0, ldR = 0, ldSG = 0
+  let adB = 0, adR = 0, adSG = 0, adWA = 0, ldB = 0, ldR = 0, ldSG = 0
   let repNewOrder = 0, repRepeatOrder = 0, repNewSales = 0, repRepeatSales = 0, goal = 0
   for (const set of reportSets) {
     for (const r of set as Rec[]) {
       const f = r.fields
       const ms = fdateMs(f['Date'])
       if (!inRange(ms)) continue
-      const pageAdB = fnum(f['FB Ad Cost After SST (焕肤王) (RM)']) + fnum(f['WA Ads Spend (焕肤王) (SST)'])
-      const pageAdR = fnum(f['FB Ad Cost After SST (钻石露) (RM)']) + fnum(f['WA Ads Spend (钻石露) (SST)'])
-      const pageAdSG = fnum(f['Total Ad Spent SG']) + fnum(f['WA Ads Spend (SG) (SST)'])
+      // FB ad spend after SST only (excludes WhatsApp ad spend), matching the Lark dashboard.
+      const pageAdB = fnum(f['FB Ad Cost After SST (焕肤王) (RM)'])
+      const pageAdR = fnum(f['FB Ad Cost After SST (钻石露) (RM)'])
+      const pageAdSG = fnum(f['Total Ad Spent SG'])
       const pageSum = pageAdB + pageAdR + pageAdSG
       if (pageSum > 0) { adB += pageAdB; adR += pageAdR; adSG += pageAdSG }
       else { adB += fnum(f['Total Ads Cost Spent']) || fnum(f['Total Ad Spend (RM)']) } // 2025: total only → put in adB bucket
+      adWA += fnum(f['WA Ads Spend (焕肤王) (SST)']) + fnum(f['WA Ads Spend (钻石露) (SST)']) + fnum(f['WA Ads Spend (SG) (SST)'])
       const pageLdB = fnum(f['PMed (焕肤王)']) + fnum(f['WA PMed (焕肤王)'])
       const pageLdR = fnum(f['PMed (钻石露)']) + fnum(f['WA PMed (钻石露)'])
       const pageLdSG = fnum(f['SG Total Pm']) + fnum(f['WA Pmed (SG)'])
@@ -150,7 +152,8 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
     }
   }
 
-  const totAd = adB + adR + adSG
+  const adFB = adB + adR + adSG
+  const totAd = adFB + adWA
   const totLd = ldB + ldR + ldSG
   const R = (n: number) => Math.round(n)
   const div = (a: number, b: number) => (b ? a / b : 0)
@@ -164,7 +167,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
     whatsapp: R(chSum(WA_ALL)), shopee: R(chSum(SHOPEE_ALL)),
     website: R(chSum(['Website'])), lazada: R(chSum(['Lazada'])),
     others: R(sales - chSum(BEAUTY_CH) - chSum(REPAIR_CH) - chSum(FBSG_CH) - chSum(WA_ALL) - chSum(SHOPEE_ALL) - chSum(['Website']) - chSum(['Lazada'])),
-    roas: Math.round(div(sales, totAd) * 100) / 100, adSpend: R(totAd),
+    roas: Math.round(div(sales, totAd) * 100) / 100, adSpend: R(totAd), adFB: R(adFB), adWA: R(adWA),
     totalLead: R(totLd), cpl: R(div(totAd, totLd)),
     newOrder: repNewOrder, newFbSales: R(newFb), newWaSales: R(newWa),
     repeatOrder: repRepeatOrder, repeatFbSales: R(repFb), repeatWaSales: R(repWa),

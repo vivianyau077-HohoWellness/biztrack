@@ -60,7 +60,7 @@ export type MonthMetrics = {
   totalSales: number
   totalOrder: number
   fbBeauty: number; fbRepair: number; fbSG: number; whatsapp: number; shopee: number; website: number; lazada: number; others: number
-  roas: number; adSpend: number
+  roas: number; adSpend: number; adFB: number; adWA: number
   totalLead: number; cpl: number
   newOrder: number; newFbSales: number; newWaSales: number
   repeatOrder: number; repeatFbSales: number; repeatWaSales: number
@@ -120,17 +120,18 @@ export async function computeDdSalesMatrix() {
     if (inSet(channel, REPAIR_CH)) { x.ordRepair++; if (nr === 'New') { x.rNewOrd++; x.rNewSales += price } else if (nr === 'Repeat') { x.rRepOrd++; x.rRepSales += price } }
   }
 
-  type RB = { adB: number; adR: number; adSG: number; ldB: number; ldR: number; ldSG: number; goal: number; newOrder: number; repeatOrder: number; newSales: number; repeatSales: number }
-  const emptyRB = (): RB => ({ adB: 0, adR: 0, adSG: 0, ldB: 0, ldR: 0, ldSG: 0, goal: 0, newOrder: 0, repeatOrder: 0, newSales: 0, repeatSales: 0 })
+  type RB = { adB: number; adR: number; adSG: number; adWA: number; ldB: number; ldR: number; ldSG: number; goal: number; newOrder: number; repeatOrder: number; newSales: number; repeatSales: number }
+  const emptyRB = (): RB => ({ adB: 0, adR: 0, adSG: 0, adWA: 0, ldB: 0, ldR: 0, ldSG: 0, goal: 0, newOrder: 0, repeatOrder: 0, newSales: 0, repeatSales: 0 })
   const rb = new Map<string, RB>()
   for (const r of reportRecs) {
     const f = r.fields as Record<string, unknown>
     const m = monthOf(fdateMs(f['Date']))
     if (!m) continue
     const y = rb.get(m) ?? emptyRB()
-    y.adB += fnum(f['FB Ad Cost After SST (焕肤王) (RM)']) + fnum(f['WA Ads Spend (焕肤王) (SST)'])
-    y.adR += fnum(f['FB Ad Cost After SST (钻石露) (RM)']) + fnum(f['WA Ads Spend (钻石露) (SST)'])
-    y.adSG += fnum(f['Total Ad Spent SG']) + fnum(f['WA Ads Spend (SG) (SST)'])
+    y.adB += fnum(f['FB Ad Cost After SST (焕肤王) (RM)'])
+    y.adR += fnum(f['FB Ad Cost After SST (钻石露) (RM)'])
+    y.adSG += fnum(f['Total Ad Spent SG'])
+    y.adWA += fnum(f['WA Ads Spend (焕肤王) (SST)']) + fnum(f['WA Ads Spend (钻石露) (SST)']) + fnum(f['WA Ads Spend (SG) (SST)'])
     y.ldB += fnum(f['PMed (焕肤王)']) + fnum(f['WA PMed (焕肤王)'])
     y.ldR += fnum(f['PMed (钻石露)']) + fnum(f['WA PMed (钻石露)'])
     y.ldSG += fnum(f['SG Total Pm']) + fnum(f['WA Pmed (SG)'])
@@ -154,7 +155,8 @@ export async function computeDdSalesMatrix() {
   const metrics: MonthMetrics[] = months.map(m => {
     const x = ob.get(m) ?? getOB(m)
     const rep = rb.get(m) ?? emptyRB()
-    const totAd = rep.adB + rep.adR + rep.adSG
+    const adFB = rep.adB + rep.adR + rep.adSG
+    const totAd = adFB + rep.adWA
     const totLd = rep.ldB + rep.ldR + rep.ldSG
     return {
       month: m,
@@ -164,7 +166,7 @@ export async function computeDdSalesMatrix() {
       whatsapp: R(chSum(x, WA_ALL)), shopee: R(chSum(x, SHOPEE_ALL)),
       website: R(chSum(x, ['Website'])), lazada: R(chSum(x, ['Lazada'])),
       others: R(x.sales - chSum(x, BEAUTY_CH) - chSum(x, REPAIR_CH) - chSum(x, FBSG_CH) - chSum(x, WA_ALL) - chSum(x, SHOPEE_ALL) - chSum(x, ['Website']) - chSum(x, ['Lazada'])),
-      roas: Math.round(div(x.sales, totAd) * 100) / 100, adSpend: R(totAd),
+      roas: Math.round(div(x.sales, totAd) * 100) / 100, adSpend: R(totAd), adFB: R(adFB), adWA: R(rep.adWA),
       totalLead: R(totLd), cpl: R(div(totAd, totLd)),
       newOrder: rep.newOrder, newFbSales: R(x.newFb), newWaSales: R(x.newWa),
       repeatOrder: rep.repeatOrder, repeatFbSales: R(x.repFb), repeatWaSales: R(x.repWa),

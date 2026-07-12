@@ -178,7 +178,7 @@ export async function computeDd2025Months(): Promise<MonthMetrics[]> {
       fbBeauty: R(fbBeauty), fbRepair: R(fbRepair), fbSG: 0,
       whatsapp: R(whatsapp), shopee: R(shopee), website: R(website), lazada: R(lazada),
       others: R(x.sales - fbBeauty - fbRepair - whatsapp - shopee - website - lazada),
-      roas: Math.round(div(x.sales, rep.ad) * 100) / 100, adSpend: R(rep.ad),
+      roas: Math.round(div(x.sales, rep.ad) * 100) / 100, adSpend: R(rep.ad), adFB: R(rep.ad), adWA: 0,
       totalLead: R(rep.lead), cpl: R(div(rep.ad, rep.lead)),
       newOrder: rep.newOrder, newFbSales: R(x.newFb), newWaSales: R(x.newWa),
       repeatOrder: rep.repeatOrder, repeatFbSales: R(x.repFb), repeatWaSales: R(x.repWa),

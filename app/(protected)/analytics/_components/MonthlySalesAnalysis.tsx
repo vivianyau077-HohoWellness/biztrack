@@ -10,7 +10,7 @@ type MonthMetrics = {
   totalSales: number
   totalOrder: number
   fbBeauty: number; fbRepair: number; fbSG: number; whatsapp: number; shopee: number; website: number; lazada: number; others: number
-  roas: number; adSpend: number
+  roas: number; adSpend: number; adFB: number; adWA: number
   totalLead: number; cpl: number
   newOrder: number; newFbSales: number; newWaSales: number
   repeatOrder: number; repeatFbSales: number; repeatWaSales: number
@@ -49,7 +49,9 @@ const ROWS: Row[] = [
   { label: 'Lazada', key: 'lazada', fmt: 'rm' },
   { label: 'Others (Staff/Change/etc.)', key: 'others', fmt: 'rm' },
   { label: 'ROAS', key: 'roas', fmt: 'x' },
-  { label: 'Ads Spend', key: 'adSpend', fmt: 'rm' },
+  { label: 'FB Ads Spend (SST)', key: 'adFB', fmt: 'rm' },
+  { label: 'WhatsApp Ads Spend (SST)', key: 'adWA', fmt: 'rm' },
+  { label: 'Total Ad Spend (SST)', key: 'adSpend', fmt: 'rm', bold: true },
   { label: '', spacer: true },
   { label: 'Total Lead', key: 'totalLead', fmt: 'num' },
   { label: 'CPL', key: 'cpl', fmt: 'rm' },
