@@ -126,13 +126,13 @@ export default function PeriodCompare() {
           <div className="h-40 bg-muted/30 rounded-lg animate-pulse" />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
+            <table className="w-full text-sm border-collapse table-fixed">
               <thead>
                 <tr className="bg-muted/50">
-                  <th className="px-3 py-2 text-left font-semibold min-w-[220px]">Metric</th>
-                  <th className="px-3 py-2 text-right font-semibold w-36" style={{ color: '#1C7293' }}>A · {aFrom} → {aTo}</th>
-                  <th className="px-3 py-2 text-right font-semibold w-36" style={{ color: '#7E57C2' }}>B · {bFrom} → {bTo}</th>
-                  <th className="px-3 py-2 text-right font-semibold w-32">Deviance</th>
+                  <th className="px-4 py-2.5 text-left font-semibold" style={{ width: '34%' }}>Metric</th>
+                  <th className="px-4 py-2.5 text-right font-semibold" style={{ color: '#1C7293', width: '22%' }}>A · {aFrom} → {aTo}</th>
+                  <th className="px-4 py-2.5 text-right font-semibold" style={{ color: '#7E57C2', width: '22%' }}>B · {bFrom} → {bTo}</th>
+                  <th className="px-4 py-2.5 text-right font-semibold" style={{ width: '22%' }}>Deviance</th>
                 </tr>
               </thead>
               <tbody>
@@ -144,10 +144,10 @@ export default function PeriodCompare() {
                   const dev = aV - bV
                   return (
                     <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
-                      <td className={'px-3 py-1.5 text-left ' + (row.bold ? 'font-semibold' : 'text-muted-foreground')}>{row.label}</td>
-                      <td className={'px-3 py-1.5 text-right whitespace-nowrap ' + (row.bold ? 'font-semibold' : '')}>{fmtVal(aV, row.fmt)}</td>
-                      <td className={'px-3 py-1.5 text-right whitespace-nowrap ' + (row.bold ? 'font-semibold' : '')}>{fmtVal(bV, row.fmt)}</td>
-                      <td className={cn('px-3 py-1.5 text-right whitespace-nowrap font-medium', dev > 0 ? 'text-green-600' : dev < 0 ? 'text-orange-600' : 'text-muted-foreground')}>
+                      <td className={'px-4 py-2 text-left ' + (row.bold ? 'font-semibold text-base' : 'text-muted-foreground')}>{row.label}</td>
+                      <td className={'px-4 py-2 text-right whitespace-nowrap ' + (row.bold ? 'font-semibold text-base' : '')}>{fmtVal(aV, row.fmt)}</td>
+                      <td className={'px-4 py-2 text-right whitespace-nowrap ' + (row.bold ? 'font-semibold text-base' : '')}>{fmtVal(bV, row.fmt)}</td>
+                      <td className={cn('px-4 py-2 text-right whitespace-nowrap font-medium', dev > 0 ? 'text-green-600' : dev < 0 ? 'text-orange-600' : 'text-muted-foreground')}>
                         {(dev > 0 ? '+' : '') + fmtVal(dev, row.fmt)}
                       </td>
                     </tr>

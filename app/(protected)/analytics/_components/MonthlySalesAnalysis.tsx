@@ -126,13 +126,13 @@ export default function MonthlySalesAnalysis() {
           <p className="text-sm text-muted-foreground py-8 text-center">No data.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
+            <table className="w-full text-sm border-collapse table-fixed">
               <thead>
                 <tr className="bg-muted/50">
-                  <th className="px-3 py-2 text-left font-semibold min-w-[220px]">Metric</th>
-                  <th className="px-3 py-2 text-right font-semibold w-32">{mlabel(sel)}</th>
-                  <th className="px-3 py-2 text-right font-semibold w-32">Current ({mlabel(curMonth)})</th>
-                  <th className="px-3 py-2 text-right font-semibold w-32">Deviance</th>
+                  <th className="px-4 py-2.5 text-left font-semibold" style={{ width: '34%' }}>Metric</th>
+                  <th className="px-4 py-2.5 text-right font-semibold" style={{ width: '22%' }}>{mlabel(sel)}</th>
+                  <th className="px-4 py-2.5 text-right font-semibold" style={{ width: '22%' }}>Current ({mlabel(curMonth)})</th>
+                  <th className="px-4 py-2.5 text-right font-semibold" style={{ width: '22%' }}>Deviance</th>
                 </tr>
               </thead>
               <tbody>
@@ -144,10 +144,10 @@ export default function MonthlySalesAnalysis() {
                   const dev = curV - selV // current − selected: negative = current behind
                   return (
                     <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
-                      <td className={'px-3 py-1.5 text-left ' + (row.bold ? 'font-semibold' : 'text-muted-foreground')}>{row.label}</td>
-                      <td className={'px-3 py-1.5 text-right whitespace-nowrap ' + (row.bold ? 'font-semibold' : '')}>{fmtVal(selV, row.fmt)}</td>
-                      <td className={'px-3 py-1.5 text-right whitespace-nowrap ' + (row.bold ? 'font-semibold' : '')}>{fmtVal(curV, row.fmt)}</td>
-                      <td className={cn('px-3 py-1.5 text-right whitespace-nowrap font-medium', dev < 0 ? 'text-orange-600' : dev > 0 ? 'text-green-600' : 'text-muted-foreground')}>
+                      <td className={'px-4 py-2 text-left ' + (row.bold ? 'font-semibold text-base' : 'text-muted-foreground')}>{row.label}</td>
+                      <td className={'px-4 py-2 text-right whitespace-nowrap ' + (row.bold ? 'font-semibold text-base' : '')}>{fmtVal(selV, row.fmt)}</td>
+                      <td className={'px-4 py-2 text-right whitespace-nowrap ' + (row.bold ? 'font-semibold text-base' : '')}>{fmtVal(curV, row.fmt)}</td>
+                      <td className={cn('px-4 py-2 text-right whitespace-nowrap font-medium', dev < 0 ? 'text-orange-600' : dev > 0 ? 'text-green-600' : 'text-muted-foreground')}>
                         {(dev > 0 ? '+' : '') + fmtVal(dev, row.fmt)}
                       </td>
                     </tr>
