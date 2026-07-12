@@ -37,7 +37,8 @@ function fdateMs(v: unknown): number {
   if (o && typeof o.value === 'number') return o.value
   return 0
 }
-const monthOf = (ms: number) => (ms ? new Date(ms).toISOString().slice(0, 7) : '')
+// Lark dates are stored at Malaysia-time (UTC+8) midnight; shift +8h before bucketing.
+const monthOf = (ms: number) => (ms ? new Date(ms + 28800000).toISOString().slice(0, 7) : '')
 
 // The LIST API returns formula single-select as option IDs — map them to names.
 const NR_MAP: Record<string, string> = { optjM3sSTm: 'New', opt5RJTkyU: 'Repeat', opt1A1ejf7: 'No' }

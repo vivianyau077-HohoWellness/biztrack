@@ -75,8 +75,9 @@ const inSet = (c: string, s: string[]) => s.includes(c)
 type Rec = { fields: Record<string, unknown> }
 
 export async function computeDdRange(fromISO: string, toISO: string): Promise<MonthMetrics> {
-  const fromMs = new Date(fromISO + 'T00:00:00Z').getTime()
-  const toMs = new Date(toISO + 'T00:00:00Z').getTime() + 86399999
+  // Lark stores dates at Malaysia-time (UTC+8) midnight, so use MYT day bounds.
+  const fromMs = new Date(fromISO + 'T00:00:00+08:00').getTime()
+  const toMs = new Date(toISO + 'T00:00:00+08:00').getTime() + 86399999
   const inRange = (ms: number) => ms >= fromMs && ms <= toMs
   const y0 = fromISO.slice(0, 4), y1 = toISO.slice(0, 4)
   const need25 = y0 <= '2025' || y1 <= '2025' || (y0 <= '2025' && y1 >= '2025')

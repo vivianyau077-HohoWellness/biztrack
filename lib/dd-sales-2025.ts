@@ -37,7 +37,8 @@ function fdateMs(v: unknown): number {
   if (o && typeof o.value === 'number') return o.value
   return 0
 }
-const monthOf = (ms: number) => (ms ? new Date(ms).toISOString().slice(0, 7) : '')
+// Lark dates are stored at Malaysia-time (UTC+8) midnight; shift +8h before bucketing.
+const monthOf = (ms: number) => (ms ? new Date(ms + 28800000).toISOString().slice(0, 7) : '')
 
 // N/R may arrive as option-id, or as a name with mixed case ("New"/"repeat"/"no").
 const NR_ID: Record<string, string> = {
