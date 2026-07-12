@@ -122,7 +122,8 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
   }
 
   // ── Report-level ────────────────────────────────
-  let adB = 0, adR = 0, adSG = 0, adWA = 0, ldB = 0, ldR = 0, ldSG = 0, pmB = 0, pmR = 0, pmSG = 0
+  let adB = 0, adR = 0, adSG = 0, adWA = 0, ldB = 0, ldR = 0, ldSG = 0, pmB = 0, pmR = 0, pmSG = 0, wpmB = 0, wpmR = 0, wpmSG = 0
+  let waAdB = 0, waAdR = 0, waAdSG = 0
   let repNewOrder = 0, repRepeatOrder = 0, repNewSales = 0, repRepeatSales = 0, goal = 0
   for (const set of reportSets) {
     for (const r of set as Rec[]) {
@@ -136,6 +137,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
       const pageSum = pageAdB + pageAdR + pageAdSG
       if (pageSum > 0) { adB += pageAdB; adR += pageAdR; adSG += pageAdSG }
       else { adB += fnum(f['Total Ads Cost Spent']) || fnum(f['Total Ad Spend (RM)']) } // 2025: total only → put in adB bucket
+      waAdB += fnum(f['WA Ads Spend (焕肤王) (SST)']); waAdR += fnum(f['WA Ads Spend (钻石露) (SST)']); waAdSG += fnum(f['WA Ads Spend (SG) (SST)'])
       adWA += fnum(f['WA Ads Spend (焕肤王) (SST)']) + fnum(f['WA Ads Spend (钻石露) (SST)']) + fnum(f['WA Ads Spend (SG) (SST)'])
       const pageLdB = fnum(f['PMed (焕肤王)']) + fnum(f['WA PMed (焕肤王)'])
       const pageLdR = fnum(f['PMed (钻石露)']) + fnum(f['WA PMed (钻石露)'])
@@ -144,6 +146,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
       if (ldSum > 0) { ldB += pageLdB; ldR += pageLdR; ldSG += pageLdSG }
       else { ldB += fnum(f['PMed']) }
       pmB += fnum(f['PMed (焕肤王)']); pmR += fnum(f['PMed (钻石露)']); pmSG += fnum(f['SG Total Pm'])
+      wpmB += fnum(f['WA PMed (焕肤王)']); wpmR += fnum(f['WA PMed (钻石露)']); wpmSG += fnum(f['WA Pmed (SG)'])
       repNewOrder += fnum(f['New Order'])
       repRepeatOrder += fnum(f['Repeat Order'])
       repNewSales += fnum(f['Total New Sales']) || fnum(f['Total New Sales Amount'])
@@ -171,6 +174,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
     roas: Math.round(div(sales, totAd) * 100) / 100, adSpend: R(totAd), adFB: R(adFB), adWA: R(adWA),
     totalLead: R(totLd), cpl: R(div(totAd, totLd)),
     cplBeauty: R(div(adB, pmB)), cplRepair: R(div(adR, pmR)), cplSG: R(div(adSG, pmSG)),
+    cplWaB: R(div(waAdB, wpmB)), cplWaR: R(div(waAdR, wpmR)), cplWaSG: R(div(waAdSG, wpmSG)),
     newOrder: repNewOrder, newFbSales: R(newFb), newWaSales: R(newWa),
     repeatOrder: repRepeatOrder, repeatFbSales: R(repFb), repeatWaSales: R(repWa),
     newConv: Math.round(div(repNewOrder, totLd) * 1000) / 10,
@@ -182,6 +186,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
     goal: R(goal),
     adBeauty: R(adB), adRepair: R(adR), adSGspend: R(adSG),
     leadBeauty: R(ldB), leadRepair: R(ldR), leadSGn: R(ldSG),
+    leadFbB: R(pmB), leadFbR: R(pmR), leadFbSG: R(pmSG), leadWaB: R(wpmB), leadWaR: R(wpmR), leadWaSG: R(wpmSG),
     ordBeauty, ordRepair,
     bNewOrd, bNewSales: R(bNewSales), bRepOrd, bRepSales: R(bRepSales),
     rNewOrd, rNewSales: R(rNewSales), rRepOrd, rRepSales: R(rRepSales),
