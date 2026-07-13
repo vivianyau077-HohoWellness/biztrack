@@ -116,9 +116,13 @@ export default function PeriodCompare() {
     queryFn: async () => {
       const qs = new URLSearchParams({ aFrom, aTo, bFrom, bTo }).toString()
       const res = await fetch('/api/analytics/period-compare?' + qs)
-      if (!res.ok) throw new Error('Failed to load')
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.error || ('HTTP ' + res.status))
+      }
       return res.json() as Promise<Resp>
     },
+    retry: false,
   })
 
   const dateInput = (v: string, set: (s: string) => void) => (
@@ -142,7 +146,7 @@ export default function PeriodCompare() {
         </div>
 
         {error ? (
-          <p className="text-sm text-red-600">Failed to load comparison.</p>
+          <p className="text-sm text-red-600">Failed to load comparison — {(error as Error).message}</p>
         ) : isLoading || !data ? (
           <div className="h-40 bg-muted/30 rounded-lg animate-pulse" />
         ) : (

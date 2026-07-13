@@ -111,12 +111,16 @@ export default function MonthlySalesAnalysis() {
     queryKey: ['sales-matrix'],
     queryFn: async () => {
       const res = await fetch('/api/analytics/sales-analysis')
-      if (!res.ok) throw new Error('Failed to load')
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.error || ('HTTP ' + res.status))
+      }
       return res.json() as Promise<Data>
     },
+    retry: false,
   })
 
-  if (error) return <p className="text-sm text-red-600">Failed to load sales analysis.</p>
+  if (error) return <p className="text-sm text-red-600">Failed to load sales analysis — {(error as Error).message}</p>
   if (isLoading || !data) return <div className="h-40 bg-muted/30 rounded-lg animate-pulse" />
 
   const months = data.months
