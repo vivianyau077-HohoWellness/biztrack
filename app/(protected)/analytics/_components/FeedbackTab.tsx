@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
-import { DD_FEEDBACK } from '@/lib/dd-feedback-data'
+import { DD_FEEDBACK, type FeedbackRow } from '@/lib/dd-feedback-data'
 import { ThumbsUp, ThumbsDown, MessageSquare, X, Package } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { cn } from '@/lib/utils'
@@ -121,13 +121,14 @@ export default function FeedbackTab({ selectedBrand, dateFrom, dateTo }: Props) 
     const mm = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s || '')
     return mm ? new Date(+mm[3], +mm[2] - 1, +mm[1]).getTime() : null
   }
-  const toItem = (r: { text: string; date: string; product: string; who: string; duration: string; effect: string }): GoodItem => ({
+  const toItem = (r: FeedbackRow): GoodItem => ({
     brand: r.product, comment: r.text, date: parseD(r.date), who: r.who, duration: r.duration, tags: r.effect, contact: '', attachments: [],
   })
+  const toBad = (r: FeedbackRow): BadItem => ({ ...toItem(r), issue: r.issue })
   const data = {
-    good: DD_FEEDBACK.filter(r => r.type.includes('好评')).map(toItem),
-    bad: [] as BadItem[],
-    keyword: DD_FEEDBACK.filter(r => r.type.includes('字眼')).map(toItem),
+    good: DD_FEEDBACK.filter(r => r.cat === 'good').map(toItem),
+    bad: DD_FEEDBACK.filter(r => r.cat === 'bad').map(toBad),
+    keyword: DD_FEEDBACK.filter(r => r.cat === 'keyword').map(toItem),
   }
   const isLoading = false
   const error: Error | null = null
