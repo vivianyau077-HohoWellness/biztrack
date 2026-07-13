@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
+import { DD_FEEDBACK } from '@/lib/dd-feedback-data'
 import { ThumbsUp, ThumbsDown, MessageSquare, X, Package } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { cn } from '@/lib/utils'
@@ -116,19 +116,21 @@ export default function FeedbackTab({ selectedBrand, dateFrom, dateTo }: Props) 
   const [view, setView] = useState<'good' | 'bad' | 'keyword'>('good')
   const [topicFilter, setTopicFilter] = useState<string | null>(null)
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['feedback'],
-    queryFn: async () => {
-      const res = await fetch('/api/feedback')
-      if (!res.ok) {
-        let msg = `Failed to load feedback (HTTP ${res.status})`
-        try { const j = await res.json(); if (j?.error) msg = j.error } catch { /* ignore */ }
-        throw new Error(msg)
-      }
-      return res.json() as Promise<{ good: GoodItem[]; bad: BadItem[]; keyword: GoodItem[] }>
-    },
-    retry: 1,
+  // Data now comes from the uploaded feedback export (bundled), not live Lark.
+  const parseD = (s: string): number | null => {
+    const mm = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s || '')
+    return mm ? new Date(+mm[3], +mm[2] - 1, +mm[1]).getTime() : null
+  }
+  const toItem = (r: { text: string; date: string; product: string; who: string; duration: string; effect: string }): GoodItem => ({
+    brand: r.product, comment: r.text, date: parseD(r.date), who: r.who, duration: r.duration, tags: r.effect, contact: '', attachments: [],
   })
+  const data = {
+    good: DD_FEEDBACK.filter(r => r.type.includes('好评')).map(toItem),
+    bad: [] as BadItem[],
+    keyword: DD_FEEDBACK.filter(r => r.type.includes('字眼')).map(toItem),
+  }
+  const isLoading = false
+  const error: Error | null = null
 
   const matchBrand = (b: string) =>
     !selectedBrand || (b ?? '').toLowerCase() === selectedBrand.toLowerCase()
