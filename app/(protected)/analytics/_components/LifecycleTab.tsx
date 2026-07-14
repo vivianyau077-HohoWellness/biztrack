@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Sparkles, Repeat2, Crown, AlertTriangle, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { PageLifecycle } from '@/lib/dd-customer-insights'
 
 interface Props {
   projectId: string
@@ -32,6 +33,41 @@ const META: Record<SegKey, { label: string; icon: typeof Sparkles; color: string
   churn:  { label: 'Churn customer reactivation', icon: AlertTriangle, color: '#ef4444', bar: 'bg-red-500',    ring: 'ring-red-500',    desc: 'No order in over 1 year · reactivation' },
 }
 
+function PageLifecycleBlock({ title, color, lc, loading }: { title: string; color: string; lc?: PageLifecycle; loading: boolean }) {
+  const total = lc?.total ?? 0
+  const items: { key: SegKey; count: number }[] = [
+    { key: 'new', count: lc?.onboarding ?? 0 },
+    { key: 'active', count: lc?.recurring ?? 0 },
+    { key: 'loyal', count: lc?.loyal ?? 0 },
+    { key: 'churn', count: lc?.churn ?? 0 },
+  ]
+  return (
+    <div>
+      <h3 className="text-sm font-semibold mb-2" style={{ color }}>{title} — {total.toLocaleString()} customers</h3>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {items.map(({ key, count }) => {
+          const m = META[key]; const Icon = m.icon
+          const pct = total ? Math.round((count / total) * 100) : 0
+          return (
+            <div key={key} className="rounded-xl border p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-muted-foreground">{m.label}</span>
+                <Icon className="h-4 w-4 shrink-0" style={{ color: m.color }} />
+              </div>
+              <div className="text-2xl font-bold" style={{ color: m.color }}>{loading ? '…' : count.toLocaleString()}</div>
+              <div className="mt-1 flex items-center gap-2">
+                <div className="flex-1 bg-muted rounded h-1.5 overflow-hidden"><div className={m.bar + ' h-1.5'} style={{ width: pct + '%' }} /></div>
+                <span className="text-xs font-medium text-muted-foreground">{pct}%</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-2 leading-tight">{m.desc}</p>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function fmtRM(n: number) { return `RM ${Math.round(n).toLocaleString()}` }
 function csvCell(v: string | number) {
   const s = String(v ?? '')
@@ -48,6 +84,18 @@ export default function LifecycleTab({ projectId, selectedBrand, dateFrom, dateT
       if (!res.ok) throw new Error('Failed to load lifecycle')
       return res.json() as Promise<{ total: number; from: string; to: string; segments: Segment[] }>
     },
+  })
+
+  // Per-FB-page lifecycle from live Lark (DD only)
+  const { data: lcData, isLoading: lcLoading, error: lcError } = useQuery({
+    queryKey: ['dd-lifecycle'],
+    enabled: selectedBrand === 'DD',
+    queryFn: async () => {
+      const res = await fetch('/api/analytics/dd-lifecycle')
+      if (!res.ok) { const b = await res.json().catch(() => null); throw new Error(b?.error || ('HTTP ' + res.status)) }
+      return res.json() as Promise<{ beauty: PageLifecycle; repair: PageLifecycle }>
+    },
+    retry: false,
   })
 
   const segments = data?.segments ?? []
@@ -68,6 +116,18 @@ export default function LifecycleTab({ projectId, selectedBrand, dateFrom, dateT
   }
 
   if (error) return <p className="text-sm text-red-600">Failed to load lifecycle data.</p>
+
+  // DD: show two SEPARATE per-page blocks (Beauty 焕肤王 / Repair 钻石露), live from Lark.
+  if (selectedBrand === 'DD') {
+    if (lcError) return <p className="text-sm text-red-600">Failed to load per-page lifecycle — {(lcError as Error).message}</p>
+    return (
+      <div className="space-y-6">
+        <p className="text-xs text-muted-foreground">Per FB page · deduped by phone · live from Lark · each customer in one segment only · churn = no order in over 1 year.</p>
+        <PageLifecycleBlock title="Beauty (焕肤王)" color="#22a06b" lc={lcData?.beauty} loading={lcLoading} />
+        <PageLifecycleBlock title="Repair (钻石露)" color="#c0392b" lc={lcData?.repair} loading={lcLoading} />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">

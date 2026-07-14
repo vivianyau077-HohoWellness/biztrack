@@ -120,3 +120,57 @@ export async function computeDdCustomerInsights(): Promise<DdCustomerInsights> {
     asOf: new Date().toISOString(),
   }
 }
+
+// ── Per-FB-page customer lifecycle (Beauty 焕肤王 vs Repair 钻石露) ──────────────
+const BEAUTY_CH = ['【焕肤】FB ', '【焕肤】FB', '焕肤 ENG']
+const REPAIR_CH = ['【伤口】FB', '伤口 ENG', '新【钻石露】FB']
+
+export type PageLifecycle = { onboarding: number; recurring: number; loyal: number; churn: number; total: number }
+
+type PC = { orders: number; spend: number; lastMs: number; vip: boolean }
+
+async function lifecycleForChannels(
+  recAll: Array<Array<{ fields: Record<string, unknown> }>>,
+  channels: string[],
+): Promise<PageLifecycle> {
+  const oneYearAgo = Date.now() - 365 * 86400000
+  const map = new Map<string, PC>()
+  for (const set of recAll) {
+    for (const r of set) {
+      const f = r.fields
+      const channel = fstr(f['Channel'])
+      if (!channels.includes(channel)) continue
+      const ms = fdateMs(f['Date'])
+      const price = fnum(f['Total Price']) || fnum(f['Price Domain'])
+      let key = normPhone(fstr(f['Phone Number']))
+      if (!key) { const nm = fstr(f['Name']); if (nm) key = 'name:' + nm.toLowerCase(); else continue }
+      let c = map.get(key)
+      if (!c) { c = { orders: 0, spend: 0, lastMs: 0, vip: false }; map.set(key, c) }
+      c.orders++
+      c.spend += price
+      if (ms > c.lastMs) c.lastMs = ms
+      if (isActiveVip(f['AUTO VIP'])) c.vip = true
+    }
+  }
+  let onboarding = 0, recurring = 0, loyal = 0, churn = 0
+  for (const c of Array.from(map.values())) {
+    if (c.lastMs && c.lastMs < oneYearAgo) { churn++; continue }
+    if (c.orders <= 1) { onboarding++; continue }
+    if (c.spend >= 700 || c.vip) loyal++
+    else recurring++
+  }
+  return { onboarding, recurring, loyal, churn, total: map.size }
+}
+
+export async function computeDdLifecycleByPage(): Promise<{ beauty: PageLifecycle; repair: PageLifecycle }> {
+  const [ord26, daily25] = await Promise.all([
+    fetchLarkRecords(T_ORDER_26, APP),
+    fetchLarkRecords(T_DAILY_25, APP),
+  ])
+  const sets = [ord26 as Array<{ fields: Record<string, unknown> }>, daily25 as Array<{ fields: Record<string, unknown> }>]
+  const [beauty, repair] = await Promise.all([
+    lifecycleForChannels(sets, BEAUTY_CH),
+    lifecycleForChannels(sets, REPAIR_CH),
+  ])
+  return { beauty, repair }
+}
