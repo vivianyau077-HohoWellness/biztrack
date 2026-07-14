@@ -181,10 +181,25 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
     }
   }
 
-  const { data, isLoading } = useQuery({
+  const { data: rawData, isLoading } = useQuery({
     queryKey: ['customer-insights', projectId, dateFrom, dateTo, phoneOnly],
     queryFn: () => fetchCustomerInsights(projectId, dateFrom, dateTo, phoneOnly),
   })
+
+  // Live-from-Lark DD customer metrics — overrides the 5 headline cards for DD,
+  // because the Supabase sync misses recent orders (so those cards showed 0).
+  const { data: liveDd } = useQuery({
+    queryKey: ['dd-customer-insights'],
+    enabled: selectedBrand === 'DD',
+    queryFn: async () => {
+      const res = await fetch('/api/analytics/dd-customer-insights')
+      if (!res.ok) throw new Error('Failed')
+      return res.json() as Promise<{ totalCustomers: number; newThisMonth: number; retentionCount: number; vipCount: number; customerLtv: number }>
+    },
+  })
+  const data = (selectedBrand === 'DD' && liveDd && rawData)
+    ? { ...rawData, total: liveDd.totalCustomers, newThisMonth: liveDd.newThisMonth, retentionCount: liveDd.retentionCount, vipCount: liveDd.vipCount, customerLtv: liveDd.customerLtv }
+    : rawData
 
   // Churn customers (all-time, deduped by phone) — independent of date range, scoped by brand
   const { data: churn } = useQuery({
