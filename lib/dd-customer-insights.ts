@@ -127,7 +127,7 @@ const REPAIR_CH = ['【伤口】FB', '伤口 ENG', '新【钻石露】FB']
 
 export type PageLifecycle = { onboarding: number; recurring: number; loyal: number; churn: number; total: number }
 
-type PC = { orders: number; spend: number; lastMs: number; vip: boolean }
+type PC = { orders: number; maxOrder: number; lastMs: number; vip: boolean }
 
 async function lifecycleForChannels(
   recAll: Array<Array<{ fields: Record<string, unknown> }>>,
@@ -145,9 +145,9 @@ async function lifecycleForChannels(
       let key = normPhone(fstr(f['Phone Number']))
       if (!key) { const nm = fstr(f['Name']); if (nm) key = 'name:' + nm.toLowerCase(); else continue }
       let c = map.get(key)
-      if (!c) { c = { orders: 0, spend: 0, lastMs: 0, vip: false }; map.set(key, c) }
+      if (!c) { c = { orders: 0, maxOrder: 0, lastMs: 0, vip: false }; map.set(key, c) }
       c.orders++
-      c.spend += price
+      if (price > c.maxOrder) c.maxOrder = price
       if (ms > c.lastMs) c.lastMs = ms
       if (isActiveVip(f['AUTO VIP'])) c.vip = true
     }
@@ -156,7 +156,7 @@ async function lifecycleForChannels(
   for (const c of Array.from(map.values())) {
     if (c.lastMs && c.lastMs < oneYearAgo) { churn++; continue }
     if (c.orders <= 1) { onboarding++; continue }
-    if (c.spend >= 700 || c.vip) loyal++
+    if (c.maxOrder >= 700 || c.vip) loyal++
     else recurring++
   }
   return { onboarding, recurring, loyal, churn, total: map.size }

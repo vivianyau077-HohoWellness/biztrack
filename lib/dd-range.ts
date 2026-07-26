@@ -160,7 +160,8 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
 
   const adFB = adB + adR + adSG
   const totAd = adFB + adWA
-  const totLd = ldB + ldR + ldSG
+  // Total Lead = FB PM only (焕肤 + 修复 + SG) = "No. of Total Messages + SG Total Pm". WA PM excluded.
+  const totLd = pmB + pmR + pmSG
   const R = (n: number) => Math.round(n)
   const div = (a: number, b: number) => (b ? a / b : 0)
   const chSum = (names: string[]) => names.reduce((s, n) => s + (ch.get(n) ?? 0), 0)
