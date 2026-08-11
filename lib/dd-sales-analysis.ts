@@ -162,8 +162,9 @@ export async function computeDdSalesMatrix() {
   const metrics: MonthMetrics[] = months.map(m => {
     const x = ob.get(m) ?? getOB(m)
     const rep = rb.get(m) ?? emptyRB()
+    // adFB here = Lark "Total Ad Spent" (FB Ad Cost After SST already includes WhatsApp ads).
     const adFB = rep.adB + rep.adR + rep.adSG
-    const totAd = adFB + rep.adWA
+    const totAd = adFB
     // Total Lead = FB PM (焕肤 + 修复 + SG) = Lark "No. of Total Messages" (which already includes SG). WA PM excluded.
     const totLd = rep.pmB + rep.pmR + rep.pmSG
     return {
@@ -174,9 +175,9 @@ export async function computeDdSalesMatrix() {
       whatsapp: R(chSum(x, WA_ALL)), shopee: R(chSum(x, SHOPEE_ALL)),
       website: R(chSum(x, ['Website'])), lazada: R(chSum(x, ['Lazada'])),
       others: R(x.sales - chSum(x, BEAUTY_CH) - chSum(x, REPAIR_CH) - chSum(x, FBSG_CH) - chSum(x, WA_ALL) - chSum(x, SHOPEE_ALL) - chSum(x, ['Website']) - chSum(x, ['Lazada'])),
-      roas: Math.round(div(x.sales, totAd) * 100) / 100, adSpend: R(totAd), adFB: R(adFB), adWA: R(rep.adWA),
+      roas: Math.round(div(x.sales, totAd) * 100) / 100, adSpend: R(totAd), adFB: R(adFB - rep.adWA), adWA: R(rep.adWA),
       totalLead: R(totLd), cpl: R(div(totAd, totLd)),
-      cplBeauty: R(div(rep.adB, rep.pmB - rep.wpmB)), cplRepair: R(div(rep.adR, rep.pmR - rep.wpmR)), cplSG: R(div(rep.adSG, rep.pmSG - rep.wpmSG)),
+      cplBeauty: R(div(rep.adB - rep.waAdB, rep.pmB - rep.wpmB)), cplRepair: R(div(rep.adR - rep.waAdR, rep.pmR - rep.wpmR)), cplSG: R(div(rep.adSG - rep.waAdSG, rep.pmSG - rep.wpmSG)),
       cplWaB: R(div(rep.waAdB, rep.wpmB)), cplWaR: R(div(rep.waAdR, rep.wpmR)), cplWaSG: R(div(rep.waAdSG, rep.wpmSG)),
       newOrder: rep.newOrder, newFbSales: R(x.newFb), newWaSales: R(x.newWa),
       repeatOrder: rep.repeatOrder, repeatFbSales: R(x.repFb), repeatWaSales: R(x.repWa),
@@ -187,7 +188,7 @@ export async function computeDdSalesMatrix() {
       newAov: R(div(rep.newSales, rep.newOrder)), repeatAov: R(div(rep.repeatSales, rep.repeatOrder)),
       vipAov: R(div(x.vipSales, x.vipOrder)), overallAov: R(div(x.sales, x.orders)),
       goal: R(rep.goal),
-      adBeauty: R(rep.adB), adRepair: R(rep.adR), adSGspend: R(rep.adSG),
+      adBeauty: R(rep.adB - rep.waAdB), adRepair: R(rep.adR - rep.waAdR), adSGspend: R(rep.adSG - rep.waAdSG),
       leadBeauty: R(rep.ldB), leadRepair: R(rep.ldR), leadSGn: R(rep.ldSG),
       leadFbB: R(rep.pmB - rep.wpmB), leadFbR: R(rep.pmR - rep.wpmR), leadFbSG: R(rep.pmSG - rep.wpmSG), leadWaB: R(rep.wpmB), leadWaR: R(rep.wpmR), leadWaSG: R(rep.wpmSG),
       ordBeauty: x.ordBeauty, ordRepair: x.ordRepair,

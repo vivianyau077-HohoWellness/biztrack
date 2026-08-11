@@ -158,8 +158,9 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
     }
   }
 
+  // adFB here = Lark "Total Ad Spent" (FB Ad Cost After SST already includes WhatsApp ads).
   const adFB = adB + adR + adSG
-  const totAd = adFB + adWA
+  const totAd = adFB
   // Total Lead = FB PM (焕肤 + 修复 + SG) = Lark "No. of Total Messages" (already includes SG). WA PM excluded.
   const totLd = pmB + pmR + pmSG
   const R = (n: number) => Math.round(n)
@@ -174,9 +175,9 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
     whatsapp: R(chSum(WA_ALL)), shopee: R(chSum(SHOPEE_ALL)),
     website: R(chSum(['Website'])), lazada: R(chSum(['Lazada'])),
     others: R(sales - chSum(BEAUTY_CH) - chSum(REPAIR_CH) - chSum(FBSG_CH) - chSum(WA_ALL) - chSum(SHOPEE_ALL) - chSum(['Website']) - chSum(['Lazada'])),
-    roas: Math.round(div(sales, totAd) * 100) / 100, adSpend: R(totAd), adFB: R(adFB), adWA: R(adWA),
+    roas: Math.round(div(sales, totAd) * 100) / 100, adSpend: R(totAd), adFB: R(adFB - adWA), adWA: R(adWA),
     totalLead: R(totLd), cpl: R(div(totAd, totLd)),
-    cplBeauty: R(div(adB, pmB - wpmB)), cplRepair: R(div(adR, pmR - wpmR)), cplSG: R(div(adSG, pmSG - wpmSG)),
+    cplBeauty: R(div(adB - waAdB, pmB - wpmB)), cplRepair: R(div(adR - waAdR, pmR - wpmR)), cplSG: R(div(adSG - waAdSG, pmSG - wpmSG)),
     cplWaB: R(div(waAdB, wpmB)), cplWaR: R(div(waAdR, wpmR)), cplWaSG: R(div(waAdSG, wpmSG)),
     newOrder: repNewOrder, newFbSales: R(newFb), newWaSales: R(newWa),
     repeatOrder: repRepeatOrder, repeatFbSales: R(repFb), repeatWaSales: R(repWa),
@@ -187,7 +188,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
     newAov: R(div(repNewSales, repNewOrder)), repeatAov: R(div(repRepeatSales, repRepeatOrder)),
     vipAov: R(div(vipSales, vipOrder)), overallAov: R(div(sales, orders)),
     goal: R(goal),
-    adBeauty: R(adB), adRepair: R(adR), adSGspend: R(adSG),
+    adBeauty: R(adB - waAdB), adRepair: R(adR - waAdR), adSGspend: R(adSG - waAdSG),
     leadBeauty: R(ldB), leadRepair: R(ldR), leadSGn: R(ldSG),
     leadFbB: R(pmB - wpmB), leadFbR: R(pmR - wpmR), leadFbSG: R(pmSG - wpmSG), leadWaB: R(wpmB), leadWaR: R(wpmR), leadWaSG: R(wpmSG),
     ordBeauty, ordRepair,
