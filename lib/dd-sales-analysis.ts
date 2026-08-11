@@ -164,8 +164,8 @@ export async function computeDdSalesMatrix() {
     const rep = rb.get(m) ?? emptyRB()
     const adFB = rep.adB + rep.adR + rep.adSG
     const totAd = adFB + rep.adWA
-    // Total Lead = FB PM + WA PM (all six sub-rows), so the parts sum exactly to the total.
-    const totLd = rep.pmB + rep.pmR + rep.pmSG + rep.wpmB + rep.wpmR + rep.wpmSG
+    // Total Lead = FB PM (焕肤 + 修复 + SG) = Lark "No. of Total Messages" (which already includes SG). WA PM excluded.
+    const totLd = rep.pmB + rep.pmR + rep.pmSG
     return {
       month: m,
       totalSales: R(x.sales),
@@ -176,7 +176,7 @@ export async function computeDdSalesMatrix() {
       others: R(x.sales - chSum(x, BEAUTY_CH) - chSum(x, REPAIR_CH) - chSum(x, FBSG_CH) - chSum(x, WA_ALL) - chSum(x, SHOPEE_ALL) - chSum(x, ['Website']) - chSum(x, ['Lazada'])),
       roas: Math.round(div(x.sales, totAd) * 100) / 100, adSpend: R(totAd), adFB: R(adFB), adWA: R(rep.adWA),
       totalLead: R(totLd), cpl: R(div(totAd, totLd)),
-      cplBeauty: R(div(rep.adB, rep.pmB)), cplRepair: R(div(rep.adR, rep.pmR)), cplSG: R(div(rep.adSG, rep.pmSG)),
+      cplBeauty: R(div(rep.adB, rep.pmB - rep.wpmB)), cplRepair: R(div(rep.adR, rep.pmR - rep.wpmR)), cplSG: R(div(rep.adSG, rep.pmSG - rep.wpmSG)),
       cplWaB: R(div(rep.waAdB, rep.wpmB)), cplWaR: R(div(rep.waAdR, rep.wpmR)), cplWaSG: R(div(rep.waAdSG, rep.wpmSG)),
       newOrder: rep.newOrder, newFbSales: R(x.newFb), newWaSales: R(x.newWa),
       repeatOrder: rep.repeatOrder, repeatFbSales: R(x.repFb), repeatWaSales: R(x.repWa),
@@ -189,7 +189,7 @@ export async function computeDdSalesMatrix() {
       goal: R(rep.goal),
       adBeauty: R(rep.adB), adRepair: R(rep.adR), adSGspend: R(rep.adSG),
       leadBeauty: R(rep.ldB), leadRepair: R(rep.ldR), leadSGn: R(rep.ldSG),
-      leadFbB: R(rep.pmB), leadFbR: R(rep.pmR), leadFbSG: R(rep.pmSG), leadWaB: R(rep.wpmB), leadWaR: R(rep.wpmR), leadWaSG: R(rep.wpmSG),
+      leadFbB: R(rep.pmB - rep.wpmB), leadFbR: R(rep.pmR - rep.wpmR), leadFbSG: R(rep.pmSG - rep.wpmSG), leadWaB: R(rep.wpmB), leadWaR: R(rep.wpmR), leadWaSG: R(rep.wpmSG),
       ordBeauty: x.ordBeauty, ordRepair: x.ordRepair,
       bNewOrd: x.bNewOrd, bNewSales: R(x.bNewSales), bRepOrd: x.bRepOrd, bRepSales: R(x.bRepSales),
       rNewOrd: x.rNewOrd, rNewSales: R(x.rNewSales), rRepOrd: x.rRepOrd, rRepSales: R(x.rRepSales),

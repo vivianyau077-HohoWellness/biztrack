@@ -160,8 +160,8 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
 
   const adFB = adB + adR + adSG
   const totAd = adFB + adWA
-  // Total Lead = FB PM + WA PM (all six sub-rows), so the parts sum exactly to the total.
-  const totLd = pmB + pmR + pmSG + wpmB + wpmR + wpmSG
+  // Total Lead = FB PM (焕肤 + 修复 + SG) = Lark "No. of Total Messages" (already includes SG). WA PM excluded.
+  const totLd = pmB + pmR + pmSG
   const R = (n: number) => Math.round(n)
   const div = (a: number, b: number) => (b ? a / b : 0)
   const chSum = (names: string[]) => names.reduce((s, n) => s + (ch.get(n) ?? 0), 0)
@@ -176,7 +176,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
     others: R(sales - chSum(BEAUTY_CH) - chSum(REPAIR_CH) - chSum(FBSG_CH) - chSum(WA_ALL) - chSum(SHOPEE_ALL) - chSum(['Website']) - chSum(['Lazada'])),
     roas: Math.round(div(sales, totAd) * 100) / 100, adSpend: R(totAd), adFB: R(adFB), adWA: R(adWA),
     totalLead: R(totLd), cpl: R(div(totAd, totLd)),
-    cplBeauty: R(div(adB, pmB)), cplRepair: R(div(adR, pmR)), cplSG: R(div(adSG, pmSG)),
+    cplBeauty: R(div(adB, pmB - wpmB)), cplRepair: R(div(adR, pmR - wpmR)), cplSG: R(div(adSG, pmSG - wpmSG)),
     cplWaB: R(div(waAdB, wpmB)), cplWaR: R(div(waAdR, wpmR)), cplWaSG: R(div(waAdSG, wpmSG)),
     newOrder: repNewOrder, newFbSales: R(newFb), newWaSales: R(newWa),
     repeatOrder: repRepeatOrder, repeatFbSales: R(repFb), repeatWaSales: R(repWa),
@@ -189,7 +189,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
     goal: R(goal),
     adBeauty: R(adB), adRepair: R(adR), adSGspend: R(adSG),
     leadBeauty: R(ldB), leadRepair: R(ldR), leadSGn: R(ldSG),
-    leadFbB: R(pmB), leadFbR: R(pmR), leadFbSG: R(pmSG), leadWaB: R(wpmB), leadWaR: R(wpmR), leadWaSG: R(wpmSG),
+    leadFbB: R(pmB - wpmB), leadFbR: R(pmR - wpmR), leadFbSG: R(pmSG - wpmSG), leadWaB: R(wpmB), leadWaR: R(wpmR), leadWaSG: R(wpmSG),
     ordBeauty, ordRepair,
     bNewOrd, bNewSales: R(bNewSales), bRepOrd, bRepSales: R(bRepSales),
     rNewOrd, rNewSales: R(rNewSales), rRepOrd, rRepSales: R(rRepSales),
