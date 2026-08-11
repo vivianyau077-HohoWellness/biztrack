@@ -164,8 +164,8 @@ export async function computeDdSalesMatrix() {
     const rep = rb.get(m) ?? emptyRB()
     const adFB = rep.adB + rep.adR + rep.adSG
     const totAd = adFB + rep.adWA
-    // Total Lead = FB PM only (焕肤 + 修复 + SG) = "No. of Total Messages + SG Total Pm". WA PM excluded.
-    const totLd = rep.pmB + rep.pmR + rep.pmSG
+    // Total Lead = FB PM + WA PM (all six sub-rows), so the parts sum exactly to the total.
+    const totLd = rep.pmB + rep.pmR + rep.pmSG + rep.wpmB + rep.wpmR + rep.wpmSG
     return {
       month: m,
       totalSales: R(x.sales),
