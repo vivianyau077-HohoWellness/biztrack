@@ -47,9 +47,43 @@ export interface LarkRecord {
  * @param appToken - The base app token (defaults to DD base for backward compatibility)
  * @param modifiedAfter - Unix timestamp in milliseconds; if provided, only fetch records modified after this time
  */
+// Short-lived cache + in-flight de-dupe so multiple endpoints reading the same
+// big table (order/daily/report) within a request burst only hit Lark once.
+// Avoids rate-limits / timeouts when several dashboards load at the same time.
+const _recCache = new Map<string, { at: number; data: LarkRecord[] }>()
+const _recInflight = new Map<string, Promise<LarkRecord[]>>()
+const REC_TTL_MS = 120_000
+
 export async function fetchLarkRecords(
   tableId: string,
   appToken: string = 'S8XXb8PT2a82ouslzQWjBaYap2g',
+  modifiedAfter?: number
+): Promise<LarkRecord[]> {
+  const cacheable = modifiedAfter == null
+  const cacheKey = appToken + ':' + tableId
+  if (cacheable) {
+    const hit = _recCache.get(cacheKey)
+    if (hit && Date.now() - hit.at < REC_TTL_MS) return hit.data
+    const inflight = _recInflight.get(cacheKey)
+    if (inflight) return inflight
+  }
+
+  const run = fetchLarkRecordsUncached(tableId, appToken, modifiedAfter)
+  if (!cacheable) return run
+
+  _recInflight.set(cacheKey, run)
+  try {
+    const data = await run
+    _recCache.set(cacheKey, { at: Date.now(), data })
+    return data
+  } finally {
+    _recInflight.delete(cacheKey)
+  }
+}
+
+async function fetchLarkRecordsUncached(
+  tableId: string,
+  appToken: string,
   modifiedAfter?: number
 ): Promise<LarkRecord[]> {
   const all: LarkRecord[] = []
