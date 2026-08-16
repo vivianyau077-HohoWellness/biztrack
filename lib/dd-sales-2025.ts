@@ -72,6 +72,7 @@ type Bucket = {
   ch: Map<string, number>
   newFb: number; newWa: number; repFb: number; repWa: number
   vipOrder: number; vipSales: number
+  newVipOrder: number; newVipSales: number; repVipOrder: number; repVipSales: number
   ordBeauty: number; ordRepair: number
   bNewOrd: number; bNewSales: number; bRepOrd: number; bRepSales: number
   rNewOrd: number; rNewSales: number; rRepOrd: number; rRepSales: number
@@ -93,7 +94,7 @@ export async function computeDd2025Months(): Promise<MonthMetrics[]> {
   const getB = (m: string) => {
     let x = ob.get(m)
     if (!x) {
-      x = { sales: 0, orders: 0, ch: new Map(), newFb: 0, newWa: 0, repFb: 0, repWa: 0, vipOrder: 0, vipSales: 0, ordBeauty: 0, ordRepair: 0, bNewOrd: 0, bNewSales: 0, bRepOrd: 0, bRepSales: 0, rNewOrd: 0, rNewSales: 0, rRepOrd: 0, rRepSales: 0 }
+      x = { sales: 0, orders: 0, ch: new Map(), newFb: 0, newWa: 0, repFb: 0, repWa: 0, vipOrder: 0, vipSales: 0, newVipOrder: 0, newVipSales: 0, repVipOrder: 0, repVipSales: 0, ordBeauty: 0, ordRepair: 0, bNewOrd: 0, bNewSales: 0, bRepOrd: 0, bRepSales: 0, rNewOrd: 0, rNewSales: 0, rRepOrd: 0, rRepSales: 0 }
       ob.set(m, x)
     }
     return x
@@ -113,7 +114,11 @@ export async function computeDd2025Months(): Promise<MonthMetrics[]> {
     const isWa = inSet(channel, WA_ALL)
     if (nr === 'New') { if (isFb) x.newFb += price; if (isWa) x.newWa += price }
     else if (nr === 'Repeat') { if (isFb) x.repFb += price; if (isWa) x.repWa += price }
-    if (isActiveVip(f['AUTO VIP'])) { x.vipOrder++; x.vipSales += price }
+    if (isActiveVip(f['AUTO VIP'])) {
+      x.vipOrder++; x.vipSales += price
+      if (nr === 'New') { x.newVipOrder++; x.newVipSales += price }
+      else if (nr === 'Repeat') { x.repVipOrder++; x.repVipSales += price }
+    }
     if (inSet(channel, BEAUTY_CH)) { x.ordBeauty++; if (nr === 'New') { x.bNewOrd++; x.bNewSales += price } else if (nr === 'Repeat') { x.bRepOrd++; x.bRepSales += price } }
     if (inSet(channel, REPAIR_CH)) { x.ordRepair++; if (nr === 'New') { x.rNewOrd++; x.rNewSales += price } else if (nr === 'Repeat') { x.rRepOrd++; x.rRepSales += price } }
   }
@@ -188,6 +193,8 @@ export async function computeDd2025Months(): Promise<MonthMetrics[]> {
       repeatConv: Math.round(div(rep.repeatOrder, rep.lead) * 1000) / 10,
       overallConv: Math.round(div(x.orders, rep.lead) * 1000) / 10,
       vipOrder: x.vipOrder, vipSales: R(x.vipSales),
+      newVipOrder: x.newVipOrder, newVipSales: R(x.newVipSales), repVipOrder: x.repVipOrder, repVipSales: R(x.repVipSales),
+      newVipAov: R(div(x.newVipSales, x.newVipOrder)), repVipAov: R(div(x.repVipSales, x.repVipOrder)),
       newAov: R(div(rep.newSales, rep.newOrder)), repeatAov: R(div(rep.repeatSales, rep.repeatOrder)),
       vipAov: R(div(x.vipSales, x.vipOrder)), overallAov: R(div(x.sales, x.orders)),
       goal: 0,

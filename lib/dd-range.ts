@@ -99,6 +99,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
   let newFb = 0, newWa = 0, repFb = 0, repWa = 0
   let ordNewOrder = 0, ordNewSales = 0, ordRepeatOrder = 0, ordRepeatSales = 0
   let vipOrder = 0, vipSales = 0
+  let newVipOrder = 0, newVipSales = 0, repVipOrder = 0, repVipSales = 0
   let ordBeauty = 0, ordRepair = 0
   let bNewOrd = 0, bNewSales = 0, bRepOrd = 0, bRepSales = 0
   let rNewOrd = 0, rNewSales = 0, rRepOrd = 0, rRepSales = 0
@@ -116,14 +117,20 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
       ch.set(channel || '(unknown)', (ch.get(channel || '(unknown)') ?? 0) + price)
       const isFb = inSet(channel, FB_ALL), isWa = inSet(channel, WA_ALL)
       const isVipRow = isVip(f['AUTO VIP'])
-      // Repeat excludes VIP orders (VIP counted only in its own row, no double-count)
+      // New / Repeat both EXCLUDE VIP orders (VIP counted only in its own row).
+      // So New(non-VIP) + Repeat(non-VIP) + VIP = total orders, no double-count.
+      const isNew = nr === 'New' && !isVipRow
       const isRepeat = nr === 'Repeat' && !isVipRow
-      if (nr === 'New') { ordNewOrder++; ordNewSales += price; if (isFb) newFb += price; if (isWa) newWa += price }
+      if (isNew) { ordNewOrder++; ordNewSales += price; if (isFb) newFb += price; if (isWa) newWa += price }
       else if (isRepeat) { ordRepeatOrder++; ordRepeatSales += price; if (isFb) repFb += price; if (isWa) repWa += price }
-      if (isVipRow) { vipOrder++; vipSales += price }
-      if (inSet(channel, BEAUTY_CH)) { ordBeauty++; if (nr === 'New') { bNewOrd++; bNewSales += price } else if (isRepeat) { bRepOrd++; bRepSales += price } }
-      if (inSet(channel, REPAIR_CH)) { ordRepair++; if (nr === 'New') { rNewOrd++; rNewSales += price } else if (isRepeat) { rRepOrd++; rRepSales += price } }
-      if (inSet(channel, FBSG_CH)) { if (nr === 'New') sgNewSales += price; else if (isRepeat) sgRepSales += price }
+      if (isVipRow) {
+        vipOrder++; vipSales += price
+        if (nr === 'New') { newVipOrder++; newVipSales += price }
+        else if (nr === 'Repeat') { repVipOrder++; repVipSales += price }
+      }
+      if (inSet(channel, BEAUTY_CH)) { ordBeauty++; if (isNew) { bNewOrd++; bNewSales += price } else if (isRepeat) { bRepOrd++; bRepSales += price } }
+      if (inSet(channel, REPAIR_CH)) { ordRepair++; if (isNew) { rNewOrd++; rNewSales += price } else if (isRepeat) { rRepOrd++; rRepSales += price } }
+      if (inSet(channel, FBSG_CH)) { if (isNew) sgNewSales += price; else if (isRepeat) sgRepSales += price }
     }
   }
 
@@ -189,6 +196,8 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
     repeatConv: Math.round(div(ordRepeatOrder, totLd) * 1000) / 10,
     overallConv: Math.round(div(orders, totLd) * 1000) / 10,
     vipOrder, vipSales: R(vipSales),
+    newVipOrder, newVipSales: R(newVipSales), repVipOrder, repVipSales: R(repVipSales),
+    newVipAov: R(div(newVipSales, newVipOrder)), repVipAov: R(div(repVipSales, repVipOrder)),
     newAov: R(div(ordNewSales, ordNewOrder)), repeatAov: R(div(ordRepeatSales, ordRepeatOrder)),
     vipAov: R(div(vipSales, vipOrder)), overallAov: R(div(sales, orders)),
     goal: R(goal),

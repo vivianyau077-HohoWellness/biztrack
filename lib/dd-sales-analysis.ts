@@ -66,6 +66,8 @@ export type MonthMetrics = {
   repeatOrder: number; repeatFbSales: number; repeatWaSales: number
   newConv: number; repeatConv: number; overallConv: number
   vipOrder: number; vipSales: number
+  newVipOrder: number; newVipSales: number; repVipOrder: number; repVipSales: number
+  newVipAov: number; repVipAov: number
   newAov: number; repeatAov: number; vipAov: number; overallAov: number
   goal: number
   adBeauty: number; adRepair: number; adSGspend: number
@@ -91,6 +93,7 @@ export async function computeDdSalesMatrix() {
     newOrder: number; newSales: number; repeatOrder: number; repeatSales: number
     newFb: number; newWa: number; repFb: number; repWa: number
     vipOrder: number; vipSales: number
+    newVipOrder: number; newVipSales: number; repVipOrder: number; repVipSales: number
     ordBeauty: number; ordRepair: number
     bNewOrd: number; bNewSales: number; bRepOrd: number; bRepSales: number
     rNewOrd: number; rNewSales: number; rRepOrd: number; rRepSales: number
@@ -99,7 +102,7 @@ export async function computeDdSalesMatrix() {
   const ob = new Map<string, OB>()
   const getOB = (m: string) => {
     let x = ob.get(m)
-    if (!x) { x = { sales: 0, orders: 0, ch: new Map(), newOrder: 0, newSales: 0, repeatOrder: 0, repeatSales: 0, newFb: 0, newWa: 0, repFb: 0, repWa: 0, vipOrder: 0, vipSales: 0, ordBeauty: 0, ordRepair: 0, bNewOrd: 0, bNewSales: 0, bRepOrd: 0, bRepSales: 0, rNewOrd: 0, rNewSales: 0, rRepOrd: 0, rRepSales: 0, sgNewSales: 0, sgRepSales: 0 }; ob.set(m, x) }
+    if (!x) { x = { sales: 0, orders: 0, ch: new Map(), newOrder: 0, newSales: 0, repeatOrder: 0, repeatSales: 0, newFb: 0, newWa: 0, repFb: 0, repWa: 0, vipOrder: 0, vipSales: 0, newVipOrder: 0, newVipSales: 0, repVipOrder: 0, repVipSales: 0, ordBeauty: 0, ordRepair: 0, bNewOrd: 0, bNewSales: 0, bRepOrd: 0, bRepSales: 0, rNewOrd: 0, rNewSales: 0, rRepOrd: 0, rRepSales: 0, sgNewSales: 0, sgRepSales: 0 }; ob.set(m, x) }
     return x
   }
 
@@ -117,14 +120,20 @@ export async function computeDdSalesMatrix() {
     x.ch.set(channel || '(unknown)', (x.ch.get(channel || '(unknown)') ?? 0) + price)
     const isFb = inSet(channel, FB_ALL), isWa = inSet(channel, WA_ALL)
     const isVipRow = vip === 'Malaysia VIP' || vip === 'Singapore VIP'
-    // Repeat excludes VIP orders (VIP counted only in its own row, no double-count)
+    // New / Repeat both EXCLUDE VIP orders (VIP counted only in its own row).
+    // So New(non-VIP) + Repeat(non-VIP) + VIP = total orders, no double-count.
+    const isNew = nr === 'New' && !isVipRow
     const isRepeat = nr === 'Repeat' && !isVipRow
-    if (nr === 'New') { x.newOrder++; x.newSales += price; if (isFb) x.newFb += price; if (isWa) x.newWa += price }
+    if (isNew) { x.newOrder++; x.newSales += price; if (isFb) x.newFb += price; if (isWa) x.newWa += price }
     else if (isRepeat) { x.repeatOrder++; x.repeatSales += price; if (isFb) x.repFb += price; if (isWa) x.repWa += price }
-    if (isVipRow) { x.vipOrder++; x.vipSales += price }
-    if (inSet(channel, BEAUTY_CH)) { x.ordBeauty++; if (nr === 'New') { x.bNewOrd++; x.bNewSales += price } else if (isRepeat) { x.bRepOrd++; x.bRepSales += price } }
-    if (inSet(channel, REPAIR_CH)) { x.ordRepair++; if (nr === 'New') { x.rNewOrd++; x.rNewSales += price } else if (isRepeat) { x.rRepOrd++; x.rRepSales += price } }
-    if (inSet(channel, FBSG_CH)) { if (nr === 'New') x.sgNewSales += price; else if (isRepeat) x.sgRepSales += price }
+    if (isVipRow) {
+      x.vipOrder++; x.vipSales += price
+      if (nr === 'New') { x.newVipOrder++; x.newVipSales += price }
+      else if (nr === 'Repeat') { x.repVipOrder++; x.repVipSales += price }
+    }
+    if (inSet(channel, BEAUTY_CH)) { x.ordBeauty++; if (isNew) { x.bNewOrd++; x.bNewSales += price } else if (isRepeat) { x.bRepOrd++; x.bRepSales += price } }
+    if (inSet(channel, REPAIR_CH)) { x.ordRepair++; if (isNew) { x.rNewOrd++; x.rNewSales += price } else if (isRepeat) { x.rRepOrd++; x.rRepSales += price } }
+    if (inSet(channel, FBSG_CH)) { if (isNew) x.sgNewSales += price; else if (isRepeat) x.sgRepSales += price }
   }
 
   type RB = { adB: number; adR: number; adSG: number; adWA: number; waAdB: number; waAdR: number; waAdSG: number; ldB: number; ldR: number; ldSG: number; pmB: number; pmR: number; pmSG: number; wpmB: number; wpmR: number; wpmSG: number; goal: number; newOrder: number; repeatOrder: number; newSales: number; repeatSales: number }
@@ -188,6 +197,8 @@ export async function computeDdSalesMatrix() {
       repeatConv: Math.round(div(x.repeatOrder, totLd) * 1000) / 10,
       overallConv: Math.round(div(x.orders, totLd) * 1000) / 10,
       vipOrder: x.vipOrder, vipSales: R(x.vipSales),
+      newVipOrder: x.newVipOrder, newVipSales: R(x.newVipSales), repVipOrder: x.repVipOrder, repVipSales: R(x.repVipSales),
+      newVipAov: R(div(x.newVipSales, x.newVipOrder)), repVipAov: R(div(x.repVipSales, x.repVipOrder)),
       newAov: R(div(x.newSales, x.newOrder)), repeatAov: R(div(x.repeatSales, x.repeatOrder)),
       vipAov: R(div(x.vipSales, x.vipOrder)), overallAov: R(div(x.sales, x.orders)),
       goal: R(rep.goal),

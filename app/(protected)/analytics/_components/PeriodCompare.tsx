@@ -79,11 +79,17 @@ const ROWS: Row[] = [
   { label: 'Overall Conversion Rate %', key: 'overallConv', fmt: 'pct' },
   { label: '', spacer: true },
   { label: 'VIP Order', key: 'vipOrder', fmt: 'num', bold: true },
+  { label: '— New VIP Order', key: 'newVipOrder', fmt: 'num' },
+  { label: '— Repeat VIP Order', key: 'repVipOrder', fmt: 'num' },
   { label: 'VIP Sales', key: 'vipSales', fmt: 'rm' },
+  { label: '— New VIP Sales', key: 'newVipSales', fmt: 'rm' },
+  { label: '— Repeat VIP Sales', key: 'repVipSales', fmt: 'rm' },
   { label: '', spacer: true },
   { label: 'New Order AOV', key: 'newAov', fmt: 'rm' },
   { label: 'Repeat Order AOV', key: 'repeatAov', fmt: 'rm' },
   { label: 'VIP AOV', key: 'vipAov', fmt: 'rm' },
+  { label: '— New VIP AOV', key: 'newVipAov', fmt: 'rm' },
+  { label: '— Repeat VIP AOV', key: 'repVipAov', fmt: 'rm' },
   { label: 'Overall AOV', key: 'overallAov', fmt: 'rm', bold: true },
 ]
 
