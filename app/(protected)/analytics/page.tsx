@@ -8,11 +8,10 @@ import { Button } from '@/components/ui/button'
 import { BRANDS, BRAND_COLORS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Upload, Users, Target, RefreshCw, MessageSquare, Workflow, PieChart } from 'lucide-react'
+import { Upload, Users, RefreshCw, MessageSquare, Workflow, PieChart } from 'lucide-react'
 import { subDays, format } from 'date-fns'
 import DateRangePicker from '@/components/shared/DateRangePicker'
 import CustomerInsightsTab from './_components/CustomerInsightsTab'
-import GoalTrackingTab from './_components/GoalTrackingTab'
 import FeedbackTab from './_components/FeedbackTab'
 import LifecycleTab from './_components/LifecycleTab'
 import SalesDistributionTab from './_components/SalesDistributionTab'
@@ -24,7 +23,6 @@ const TAB_CONFIG = [
   { id: 'distribution' as Tab, label: 'Sales Distribution', icon: PieChart },
   { id: 'customers' as Tab, label: 'Customer Insights', icon: Users },
   { id: 'lifecycle' as Tab, label: 'Customer Lifecycle', icon: Workflow },
-  { id: 'goals' as Tab, label: 'Goal Tracking', icon: Target },
   { id: 'feedback' as Tab, label: 'Feedback', icon: MessageSquare },
 ]
 
@@ -183,13 +181,6 @@ export default function AnalyticsPage() {
             dateFrom={dateFrom}
             dateTo={dateTo}
             selectedBrand={selectedBrand}
-          />
-        )}
-        {activeTab === 'goals' && (
-          <GoalTrackingTab
-            projectId={projectId}
-            selectedBrand={selectedBrand}
-            projects={projects}
           />
         )}
         {activeTab === 'lifecycle' && (
