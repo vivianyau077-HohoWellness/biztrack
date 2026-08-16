@@ -185,7 +185,7 @@ export async function computeDdSalesMatrix() {
       repeatConv: Math.round(div(rep.repeatOrder, totLd) * 1000) / 10,
       overallConv: Math.round(div(x.orders, totLd) * 1000) / 10,
       vipOrder: x.vipOrder, vipSales: R(x.vipSales),
-      newAov: R(div(rep.newSales, rep.newOrder)), repeatAov: R(div(rep.repeatSales, rep.repeatOrder)),
+      newAov: R(div(x.newSales, x.newOrder)), repeatAov: R(div(x.repeatSales, x.repeatOrder)),
       vipAov: R(div(x.vipSales, x.vipOrder)), overallAov: R(div(x.sales, x.orders)),
       goal: R(rep.goal),
       adBeauty: R(rep.adB - rep.waAdB), adRepair: R(rep.adR - rep.waAdR), adSGspend: R(rep.adSG - rep.waAdSG),

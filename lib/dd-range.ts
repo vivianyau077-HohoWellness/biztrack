@@ -97,6 +97,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
   let sales = 0, orders = 0
   const ch = new Map<string, number>()
   let newFb = 0, newWa = 0, repFb = 0, repWa = 0
+  let ordNewOrder = 0, ordNewSales = 0, ordRepeatOrder = 0, ordRepeatSales = 0
   let vipOrder = 0, vipSales = 0
   let ordBeauty = 0, ordRepair = 0
   let bNewOrd = 0, bNewSales = 0, bRepOrd = 0, bRepSales = 0
@@ -114,8 +115,8 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
       sales += price; orders++
       ch.set(channel || '(unknown)', (ch.get(channel || '(unknown)') ?? 0) + price)
       const isFb = inSet(channel, FB_ALL), isWa = inSet(channel, WA_ALL)
-      if (nr === 'New') { if (isFb) newFb += price; if (isWa) newWa += price }
-      else if (nr === 'Repeat') { if (isFb) repFb += price; if (isWa) repWa += price }
+      if (nr === 'New') { ordNewOrder++; ordNewSales += price; if (isFb) newFb += price; if (isWa) newWa += price }
+      else if (nr === 'Repeat') { ordRepeatOrder++; ordRepeatSales += price; if (isFb) repFb += price; if (isWa) repWa += price }
       if (isVip(f['AUTO VIP'])) { vipOrder++; vipSales += price }
       if (inSet(channel, BEAUTY_CH)) { ordBeauty++; if (nr === 'New') { bNewOrd++; bNewSales += price } else if (nr === 'Repeat') { bRepOrd++; bRepSales += price } }
       if (inSet(channel, REPAIR_CH)) { ordRepair++; if (nr === 'New') { rNewOrd++; rNewSales += price } else if (nr === 'Repeat') { rRepOrd++; rRepSales += price } }
@@ -185,7 +186,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
     repeatConv: Math.round(div(repRepeatOrder, totLd) * 1000) / 10,
     overallConv: Math.round(div(orders, totLd) * 1000) / 10,
     vipOrder, vipSales: R(vipSales),
-    newAov: R(div(repNewSales, repNewOrder)), repeatAov: R(div(repRepeatSales, repRepeatOrder)),
+    newAov: R(div(ordNewSales, ordNewOrder)), repeatAov: R(div(ordRepeatSales, ordRepeatOrder)),
     vipAov: R(div(vipSales, vipOrder)), overallAov: R(div(sales, orders)),
     goal: R(goal),
     adBeauty: R(adB - waAdB), adRepair: R(adR - waAdR), adSGspend: R(adSG - waAdSG),
