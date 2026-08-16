@@ -79,6 +79,7 @@ export default function LifecycleTab({ projectId, selectedBrand, dateFrom, dateT
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['lifecycle', projectId, dateFrom, dateTo],
+    enabled: selectedBrand !== 'DD',
     queryFn: async () => {
       const res = await fetch(`/api/analytics/lifecycle?projectId=${encodeURIComponent(projectId)}&from=${dateFrom}&to=${dateTo}`)
       if (!res.ok) throw new Error('Failed to load lifecycle')
@@ -117,7 +118,7 @@ export default function LifecycleTab({ projectId, selectedBrand, dateFrom, dateT
     URL.revokeObjectURL(url)
   }
 
-  if (error) return <p className="text-sm text-red-600">Failed to load lifecycle data.</p>
+  if (error && selectedBrand !== 'DD') return <p className="text-sm text-red-600">Failed to load lifecycle data.</p>
 
   // DD: show two SEPARATE per-page blocks (Beauty 焕肤王 / Repair 钻石露), live from Lark.
   if (selectedBrand === 'DD') {

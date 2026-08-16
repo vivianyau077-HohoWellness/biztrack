@@ -45,15 +45,18 @@ function isActiveVip(v: unknown): boolean {
 }
 
 // Canonicalise a phone for dedup: digits only, MY/SG friendly.
-function normPhone(raw: string): string {
+function normPhone(raw: string, sg = false): string {
   let d = (raw || '').replace(/[^0-9]/g, '')
   if (!d) return ''
+  if (d.startsWith('60') || d.startsWith('65')) return d  // already country-coded
+  if (sg) return '65' + d                     // Singapore → 65…
   if (d.startsWith('0')) d = '6' + d          // 0123 → 60123 (MY)
-  else if (!d.startsWith('6')) d = '60' + d   // 123 → 60123
+  else d = '60' + d                           // 123 → 60123 (MY)
   return d
 }
 
-type Cust = { orders: number; spend: number; firstMs: number; lastMs: number; has26: boolean; vip: boolean; bO: number; bMax: number; bLast: number; bVip: boolean; rO: number; rMax: number; rLast: number; rVip: boolean }
+type Cust = { orders: number; spend: number; firstMs: number; lastMs: number; has26: boolean; vip: boolean; name: string; phone: string; lastPkg: string; bO: number; bMax: number; bLast: number; bVip: boolean; rO: number; rMax: number; rLast: number; rVip: boolean }
+export type InactiveCustomer = { phone: string; name: string; package: string; spend: number; lastMs: number }
 
 export type DdCustomerInsights = {
   totalCustomers: number
@@ -65,6 +68,7 @@ export type DdCustomerInsights = {
   unique2026: number
   churnCount: number
   inactive90: number
+  inactiveCustomers: InactiveCustomer[]
   lifecycle: { beauty: PageLifecycle; repair: PageLifecycle }
   asOf: string
 }
@@ -87,14 +91,27 @@ export async function computeDdCustomerInsights(): Promise<DdCustomerInsights> {
       if (channel === 'Return') continue
       const ms = fdateMs(f['Date'])
       const price = fnum(f['Total Price']) || fnum(f['Price Domain'])
-      let key = normPhone(fstr(f[phoneField]))
-      if (!key) { const nm = fstr(f['Name']); if (nm) key = 'name:' + nm.toLowerCase(); else continue }
+      const nm = fstr(f['Name'])
+      const pkg = fstr(f['Package'])
+      const phoneRaw = fstr(f[phoneField])
+      const chL = channel.toLowerCase()
+      const isSg = chL.indexOf('sg') >= 0            // Singapore → 65…, else Malaysia → 60…
+      let key = normPhone(phoneRaw, isSg)
+      if (!key) {
+        // Standard: name fallback ONLY for Shopee/Lazada orders with no phone.
+        // Non-marketplace no-phone orders (FB/WhatsApp/blank) are NOT counted (avoid misjudgment).
+        const marketplace = chL.indexOf('shopee') >= 0 || chL.indexOf('lazada') >= 0
+        if (marketplace && nm) key = 'name:' + nm.toLowerCase()
+        else continue
+      }
       let c = map.get(key)
-      if (!c) { c = { orders: 0, spend: 0, firstMs: ms || Number.MAX_SAFE_INTEGER, lastMs: 0, has26: false, vip: false, bO: 0, bMax: 0, bLast: 0, bVip: false, rO: 0, rMax: 0, rLast: 0, rVip: false }; map.set(key, c) }
+      if (!c) { c = { orders: 0, spend: 0, firstMs: ms || Number.MAX_SAFE_INTEGER, lastMs: 0, has26: false, vip: false, name: '', phone: '', lastPkg: '', bO: 0, bMax: 0, bLast: 0, bVip: false, rO: 0, rMax: 0, rLast: 0, rVip: false }; map.set(key, c) }
       c.orders++
       c.spend += price
+      if (nm && !c.name) c.name = nm
+      if (phoneRaw && !c.phone) c.phone = phoneRaw
       if (ms && ms < c.firstMs) c.firstMs = ms
-      if (ms > c.lastMs) c.lastMs = ms
+      if (ms >= c.lastMs) { c.lastMs = ms; if (pkg) c.lastPkg = pkg }
       const vipFlag = isActiveVip(f['AUTO VIP'])
       if (vipFlag) c.vip = true
       if (BEAUTY_CH.indexOf(channel) >= 0) { c.bO++; if (price > c.bMax) c.bMax = price; if (ms > c.bLast) c.bLast = ms; if (vipFlag) c.bVip = true }
@@ -110,6 +127,7 @@ export async function computeDdCustomerInsights(): Promise<DdCustomerInsights> {
   const oneYearAgo = Date.now() - 365 * 86400000
   const ninetyAgo = Date.now() - 90 * 86400000
   let total = 0, newM = 0, retention = 0, vip = 0, spendSum = 0, churnCount = 0, inactive90 = 0
+  const inactiveList: InactiveCustomer[] = []
   const bl: PageLifecycle = { onboarding: 0, recurring: 0, loyal: 0, churn: 0, total: 0 }
   const rl: PageLifecycle = { onboarding: 0, recurring: 0, loyal: 0, churn: 0, total: 0 }
   for (const c of Array.from(map.values())) {
@@ -119,7 +137,10 @@ export async function computeDdCustomerInsights(): Promise<DdCustomerInsights> {
     if (c.vip) vip++
     if (c.firstMs !== Number.MAX_SAFE_INTEGER && monthKey(c.firstMs) === nowMonth) newM++
     if (c.lastMs && c.lastMs < oneYearAgo) churnCount++
-    if (c.has26 && c.lastMs && c.lastMs < ninetyAgo) inactive90++
+    if (c.has26 && c.lastMs && c.lastMs < ninetyAgo) {
+      inactive90++
+      inactiveList.push({ phone: c.phone || '(no phone)', name: c.name || '(no name)', package: c.lastPkg || '—', spend: Math.round(c.spend), lastMs: c.lastMs })
+    }
     if (c.bO > 0) {
       bl.total++
       if (c.bLast && c.bLast < oneYearAgo) bl.churn++
@@ -146,6 +167,7 @@ export async function computeDdCustomerInsights(): Promise<DdCustomerInsights> {
     unique2026: y2026.size,
     churnCount,
     inactive90,
+    inactiveCustomers: inactiveList.sort((a, b) => b.spend - a.spend),
     lifecycle: { beauty: bl, repair: rl },
     asOf: new Date().toISOString(),
   }

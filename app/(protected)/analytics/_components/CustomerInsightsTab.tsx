@@ -194,7 +194,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
     queryFn: async () => {
       const res = await fetch('/api/analytics/dd-customer-insights')
       if (!res.ok) throw new Error('Failed')
-      return res.json() as Promise<{ totalCustomers: number; newThisMonth: number; retentionCount: number; vipCount: number; customerLtv: number; unique2025: number; unique2026: number; churnCount: number; inactive90: number }>
+      return res.json() as Promise<{ totalCustomers: number; newThisMonth: number; retentionCount: number; vipCount: number; customerLtv: number; unique2025: number; unique2026: number; churnCount: number; inactive90: number; inactiveCustomers: { phone: string; name: string; package: string; spend: number; lastMs: number }[] }>
     },
   })
   const data = (selectedBrand === 'DD' && liveDd && rawData)
@@ -591,7 +591,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
               <p className="text-xs text-muted-foreground mt-1">2026 buyer · no repurchase in 90+ days</p>
               <button
                 onClick={() => setShowInactive(v => !v)}
-                disabled={!inactive || inactive.count === 0}
+                disabled={useLive ? !liveDd || liveDd.inactiveCustomers.length === 0 : !inactive || inactive.count === 0}
                 className="mt-2 text-xs text-blue-600 hover:underline disabled:opacity-40"
               >
                 {showInactive ? 'Hide list ↑' : 'Show who ↓'}
@@ -599,7 +599,57 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
             </CardContent>
           </Card>
         </div>
-        {showInactive && inactive && inactive.customers.length > 0 && (
+        {showInactive && useLive && liveDd && liveDd.inactiveCustomers.length > 0 && (
+          <Card className="mt-4">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium">
+                  Inactive 90+ Days
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    ({liveDd.inactive90.toLocaleString()} customers · sorted by total spend)
+                  </span>
+                </CardTitle>
+                <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => {
+                  const rows = liveDd.inactiveCustomers.map((c, i) => [i + 1, c.name, c.phone, c.package, c.spend, new Date(c.lastMs).toISOString().split('T')[0]].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+                  const csv = ['#,Name,Phone,Package,Total Spend (RM),Last Order', ...rows].join('\n')
+                  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+                  a.download = `inactive-90-DD-${new Date().toISOString().split('T')[0]}.csv`; a.click()
+                }}>
+                  <Download className="h-3.5 w-3.5" /> Export CSV
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-muted/50">
+                    <tr className="border-b">
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">#</th>
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">Name</th>
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">Phone</th>
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">Package</th>
+                      <th className="px-3 py-2 text-right font-medium text-muted-foreground">Total Spend</th>
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">Last Order</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {liveDd.inactiveCustomers.map((c, i) => (
+                      <tr key={c.phone + i} className="border-b hover:bg-muted/30">
+                        <td className="px-3 py-2 font-mono text-muted-foreground">{i + 1}</td>
+                        <td className="px-3 py-2">{c.name}</td>
+                        <td className="px-3 py-2 font-mono text-muted-foreground">{c.phone}</td>
+                        <td className="px-3 py-2">{c.package}</td>
+                        <td className="px-3 py-2 text-right">{formatCurrency(c.spend)}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{new Date(c.lastMs).toISOString().split('T')[0]}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        {showInactive && !useLive && inactive && inactive.customers.length > 0 && (
           <Card className="mt-4">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
