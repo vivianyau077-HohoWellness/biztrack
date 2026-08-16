@@ -116,12 +116,15 @@ export async function computeDdSalesMatrix() {
     x.sales += price; x.orders++
     x.ch.set(channel || '(unknown)', (x.ch.get(channel || '(unknown)') ?? 0) + price)
     const isFb = inSet(channel, FB_ALL), isWa = inSet(channel, WA_ALL)
+    const isVipRow = vip === 'Malaysia VIP' || vip === 'Singapore VIP'
+    // Repeat excludes VIP orders (VIP counted only in its own row, no double-count)
+    const isRepeat = nr === 'Repeat' && !isVipRow
     if (nr === 'New') { x.newOrder++; x.newSales += price; if (isFb) x.newFb += price; if (isWa) x.newWa += price }
-    else if (nr === 'Repeat') { x.repeatOrder++; x.repeatSales += price; if (isFb) x.repFb += price; if (isWa) x.repWa += price }
-    if (vip === 'Malaysia VIP' || vip === 'Singapore VIP') { x.vipOrder++; x.vipSales += price }
-    if (inSet(channel, BEAUTY_CH)) { x.ordBeauty++; if (nr === 'New') { x.bNewOrd++; x.bNewSales += price } else if (nr === 'Repeat') { x.bRepOrd++; x.bRepSales += price } }
-    if (inSet(channel, REPAIR_CH)) { x.ordRepair++; if (nr === 'New') { x.rNewOrd++; x.rNewSales += price } else if (nr === 'Repeat') { x.rRepOrd++; x.rRepSales += price } }
-    if (inSet(channel, FBSG_CH)) { if (nr === 'New') x.sgNewSales += price; else if (nr === 'Repeat') x.sgRepSales += price }
+    else if (isRepeat) { x.repeatOrder++; x.repeatSales += price; if (isFb) x.repFb += price; if (isWa) x.repWa += price }
+    if (isVipRow) { x.vipOrder++; x.vipSales += price }
+    if (inSet(channel, BEAUTY_CH)) { x.ordBeauty++; if (nr === 'New') { x.bNewOrd++; x.bNewSales += price } else if (isRepeat) { x.bRepOrd++; x.bRepSales += price } }
+    if (inSet(channel, REPAIR_CH)) { x.ordRepair++; if (nr === 'New') { x.rNewOrd++; x.rNewSales += price } else if (isRepeat) { x.rRepOrd++; x.rRepSales += price } }
+    if (inSet(channel, FBSG_CH)) { if (nr === 'New') x.sgNewSales += price; else if (isRepeat) x.sgRepSales += price }
   }
 
   type RB = { adB: number; adR: number; adSG: number; adWA: number; waAdB: number; waAdR: number; waAdSG: number; ldB: number; ldR: number; ldSG: number; pmB: number; pmR: number; pmSG: number; wpmB: number; wpmR: number; wpmSG: number; goal: number; newOrder: number; repeatOrder: number; newSales: number; repeatSales: number }

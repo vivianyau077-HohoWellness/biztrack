@@ -115,12 +115,15 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
       sales += price; orders++
       ch.set(channel || '(unknown)', (ch.get(channel || '(unknown)') ?? 0) + price)
       const isFb = inSet(channel, FB_ALL), isWa = inSet(channel, WA_ALL)
+      const isVipRow = isVip(f['AUTO VIP'])
+      // Repeat excludes VIP orders (VIP counted only in its own row, no double-count)
+      const isRepeat = nr === 'Repeat' && !isVipRow
       if (nr === 'New') { ordNewOrder++; ordNewSales += price; if (isFb) newFb += price; if (isWa) newWa += price }
-      else if (nr === 'Repeat') { ordRepeatOrder++; ordRepeatSales += price; if (isFb) repFb += price; if (isWa) repWa += price }
-      if (isVip(f['AUTO VIP'])) { vipOrder++; vipSales += price }
-      if (inSet(channel, BEAUTY_CH)) { ordBeauty++; if (nr === 'New') { bNewOrd++; bNewSales += price } else if (nr === 'Repeat') { bRepOrd++; bRepSales += price } }
-      if (inSet(channel, REPAIR_CH)) { ordRepair++; if (nr === 'New') { rNewOrd++; rNewSales += price } else if (nr === 'Repeat') { rRepOrd++; rRepSales += price } }
-      if (inSet(channel, FBSG_CH)) { if (nr === 'New') sgNewSales += price; else if (nr === 'Repeat') sgRepSales += price }
+      else if (isRepeat) { ordRepeatOrder++; ordRepeatSales += price; if (isFb) repFb += price; if (isWa) repWa += price }
+      if (isVipRow) { vipOrder++; vipSales += price }
+      if (inSet(channel, BEAUTY_CH)) { ordBeauty++; if (nr === 'New') { bNewOrd++; bNewSales += price } else if (isRepeat) { bRepOrd++; bRepSales += price } }
+      if (inSet(channel, REPAIR_CH)) { ordRepair++; if (nr === 'New') { rNewOrd++; rNewSales += price } else if (isRepeat) { rRepOrd++; rRepSales += price } }
+      if (inSet(channel, FBSG_CH)) { if (nr === 'New') sgNewSales += price; else if (isRepeat) sgRepSales += price }
     }
   }
 
