@@ -87,16 +87,18 @@ export default function LifecycleTab({ projectId, selectedBrand, dateFrom, dateT
   })
 
   // Per-FB-page lifecycle from live Lark (DD only)
-  const { data: lcData, isLoading: lcLoading, error: lcError } = useQuery({
-    queryKey: ['dd-lifecycle'],
+  // Shares the same endpoint + queryKey as Customer Insights, so one read serves both tabs.
+  const { data: lcResp, isLoading: lcLoading, error: lcError } = useQuery({
+    queryKey: ['dd-customer-insights'],
     enabled: selectedBrand === 'DD',
     queryFn: async () => {
-      const res = await fetch('/api/analytics/dd-lifecycle')
+      const res = await fetch('/api/analytics/dd-customer-insights')
       if (!res.ok) { const b = await res.json().catch(() => null); throw new Error(b?.error || ('HTTP ' + res.status)) }
-      return res.json() as Promise<{ beauty: PageLifecycle; repair: PageLifecycle }>
+      return res.json() as Promise<{ lifecycle: { beauty: PageLifecycle; repair: PageLifecycle } }>
     },
     retry: false,
   })
+  const lcData = lcResp?.lifecycle
 
   const segments = data?.segments ?? []
   const total = data?.total ?? 0

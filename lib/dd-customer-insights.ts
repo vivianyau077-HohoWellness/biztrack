@@ -53,7 +53,7 @@ function normPhone(raw: string): string {
   return d
 }
 
-type Cust = { orders: number; spend: number; firstMs: number; vip: boolean }
+type Cust = { orders: number; spend: number; firstMs: number; vip: boolean; bO: number; bMax: number; bLast: number; bVip: boolean; rO: number; rMax: number; rLast: number; rVip: boolean }
 
 export type DdCustomerInsights = {
   totalCustomers: number
@@ -63,6 +63,7 @@ export type DdCustomerInsights = {
   customerLtv: number
   unique2025: number
   unique2026: number
+  lifecycle: { beauty: PageLifecycle; repair: PageLifecycle }
   asOf: string
 }
 
@@ -87,11 +88,14 @@ export async function computeDdCustomerInsights(): Promise<DdCustomerInsights> {
       let key = normPhone(fstr(f[phoneField]))
       if (!key) { const nm = fstr(f['Name']); if (nm) key = 'name:' + nm.toLowerCase(); else continue }
       let c = map.get(key)
-      if (!c) { c = { orders: 0, spend: 0, firstMs: ms || Number.MAX_SAFE_INTEGER, vip: false }; map.set(key, c) }
+      if (!c) { c = { orders: 0, spend: 0, firstMs: ms || Number.MAX_SAFE_INTEGER, vip: false, bO: 0, bMax: 0, bLast: 0, bVip: false, rO: 0, rMax: 0, rLast: 0, rVip: false }; map.set(key, c) }
       c.orders++
       c.spend += price
       if (ms && ms < c.firstMs) c.firstMs = ms
-      if (isActiveVip(f['AUTO VIP'])) c.vip = true
+      const vipFlag = isActiveVip(f['AUTO VIP'])
+      if (vipFlag) c.vip = true
+      if (BEAUTY_CH.indexOf(channel) >= 0) { c.bO++; if (price > c.bMax) c.bMax = price; if (ms > c.bLast) c.bLast = ms; if (vipFlag) c.bVip = true }
+      else if (REPAIR_CH.indexOf(channel) >= 0) { c.rO++; if (price > c.rMax) c.rMax = price; if (ms > c.rLast) c.rLast = ms; if (vipFlag) c.rVip = true }
       const yk = monthKey(ms).slice(0, 4)
       if (yk === '2025') y2025.add(key)
       else if (yk === '2026') y2026.add(key)
@@ -100,13 +104,30 @@ export async function computeDdCustomerInsights(): Promise<DdCustomerInsights> {
   eat(ord26 as Array<{ fields: Record<string, unknown> }>, 'Phone Number')
   eat(daily25 as Array<{ fields: Record<string, unknown> }>, 'Phone Number')
 
+  const oneYearAgo = Date.now() - 365 * 86400000
   let total = 0, newM = 0, retention = 0, vip = 0, spendSum = 0
+  const bl: PageLifecycle = { onboarding: 0, recurring: 0, loyal: 0, churn: 0, total: 0 }
+  const rl: PageLifecycle = { onboarding: 0, recurring: 0, loyal: 0, churn: 0, total: 0 }
   for (const c of Array.from(map.values())) {
     total++
     spendSum += c.spend
     if (c.orders >= 2) retention++
     if (c.vip) vip++
     if (c.firstMs !== Number.MAX_SAFE_INTEGER && monthKey(c.firstMs) === nowMonth) newM++
+    if (c.bO > 0) {
+      bl.total++
+      if (c.bLast && c.bLast < oneYearAgo) bl.churn++
+      else if (c.bO <= 1) bl.onboarding++
+      else if (c.bMax >= 700 || c.bVip) bl.loyal++
+      else bl.recurring++
+    }
+    if (c.rO > 0) {
+      rl.total++
+      if (c.rLast && c.rLast < oneYearAgo) rl.churn++
+      else if (c.rO <= 1) rl.onboarding++
+      else if (c.rMax >= 700 || c.rVip) rl.loyal++
+      else rl.recurring++
+    }
   }
 
   return {
@@ -117,6 +138,7 @@ export async function computeDdCustomerInsights(): Promise<DdCustomerInsights> {
     customerLtv: total ? Math.round(spendSum / total) : 0,
     unique2025: y2025.size,
     unique2026: y2026.size,
+    lifecycle: { beauty: bl, repair: rl },
     asOf: new Date().toISOString(),
   }
 }
