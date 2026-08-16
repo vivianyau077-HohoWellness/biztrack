@@ -194,13 +194,12 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
     queryFn: async () => {
       const res = await fetch('/api/analytics/dd-customer-insights')
       if (!res.ok) throw new Error('Failed')
-      return res.json() as Promise<{ totalCustomers: number; newThisMonth: number; retentionCount: number; vipCount: number; customerLtv: number }>
+      return res.json() as Promise<{ totalCustomers: number; newThisMonth: number; retentionCount: number; vipCount: number; customerLtv: number; unique2025: number; unique2026: number; churnCount: number; inactive90: number }>
     },
   })
   const data = (selectedBrand === 'DD' && liveDd && rawData)
     ? { ...rawData, total: liveDd.totalCustomers, newThisMonth: liveDd.newThisMonth, retentionCount: liveDd.retentionCount, vipCount: liveDd.vipCount, customerLtv: liveDd.customerLtv }
     : rawData
-
   // Churn customers (all-time, deduped by phone) — independent of date range, scoped by brand
   const { data: churn } = useQuery({
     queryKey: ['churn', projectId],
@@ -224,6 +223,14 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
       }>
     },
   })
+
+  // Secondary cards (churn / unique / inactive): use live DD when available, else Supabase endpoints.
+  const useLive = selectedBrand === 'DD' && !!liveDd
+  const effChurn = useLive ? liveDd!.churnCount : churn?.churnCount
+  const effChurnRate = useLive ? (liveDd!.totalCustomers ? Math.round((liveDd!.churnCount / liveDd!.totalCustomers) * 100) : 0) : churn?.churnRate
+  const effU2025 = useLive ? liveDd!.unique2025 : churn?.unique2025
+  const effU2026 = useLive ? liveDd!.unique2026 : churn?.unique2026
+  const effInactive = useLive ? liveDd!.inactive90 : inactive?.count
 
   // Drill-down customers query — fires when a KPI card is clicked
   const { data: drillCustomers = [], isLoading: drillLoading } = useQuery({
@@ -520,9 +527,9 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
             <Clock className="h-3.5 w-3.5 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{churn ? churn.churnCount.toLocaleString() : '…'}</div>
+            <div className="text-2xl font-bold text-red-600">{effChurn != null ? effChurn.toLocaleString() : '…'}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              No order in over 1 year{churn ? ` · ${churn.churnRate}% churn rate` : ''}
+              No order in over 1 year{effChurnRate != null ? ` · ${effChurnRate}% churn rate` : ''}
             </p>
             <button
               onClick={() => setShowChurnBreakdown(v => !v)}
@@ -539,7 +546,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
             <Users className="h-3.5 w-3.5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">{churn ? churn.unique2025.toLocaleString() : '…'}</div>
+            <div className="text-2xl font-bold text-foreground">{effU2025 != null ? effU2025.toLocaleString() : '…'}</div>
             <p className="text-xs text-muted-foreground mt-1">Unique phones · ordered in 2025</p>
           </CardContent>
         </Card>
@@ -549,7 +556,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
             <Users className="h-3.5 w-3.5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">{churn ? churn.unique2026.toLocaleString() : '…'}</div>
+            <div className="text-2xl font-bold text-foreground">{effU2026 != null ? effU2026.toLocaleString() : '…'}</div>
             <p className="text-xs text-muted-foreground mt-1">Unique phones · 2026 YTD</p>
           </CardContent>
         </Card>
@@ -580,7 +587,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
               <Clock className="h-3.5 w-3.5 text-orange-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{inactive ? inactive.count.toLocaleString() : '…'}</div>
+              <div className="text-2xl font-bold text-orange-600">{effInactive != null ? effInactive.toLocaleString() : '…'}</div>
               <p className="text-xs text-muted-foreground mt-1">2026 buyer · no repurchase in 90+ days</p>
               <button
                 onClick={() => setShowInactive(v => !v)}
