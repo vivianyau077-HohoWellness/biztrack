@@ -8,10 +8,9 @@ import { Button } from '@/components/ui/button'
 import { BRANDS, BRAND_COLORS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Upload, BarChart3, Users, Target, RefreshCw, MessageSquare, Workflow, PieChart } from 'lucide-react'
+import { Upload, Users, Target, RefreshCw, MessageSquare, Workflow, PieChart } from 'lucide-react'
 import { subDays, format } from 'date-fns'
 import DateRangePicker from '@/components/shared/DateRangePicker'
-import SalesOverviewTab from './_components/SalesOverviewTab'
 import CustomerInsightsTab from './_components/CustomerInsightsTab'
 import GoalTrackingTab from './_components/GoalTrackingTab'
 import FeedbackTab from './_components/FeedbackTab'
@@ -22,7 +21,6 @@ import AdSpendImportModal from './_components/AdSpendImportModal'
 type Tab = 'sales' | 'distribution' | 'ads' | 'customers' | 'lifecycle' | 'goals' | 'feedback'
 
 const TAB_CONFIG = [
-  { id: 'sales' as Tab, label: 'Sales Overview', icon: BarChart3 },
   { id: 'distribution' as Tab, label: 'Sales Distribution', icon: PieChart },
   { id: 'customers' as Tab, label: 'Customer Insights', icon: Users },
   { id: 'lifecycle' as Tab, label: 'Customer Lifecycle', icon: Workflow },
@@ -36,7 +34,7 @@ export default function AnalyticsPage() {
 
   const today = new Date()
   const [selectedBrand, setSelectedBrand] = useState('')
-  const [activeTab, setActiveTab] = useState<Tab>('sales')
+  const [activeTab, setActiveTab] = useState<Tab>('distribution')
   const [dateFrom, setDateFrom] = useState(format(subDays(today, 29), 'yyyy-MM-dd'))
   const [dateTo, setDateTo] = useState(format(today, 'yyyy-MM-dd'))
   const [showImport, setShowImport] = useState(false)
@@ -176,14 +174,6 @@ export default function AnalyticsPage() {
 
       {/* Tab content */}
       <div className="min-h-[400px]">
-        {activeTab === 'sales' && (
-          <SalesOverviewTab
-            projectId={projectId}
-            dateFrom={dateFrom}
-            dateTo={dateTo}
-            selectedBrand={selectedBrand}
-          />
-        )}
         {activeTab === 'distribution' && (
           <SalesDistributionTab dateFrom={dateFrom} dateTo={dateTo} />
         )}
