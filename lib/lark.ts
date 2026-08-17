@@ -97,7 +97,7 @@ async function fetchLarkRecordsUncached(
   // Vercel function timeouts. If field_names is ever rejected, fall back to a full read.
   let useFields = !!(fieldNames && fieldNames.length)
 
-  do {
+  for (;;) {
     const params = new URLSearchParams({ page_size: '500' })
     if (pageToken) params.set('page_token', pageToken)
     if (modifiedAfter != null) {
@@ -110,7 +110,7 @@ async function fetchLarkRecordsUncached(
     )
 
     if (data.code !== 0) {
-      // Field-projection not accepted → retry this whole fetch without it (safe fallback).
+      // Field-projection not accepted → restart the whole fetch without it (safe fallback).
       if (useFields) {
         useFields = false
         all.length = 0
@@ -123,8 +123,9 @@ async function fetchLarkRecordsUncached(
     const items: LarkRecord[] = data.data?.items ?? []
     all.push(...items)
 
-    pageToken = data.data?.has_more ? (data.data.page_token as string) : undefined
-  } while (pageToken)
+    if (data.data?.has_more) { pageToken = data.data.page_token as string; continue }
+    break
+  }
 
   return all
 }

@@ -115,10 +115,10 @@ type C = {
 export async function computeDdVip(): Promise<DdVip> {
   // Identical to dd-customer-insights SLIM_FIELDS so both share the same cached Lark read.
   const SLIM_FIELDS = ['Channel', 'Date', 'Total Price', 'Price Domain', 'Name', 'Package', 'Phone Number', 'AUTO VIP', 'AUTO N/R']
-  const [ord26, daily25] = await Promise.all([
-    fetchLarkRecords(T_ORDER_26, APP, undefined, SLIM_FIELDS),
-    fetchLarkRecords(T_DAILY_25, APP, undefined, SLIM_FIELDS),
-  ])
+  // VIP status lives only in the 2026 order table (AUTO VIP field). The 2025 daily
+  // table has no VIP tag and registration is "this year", so reading it is pure waste.
+  const ord26 = await fetchLarkRecords(T_ORDER_26, APP, undefined, SLIM_FIELDS)
+  const daily25: Array<{ fields: Record<string, unknown> }> = []
   const year = new Date().getFullYear()
   const nowMonth = monthKey(Date.now())
   const lastMonth = monthKey(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 15).getTime())
