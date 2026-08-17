@@ -113,9 +113,11 @@ type C = {
 }
 
 export async function computeDdVip(): Promise<DdVip> {
+  // Identical to dd-customer-insights SLIM_FIELDS so both share the same cached Lark read.
+  const SLIM_FIELDS = ['Channel', 'Date', 'Total Price', 'Price Domain', 'Name', 'Package', 'Phone Number', 'AUTO VIP', 'AUTO N/R']
   const [ord26, daily25] = await Promise.all([
-    fetchLarkRecords(T_ORDER_26, APP),
-    fetchLarkRecords(T_DAILY_25, APP),
+    fetchLarkRecords(T_ORDER_26, APP, undefined, SLIM_FIELDS),
+    fetchLarkRecords(T_DAILY_25, APP, undefined, SLIM_FIELDS),
   ])
   const year = new Date().getFullYear()
   const nowMonth = monthKey(Date.now())

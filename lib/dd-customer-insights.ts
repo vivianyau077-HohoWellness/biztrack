@@ -73,10 +73,12 @@ export type DdCustomerInsights = {
   asOf: string
 }
 
+const SLIM_FIELDS = ['Channel', 'Date', 'Total Price', 'Price Domain', 'Name', 'Package', 'Phone Number', 'AUTO VIP', 'AUTO N/R']
+
 export async function computeDdCustomerInsights(): Promise<DdCustomerInsights> {
   const [ord26, daily25] = await Promise.all([
-    fetchLarkRecords(T_ORDER_26, APP),
-    fetchLarkRecords(T_DAILY_25, APP),
+    fetchLarkRecords(T_ORDER_26, APP, undefined, SLIM_FIELDS),
+    fetchLarkRecords(T_DAILY_25, APP, undefined, SLIM_FIELDS),
   ])
 
   const map = new Map<string, Cust>()

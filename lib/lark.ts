@@ -57,10 +57,14 @@ const REC_TTL_MS = 120_000
 export async function fetchLarkRecords(
   tableId: string,
   appToken: string = 'S8XXb8PT2a82ouslzQWjBaYap2g',
-  modifiedAfter?: number
+  modifiedAfter?: number,
+  fieldNames?: string[],
 ): Promise<LarkRecord[]> {
   const cacheable = modifiedAfter == null
-  const cacheKey = appToken + ':' + tableId
+  // Include the requested field set in the cache key so a slim read (few fields)
+  // and a full read of the same table don't collide.
+  const fkey = fieldNames && fieldNames.length ? ':f=' + fieldNames.join(',') : ''
+  const cacheKey = appToken + ':' + tableId + fkey
   if (cacheable) {
     const hit = _recCache.get(cacheKey)
     if (hit && Date.now() - hit.at < REC_TTL_MS) return hit.data
@@ -68,7 +72,7 @@ export async function fetchLarkRecords(
     if (inflight) return inflight
   }
 
-  const run = fetchLarkRecordsUncached(tableId, appToken, modifiedAfter)
+  const run = fetchLarkRecordsUncached(tableId, appToken, modifiedAfter, fieldNames)
   if (!cacheable) return run
 
   _recInflight.set(cacheKey, run)
@@ -84,10 +88,14 @@ export async function fetchLarkRecords(
 async function fetchLarkRecordsUncached(
   tableId: string,
   appToken: string,
-  modifiedAfter?: number
+  modifiedAfter?: number,
+  fieldNames?: string[],
 ): Promise<LarkRecord[]> {
   const all: LarkRecord[] = []
   let pageToken: string | undefined
+  // Only request the fields we need — cuts payload ~5x on wide tables, avoiding
+  // Vercel function timeouts. If field_names is ever rejected, fall back to a full read.
+  let useFields = !!(fieldNames && fieldNames.length)
 
   do {
     const params = new URLSearchParams({ page_size: '500' })
@@ -95,12 +103,20 @@ async function fetchLarkRecordsUncached(
     if (modifiedAfter != null) {
       params.set('filter', `CurrentValue.[ModifyTime]>${modifiedAfter}`)
     }
+    if (useFields) params.set('field_names', JSON.stringify(fieldNames))
 
     const data = await larkFetch(
       `/bitable/v1/apps/${appToken}/tables/${tableId}/records?${params}`,
     )
 
     if (data.code !== 0) {
+      // Field-projection not accepted → retry this whole fetch without it (safe fallback).
+      if (useFields) {
+        useFields = false
+        all.length = 0
+        pageToken = undefined
+        continue
+      }
       throw new Error(`Lark fetchLarkRecords error (${data.code}): ${data.msg}`)
     }
 
