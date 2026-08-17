@@ -11,14 +11,11 @@ import {
 } from '@/components/ui/table'
 import PageHeader from '@/components/shared/PageHeader'
 import { toast } from 'sonner'
-import {
-  getVIPStats,
-  getLarkVIPs,
-  getVIPEligible,
-  type VIPStats,
-  type LarkVIPRecord,
-  type VIPEligibleRecord,
-} from '@/app/actions/vip'
+import type {
+  VIPStats,
+  LarkVIPRecord,
+  VIPEligibleRecord,
+} from '@/lib/dd-vip'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -76,16 +73,13 @@ export default function VIPManagementPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [statsData, vipData, eligibleData, vipRegRes] = await Promise.all([
-        getVIPStats(),
-        getLarkVIPs(),
-        getVIPEligible(),
-        fetch('/api/analytics/vip-registration').then(r => (r.ok ? r.json() : null)).catch(() => null),
-      ])
-      setStats(statsData)
-      setVips(vipData)
-      setEligible(eligibleData)
-      setVipReg(vipRegRes)
+      const res = await fetch('/api/analytics/dd-vip')
+      if (!res.ok) { const b = await res.json().catch(() => null); throw new Error(b?.error || `HTTP ${res.status}`) }
+      const data = await res.json()
+      setStats(data.stats)
+      setVips(data.vips ?? [])
+      setEligible(data.eligible ?? [])
+      setVipReg(data.registration ?? null)
     } catch (e: any) {
       toast.error(e.message ?? 'Failed to load VIP data')
     } finally {
