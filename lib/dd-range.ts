@@ -200,6 +200,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
     newVipAov: R(div(newVipSales, newVipOrder)), repVipAov: R(div(repVipSales, repVipOrder)),
     newAov: R(div(ordNewSales, ordNewOrder)), repeatAov: R(div(ordRepeatSales, ordRepeatOrder)),
     vipAov: R(div(vipSales, vipOrder)), overallAov: R(div(sales, orders)),
+    cpna: R(div(totAd, ordNewOrder + newVipOrder)),
     goal: R(goal),
     adBeauty: R(adB - waAdB), adRepair: R(adR - waAdR), adSGspend: R(adSG - waAdSG),
     leadBeauty: R(ldB), leadRepair: R(ldR), leadSGn: R(ldSG),

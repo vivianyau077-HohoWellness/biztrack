@@ -22,6 +22,7 @@ type MonthMetrics = {
   newVipOrder: number; newVipSales: number; repVipOrder: number; repVipSales: number
   newVipAov: number; repVipAov: number
   newAov: number; repeatAov: number; vipAov: number; overallAov: number
+  cpna: number
   goal: number
 }
 type Data = { months: string[]; metrics: MonthMetrics[] }
@@ -101,6 +102,8 @@ const ROWS: Row[] = [
   { label: 'VIP AOV', key: 'vipAov', fmt: 'rm' },
   { label: '— New VIP AOV', key: 'newVipAov', fmt: 'rm' },
   { label: '— Repeat VIP AOV', key: 'repVipAov', fmt: 'rm' },
+  { label: '', spacer: true },
+  { label: 'CPNA (ad spend ÷ new orders)', key: 'cpna', fmt: 'rm', bold: true },
   { label: 'Overall AOV', key: 'overallAov', fmt: 'rm', bold: true },
 ]
 

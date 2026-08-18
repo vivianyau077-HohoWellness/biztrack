@@ -197,6 +197,7 @@ export async function computeDd2025Months(): Promise<MonthMetrics[]> {
       newVipAov: R(div(x.newVipSales, x.newVipOrder)), repVipAov: R(div(x.repVipSales, x.repVipOrder)),
       newAov: R(div(rep.newSales, rep.newOrder)), repeatAov: R(div(rep.repeatSales, rep.repeatOrder)),
       vipAov: R(div(x.vipSales, x.vipOrder)), overallAov: R(div(x.sales, x.orders)),
+      cpna: R(div(rep.ad, rep.newOrder)),
       goal: 0,
       adBeauty: R(rep.adBeauty), adRepair: R(rep.adRepair), adSGspend: 0,
       leadBeauty: R(rep.leadBeauty), leadRepair: R(rep.leadRepair), leadSGn: 0,

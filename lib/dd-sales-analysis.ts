@@ -69,6 +69,7 @@ export type MonthMetrics = {
   newVipOrder: number; newVipSales: number; repVipOrder: number; repVipSales: number
   newVipAov: number; repVipAov: number
   newAov: number; repeatAov: number; vipAov: number; overallAov: number
+  cpna: number   // Cost Per New Acquisition = Total Ad Spend ÷ all new customers (incl VIP-new)
   goal: number
   adBeauty: number; adRepair: number; adSGspend: number
   leadBeauty: number; leadRepair: number; leadSGn: number
@@ -201,6 +202,7 @@ export async function computeDdSalesMatrix() {
       newVipAov: R(div(x.newVipSales, x.newVipOrder)), repVipAov: R(div(x.repVipSales, x.repVipOrder)),
       newAov: R(div(x.newSales, x.newOrder)), repeatAov: R(div(x.repeatSales, x.repeatOrder)),
       vipAov: R(div(x.vipSales, x.vipOrder)), overallAov: R(div(x.sales, x.orders)),
+      cpna: R(div(totAd, x.newOrder + x.newVipOrder)),
       goal: R(rep.goal),
       adBeauty: R(rep.adB - rep.waAdB), adRepair: R(rep.adR - rep.waAdR), adSGspend: R(rep.adSG - rep.waAdSG),
       leadBeauty: R(rep.ldB), leadRepair: R(rep.ldR), leadSGn: R(rep.ldSG),
