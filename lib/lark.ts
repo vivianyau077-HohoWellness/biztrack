@@ -11,7 +11,9 @@ export async function getTenantAccessToken(): Promise<string> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      app_id:     process.env.LARK_APP_ID,
+      // App ID is non-secret; hardcode it so it can never mismatch the secret env var
+      // (a wrong/missing LARK_APP_ID was causing 99991663 invalid-token errors).
+      app_id:     'cli_aa9f9f568da19e18',
       app_secret: process.env.LARK_APP_SECRET,
     }),
   })
