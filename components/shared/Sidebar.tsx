@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import {
   LayoutDashboard, ShoppingCart, BarChart2,
   FolderKanban, Settings, LogOut, Leaf, ChevronDown, ChevronRight,
-  PanelLeftClose, PanelLeft, Megaphone,
+  PanelLeftClose, PanelLeft,
   Crown,
 } from 'lucide-react'
 
@@ -36,7 +36,6 @@ const NAV: NavGroup[] = [
   },
   { label: 'Analytics', icon: BarChart2, href: '/analytics' },
   { label: 'Projects',   icon: FolderKanban, href: '/projects' },
-  { label: 'Campaigns',  icon: Megaphone,    href: '/campaigns' },
   { label: 'VIP',        icon: Crown,        href: '/vip' },
   { label: 'Settings',   icon: Settings,     href: '/settings' },
 ]
