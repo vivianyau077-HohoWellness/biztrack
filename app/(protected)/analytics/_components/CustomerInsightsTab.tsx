@@ -107,6 +107,14 @@ const TAG_BADGE: Record<string, string> = {
 
 type DrillFilter = 'all' | 'new_month' | 'repeat' | 'vip' | 'dormant_lost'
 
+type RetB = { num: number; denom: number; rate: number }
+type RetMetrics = {
+  cohort: { d90: RetB; d120: RetB; d365: RetB }
+  activity: { d90: RetB; d120: RetB; d365: RetB }
+  beauty: { d90: RetB; d120: RetB }
+  repair: { d90: RetB; d120: RetB }
+}
+
 interface SettingRow {
   project_id: string
   name: string
@@ -194,7 +202,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
     queryFn: async () => {
       const res = await fetch('/api/analytics/dd-customer-insights')
       if (!res.ok) throw new Error('Failed')
-      return res.json() as Promise<{ totalCustomers: number; newThisMonth: number; retentionCount: number; vipCount: number; customerLtv: number; unique2025: number; unique2026: number; churnCount: number; inactive90: number; inactiveCustomers: { phone: string; name: string; package: string; spend: number; lastMs: number }[] }>
+      return res.json() as Promise<{ totalCustomers: number; newThisMonth: number; retentionCount: number; vipCount: number; customerLtv: number; unique2025: number; unique2026: number; churnCount: number; inactive90: number; inactiveCustomers: { phone: string; name: string; package: string; spend: number; lastMs: number }[]; retentionMetrics: RetMetrics }>
     },
   })
   const data = (selectedBrand === 'DD' && liveDd && rawData)
@@ -730,6 +738,74 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Retention Analysis (DD, live) ───────────────────────────────── */}
+      {useLive && liveDd && (() => {
+        const rm = liveDd.retentionMetrics
+        const pct = (b: RetB) => `${b.rate}%`
+        const sub = (b: RetB) => `${b.num.toLocaleString()} / ${b.denom.toLocaleString()}`
+        const Cell = ({ b, color }: { b: RetB; color: string }) => (
+          <div className="rounded-lg border p-3">
+            <div className={`text-2xl font-bold ${color}`}>{pct(b)}</div>
+            <div className="text-[11px] text-muted-foreground mt-0.5">{sub(b)}</div>
+          </div>
+        )
+        return (
+          <div className="space-y-3">
+            <div>
+              <h3 className="text-sm font-semibold">Retention Analysis</h3>
+              <p className="text-xs text-muted-foreground">Repeat-purchase rate = of customers whose 1st order is old enough (matured), the % who bought again within the window. Deduped by phone, live from Lark.</p>
+            </div>
+
+            {/* A) True retention — first→second within window */}
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">Retention Rate <span className="font-normal text-muted-foreground">· 首单→二单 (matured cohort)</span></CardTitle></CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-3">
+                  <div><div className="text-xs text-muted-foreground mb-1">90 days</div><Cell b={rm.cohort.d90} color="text-blue-600" /></div>
+                  <div><div className="text-xs text-muted-foreground mb-1">120 days</div><Cell b={rm.cohort.d120} color="text-blue-600" /></div>
+                  <div><div className="text-xs text-muted-foreground mb-1">1 year</div><Cell b={rm.cohort.d365} color="text-blue-600" /></div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Page retention */}
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">Page Retention <span className="font-normal text-muted-foreground">· same-page repeat</span></CardTitle></CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs font-medium mb-2" style={{ color: '#22a06b' }}>Beauty 焕肤王</div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><div className="text-xs text-muted-foreground mb-1">90 days</div><Cell b={rm.beauty.d90} color="text-emerald-600" /></div>
+                      <div><div className="text-xs text-muted-foreground mb-1">120 days</div><Cell b={rm.beauty.d120} color="text-emerald-600" /></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium mb-2" style={{ color: '#c0392b' }}>Repair 钻石露</div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><div className="text-xs text-muted-foreground mb-1">90 days</div><Cell b={rm.repair.d90} color="text-rose-600" /></div>
+                      <div><div className="text-xs text-muted-foreground mb-1">120 days</div><Cell b={rm.repair.d120} color="text-rose-600" /></div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* B) Activity rate — reference */}
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">Activity Rate <span className="font-normal text-muted-foreground">· bought in last X days ÷ all customers (reference)</span></CardTitle></CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-3">
+                  <div><div className="text-xs text-muted-foreground mb-1">90 days</div><Cell b={rm.activity.d90} color="text-muted-foreground" /></div>
+                  <div><div className="text-xs text-muted-foreground mb-1">120 days</div><Cell b={rm.activity.d120} color="text-muted-foreground" /></div>
+                  <div><div className="text-xs text-muted-foreground mb-1">1 year</div><Cell b={rm.activity.d365} color="text-muted-foreground" /></div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )
+      })()}
 
       {/* Monthly AOV & Retention Trend */}
       {data.monthlyTrend.length > 0 && (

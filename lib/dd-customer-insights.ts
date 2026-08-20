@@ -55,7 +55,21 @@ function normPhone(raw: string, sg = false): string {
   return d
 }
 
-type Cust = { orders: number; spend: number; firstMs: number; lastMs: number; has26: boolean; vip: boolean; name: string; phone: string; lastPkg: string; bO: number; bMax: number; bLast: number; bVip: boolean; rO: number; rMax: number; rLast: number; rVip: boolean }
+type Cust = { orders: number; spend: number; firstMs: number; secondMs: number; lastMs: number; has26: boolean; vip: boolean; name: string; phone: string; lastPkg: string; bO: number; bMax: number; bLast: number; bVip: boolean; bFirst: number; bSecond: number; rO: number; rMax: number; rLast: number; rVip: boolean; rFirst: number; rSecond: number }
+const MAXMS = Number.MAX_SAFE_INTEGER
+// Track earliest (first) and earliest-repeat (second, strictly later) order timestamps.
+function twoMin(firstKey: number, secondKey: number, ms: number): [number, number] {
+  if (ms < firstKey) return [ms, firstKey]           // new earliest; old first becomes repeat candidate
+  if (ms > firstKey && ms < secondKey) return [firstKey, ms]
+  return [firstKey, secondKey]
+}
+export type RetBucket = { num: number; denom: number; rate: number }
+export type RetentionMetrics = {
+  cohort: { d90: RetBucket; d120: RetBucket; d365: RetBucket }
+  activity: { d90: RetBucket; d120: RetBucket; d365: RetBucket }
+  beauty: { d90: RetBucket; d120: RetBucket }
+  repair: { d90: RetBucket; d120: RetBucket }
+}
 export type InactiveCustomer = { phone: string; name: string; package: string; spend: number; lastMs: number }
 
 export type DdCustomerInsights = {
@@ -69,6 +83,7 @@ export type DdCustomerInsights = {
   churnCount: number
   inactive90: number
   inactiveCustomers: InactiveCustomer[]
+  retentionMetrics: RetentionMetrics
   lifecycle: { beauty: PageLifecycle; repair: PageLifecycle }
   asOf: string
 }
@@ -107,17 +122,17 @@ export async function computeDdCustomerInsights(): Promise<DdCustomerInsights> {
         else continue
       }
       let c = map.get(key)
-      if (!c) { c = { orders: 0, spend: 0, firstMs: ms || Number.MAX_SAFE_INTEGER, lastMs: 0, has26: false, vip: false, name: '', phone: '', lastPkg: '', bO: 0, bMax: 0, bLast: 0, bVip: false, rO: 0, rMax: 0, rLast: 0, rVip: false }; map.set(key, c) }
+      if (!c) { c = { orders: 0, spend: 0, firstMs: MAXMS, secondMs: MAXMS, lastMs: 0, has26: false, vip: false, name: '', phone: '', lastPkg: '', bO: 0, bMax: 0, bLast: 0, bVip: false, bFirst: MAXMS, bSecond: MAXMS, rO: 0, rMax: 0, rLast: 0, rVip: false, rFirst: MAXMS, rSecond: MAXMS }; map.set(key, c) }
       c.orders++
       c.spend += price
       if (nm && !c.name) c.name = nm
       if (phoneRaw && !c.phone) c.phone = phoneRaw
-      if (ms && ms < c.firstMs) c.firstMs = ms
+      if (ms) { const [f1, s1] = twoMin(c.firstMs, c.secondMs, ms); c.firstMs = f1; c.secondMs = s1 }
       if (ms >= c.lastMs) { c.lastMs = ms; if (pkg) c.lastPkg = pkg }
       const vipFlag = isActiveVip(f['AUTO VIP'])
       if (vipFlag) c.vip = true
-      if (BEAUTY_CH.indexOf(channel) >= 0) { c.bO++; if (price > c.bMax) c.bMax = price; if (ms > c.bLast) c.bLast = ms; if (vipFlag) c.bVip = true }
-      else if (REPAIR_CH.indexOf(channel) >= 0) { c.rO++; if (price > c.rMax) c.rMax = price; if (ms > c.rLast) c.rLast = ms; if (vipFlag) c.rVip = true }
+      if (BEAUTY_CH.indexOf(channel) >= 0) { c.bO++; if (price > c.bMax) c.bMax = price; if (ms > c.bLast) c.bLast = ms; if (vipFlag) c.bVip = true; if (ms) { const [f2, s2] = twoMin(c.bFirst, c.bSecond, ms); c.bFirst = f2; c.bSecond = s2 } }
+      else if (REPAIR_CH.indexOf(channel) >= 0) { c.rO++; if (price > c.rMax) c.rMax = price; if (ms > c.rLast) c.rLast = ms; if (vipFlag) c.rVip = true; if (ms) { const [f3, s3] = twoMin(c.rFirst, c.rSecond, ms); c.rFirst = f3; c.rSecond = s3 } }
       const yk = monthKey(ms).slice(0, 4)
       if (yk === '2025') y2025.add(key)
       else if (yk === '2026') { y2026.add(key); c.has26 = true }
@@ -159,10 +174,44 @@ export async function computeDdCustomerInsights(): Promise<DdCustomerInsights> {
     }
   }
 
+  // ── Retention analysis ──────────────────────────────────────────────────
+  const DAY = 86400000
+  const nowMs = Date.now()
+  const custArr = Array.from(map.values())
+  const cohortRB = (getFirst: (c: Cust) => number, getSecond: (c: Cust) => number, X: number): RetBucket => {
+    const cut = nowMs - X * DAY
+    let num = 0, denom = 0
+    for (const c of custArr) {
+      const f = getFirst(c)
+      if (f === MAXMS || f > cut) continue   // no order on this scope, or not matured yet
+      denom++
+      const s = getSecond(c)
+      if (s !== MAXMS && s <= f + X * DAY) num++
+    }
+    return { num, denom, rate: denom ? Math.round((num / denom) * 1000) / 10 : 0 }
+  }
+  const activityRB = (X: number): RetBucket => {
+    const cut = nowMs - X * DAY
+    let a = 0, t = 0
+    for (const c of custArr) { if (c.firstMs === MAXMS) continue; t++; if (c.lastMs >= cut) a++ }
+    return { num: a, denom: t, rate: t ? Math.round((a / t) * 1000) / 10 : 0 }
+  }
+  const retentionMetrics: RetentionMetrics = {
+    cohort: {
+      d90:  cohortRB(c => c.firstMs, c => c.secondMs, 90),
+      d120: cohortRB(c => c.firstMs, c => c.secondMs, 120),
+      d365: cohortRB(c => c.firstMs, c => c.secondMs, 365),
+    },
+    activity: { d90: activityRB(90), d120: activityRB(120), d365: activityRB(365) },
+    beauty: { d90: cohortRB(c => c.bFirst, c => c.bSecond, 90), d120: cohortRB(c => c.bFirst, c => c.bSecond, 120) },
+    repair: { d90: cohortRB(c => c.rFirst, c => c.rSecond, 90), d120: cohortRB(c => c.rFirst, c => c.rSecond, 120) },
+  }
+
   return {
     totalCustomers: total,
     newThisMonth: newM,
     retentionCount: retention,
+    retentionMetrics,
     vipCount: vip,
     customerLtv: total ? Math.round(spendSum / total) : 0,
     unique2025: y2025.size,
