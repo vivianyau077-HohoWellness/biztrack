@@ -10,7 +10,6 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Upload, Users, RefreshCw, MessageSquare, Workflow, PieChart } from 'lucide-react'
 import { subDays, format } from 'date-fns'
-import DateRangePicker from '@/components/shared/DateRangePicker'
 import CustomerInsightsTab from './_components/CustomerInsightsTab'
 import FeedbackTab from './_components/FeedbackTab'
 import LifecycleTab from './_components/LifecycleTab'
@@ -138,14 +137,6 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* Date range */}
-        <div className="flex items-center gap-2">
-          <DateRangePicker
-            dateFrom={dateFrom}
-            dateTo={dateTo}
-            onChange={(f, t) => { setDateFrom(f); setDateTo(t) }}
-          />
-        </div>
 
         {/* Tab navigation */}
         <div className="flex gap-1 border-b -mb-3 pb-0">
