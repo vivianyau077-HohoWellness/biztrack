@@ -109,8 +109,7 @@ type DrillFilter = 'all' | 'new_month' | 'repeat' | 'vip' | 'dormant_lost'
 
 type RetB = { num: number; denom: number; rate: number }
 type RetMetrics = {
-  cohort: { d90: RetB; d120: RetB; d365: RetB }
-  activity: { d90: RetB; d120: RetB; d365: RetB }
+  d60: RetB; d90: RetB; d120: RetB; d365: RetB
   beauty: { d90: RetB; d120: RetB }
   repair: { d90: RetB; d120: RetB }
 }
@@ -202,7 +201,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
     queryFn: async () => {
       const res = await fetch('/api/analytics/dd-customer-insights')
       if (!res.ok) throw new Error('Failed')
-      return res.json() as Promise<{ totalCustomers: number; newThisMonth: number; retentionCount: number; vipCount: number; customerLtv: number; unique2025: number; unique2026: number; churnCount: number; inactive90: number; inactiveCustomers: { phone: string; name: string; package: string; spend: number; lastMs: number }[]; retentionMetrics: RetMetrics }>
+      return res.json() as Promise<{ totalCustomers: number; newThisMonth: number; retentionCount: number; vipCount: number; customerLtv: number; unique2025: number; unique2026: number; churnCount: number; inactive90: number; inactiveCustomers: { phone: string; name: string; package: string; spend: number; lastMs: number }[]; yearlyRetention: { retained: number; base: number; rate: number }; retentionMetrics: RetMetrics }>
     },
   })
   const data = (selectedBrand === 'DD' && liveDd && rawData)
@@ -499,7 +498,7 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
         const cards = [
           { filter: 'all' as DrillFilter,          label: 'Total Customers',  value: data.total.toLocaleString(),         color: 'text-foreground',  icon: Users,    accent: '',                       subtitle: '' },
           { filter: 'new_month' as DrillFilter,    label: 'New This Month',   value: String(data.newThisMonth),           color: 'text-green-600',   icon: UserPlus, accent: 'hover:ring-green-200',   subtitle: `${pct(data.newThisMonth)}% of total` },
-          { filter: 'repeat' as DrillFilter,       label: 'Retention Customers', value: String(data.retentionCount),      color: 'text-blue-600',    icon: Repeat2,  accent: 'hover:ring-blue-200',    subtitle: `${pct(data.retentionCount)}% returning` },
+          { filter: 'repeat' as DrillFilter,       label: useLive ? 'Retention (2025→2026)' : 'Lifetime Repeat (≥2 orders)', value: useLive ? `${liveDd!.yearlyRetention.rate}%` : String(data.retentionCount),      color: 'text-blue-600',    icon: Repeat2,  accent: 'hover:ring-blue-200',    subtitle: useLive ? `${liveDd!.yearlyRetention.retained.toLocaleString()} of ${liveDd!.yearlyRetention.base.toLocaleString()} 2025 customers returned in 2026` : `${pct(data.retentionCount)}% ever repurchased · all-time` },
           { filter: 'vip' as DrillFilter,          label: 'VIP Customers',    value: String(data.vipCount),               color: 'text-purple-600',  icon: Star,     accent: 'hover:ring-purple-200',  subtitle: `${pct(data.vipCount)}% of total` },
         ]
         return (
@@ -754,24 +753,24 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
           <div className="space-y-3">
             <div>
               <h3 className="text-sm font-semibold">Retention Analysis</h3>
-              <p className="text-xs text-muted-foreground">Repeat-purchase rate = of customers whose 1st order is old enough (matured), the % who bought again within the window. Deduped by phone, live from Lark.</p>
+              <p className="text-xs text-muted-foreground">Retention = of customers who bought in the prior window, the % who bought again in the next window. 1 year = bought in 2025 &amp; also in 2026. Deduped by phone, live from Lark.</p>
             </div>
 
-            {/* A) True retention — first→second within window */}
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm">Retention Rate <span className="font-normal text-muted-foreground">· 首单→二单 (matured cohort)</span></CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">Retention Rate <span className="font-normal text-muted-foreground">· period overlap</span></CardTitle></CardHeader>
               <CardContent>
-                <div className="grid grid-cols-3 gap-3">
-                  <div><div className="text-xs text-muted-foreground mb-1">90 days</div><Cell b={rm.cohort.d90} color="text-blue-600" /></div>
-                  <div><div className="text-xs text-muted-foreground mb-1">120 days</div><Cell b={rm.cohort.d120} color="text-blue-600" /></div>
-                  <div><div className="text-xs text-muted-foreground mb-1">1 year</div><Cell b={rm.cohort.d365} color="text-blue-600" /></div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div><div className="text-xs text-muted-foreground mb-1">60 days</div><Cell b={rm.d60} color="text-blue-600" /></div>
+                  <div><div className="text-xs text-muted-foreground mb-1">90 days</div><Cell b={rm.d90} color="text-blue-600" /></div>
+                  <div><div className="text-xs text-muted-foreground mb-1">120 days</div><Cell b={rm.d120} color="text-blue-600" /></div>
+                  <div><div className="text-xs text-muted-foreground mb-1">1 year (2025→2026)</div><Cell b={rm.d365} color="text-blue-600" /></div>
                 </div>
               </CardContent>
             </Card>
 
             {/* Page retention */}
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm">Page Retention <span className="font-normal text-muted-foreground">· same-page repeat</span></CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">Page Retention <span className="font-normal text-muted-foreground">· same-page period overlap</span></CardTitle></CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -788,18 +787,6 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
                       <div><div className="text-xs text-muted-foreground mb-1">120 days</div><Cell b={rm.repair.d120} color="text-rose-600" /></div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* B) Activity rate — reference */}
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm">Activity Rate <span className="font-normal text-muted-foreground">· bought in last X days ÷ all customers (reference)</span></CardTitle></CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-3">
-                  <div><div className="text-xs text-muted-foreground mb-1">90 days</div><Cell b={rm.activity.d90} color="text-muted-foreground" /></div>
-                  <div><div className="text-xs text-muted-foreground mb-1">120 days</div><Cell b={rm.activity.d120} color="text-muted-foreground" /></div>
-                  <div><div className="text-xs text-muted-foreground mb-1">1 year</div><Cell b={rm.activity.d365} color="text-muted-foreground" /></div>
                 </div>
               </CardContent>
             </Card>

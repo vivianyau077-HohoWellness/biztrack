@@ -55,18 +55,20 @@ function normPhone(raw: string, sg = false): string {
   return d
 }
 
-type Cust = { orders: number; spend: number; firstMs: number; secondMs: number; lastMs: number; has26: boolean; vip: boolean; name: string; phone: string; lastPkg: string; bO: number; bMax: number; bLast: number; bVip: boolean; bFirst: number; bSecond: number; rO: number; rMax: number; rLast: number; rVip: boolean; rFirst: number; rSecond: number }
-const MAXMS = Number.MAX_SAFE_INTEGER
-// Track earliest (first) and earliest-repeat (second, strictly later) order timestamps.
-function twoMin(firstKey: number, secondKey: number, ms: number): [number, number] {
-  if (ms < firstKey) return [ms, firstKey]           // new earliest; old first becomes repeat candidate
-  if (ms > firstKey && ms < secondKey) return [firstKey, ms]
-  return [firstKey, secondKey]
+type Cust = {
+  orders: number; spend: number; firstMs: number; lastMs: number; has26: boolean; vip: boolean; name: string; phone: string; lastPkg: string
+  bO: number; bMax: number; bLast: number; bVip: boolean; rO: number; rMax: number; rLast: number; rVip: boolean
+  // Period-overlap retention flags (bought in prior window / next window), overall + per page
+  p60: boolean; n60: boolean; p90: boolean; n90: boolean; p120: boolean; n120: boolean
+  bp90: boolean; bn90: boolean; bp120: boolean; bn120: boolean
+  rp90: boolean; rn90: boolean; rp120: boolean; rn120: boolean
 }
+const MAXMS = Number.MAX_SAFE_INTEGER
 export type RetBucket = { num: number; denom: number; rate: number }
+// Retention = of customers who bought in the prior X-day window, the % who bought
+// again in the next X-day window (your "period overlap" definition). d365 = 2025→2026.
 export type RetentionMetrics = {
-  cohort: { d90: RetBucket; d120: RetBucket; d365: RetBucket }
-  activity: { d90: RetBucket; d120: RetBucket; d365: RetBucket }
+  d60: RetBucket; d90: RetBucket; d120: RetBucket; d365: RetBucket
   beauty: { d90: RetBucket; d120: RetBucket }
   repair: { d90: RetBucket; d120: RetBucket }
 }
@@ -83,6 +85,7 @@ export type DdCustomerInsights = {
   churnCount: number
   inactive90: number
   inactiveCustomers: InactiveCustomer[]
+  yearlyRetention: { retained: number; base: number; rate: number }
   retentionMetrics: RetentionMetrics
   lifecycle: { beauty: PageLifecycle; repair: PageLifecycle }
   asOf: string
@@ -100,6 +103,12 @@ export async function computeDdCustomerInsights(): Promise<DdCustomerInsights> {
   const y2025 = new Set<string>()
   const y2026 = new Set<string>()
   const nowMonth = monthKey(Date.now())
+
+  // Period-overlap retention windows: prior window [now-2X, now-X), next window [now-X, now].
+  const DAY = 86400000, NOW = Date.now()
+  const win = (X: number) => ({ pS: NOW - 2 * X * DAY, pE: NOW - X * DAY, nE: NOW })
+
+  const W = { d60: win(60), d90: win(90), d120: win(120) }
 
   const eat = (recs: Array<{ fields: Record<string, unknown> }>, phoneField: string) => {
     for (const r of recs) {
@@ -122,17 +131,28 @@ export async function computeDdCustomerInsights(): Promise<DdCustomerInsights> {
         else continue
       }
       let c = map.get(key)
-      if (!c) { c = { orders: 0, spend: 0, firstMs: MAXMS, secondMs: MAXMS, lastMs: 0, has26: false, vip: false, name: '', phone: '', lastPkg: '', bO: 0, bMax: 0, bLast: 0, bVip: false, bFirst: MAXMS, bSecond: MAXMS, rO: 0, rMax: 0, rLast: 0, rVip: false, rFirst: MAXMS, rSecond: MAXMS }; map.set(key, c) }
+      if (!c) { c = { orders: 0, spend: 0, firstMs: MAXMS, lastMs: 0, has26: false, vip: false, name: '', phone: '', lastPkg: '', bO: 0, bMax: 0, bLast: 0, bVip: false, rO: 0, rMax: 0, rLast: 0, rVip: false, p60: false, n60: false, p90: false, n90: false, p120: false, n120: false, bp90: false, bn90: false, bp120: false, bn120: false, rp90: false, rn90: false, rp120: false, rn120: false }; map.set(key, c) }
       c.orders++
       c.spend += price
       if (nm && !c.name) c.name = nm
       if (phoneRaw && !c.phone) c.phone = phoneRaw
-      if (ms) { const [f1, s1] = twoMin(c.firstMs, c.secondMs, ms); c.firstMs = f1; c.secondMs = s1 }
+      if (ms && ms < c.firstMs) c.firstMs = ms
       if (ms >= c.lastMs) { c.lastMs = ms; if (pkg) c.lastPkg = pkg }
+      // period-overlap flags (overall)
+      if (ms) {
+        if (ms >= W.d60.pS && ms < W.d60.pE) c.p60 = true; if (ms >= W.d60.pE && ms <= W.d60.nE) c.n60 = true
+        if (ms >= W.d90.pS && ms < W.d90.pE) c.p90 = true; if (ms >= W.d90.pE && ms <= W.d90.nE) c.n90 = true
+        if (ms >= W.d120.pS && ms < W.d120.pE) c.p120 = true; if (ms >= W.d120.pE && ms <= W.d120.nE) c.n120 = true
+      }
       const vipFlag = isActiveVip(f['AUTO VIP'])
       if (vipFlag) c.vip = true
-      if (BEAUTY_CH.indexOf(channel) >= 0) { c.bO++; if (price > c.bMax) c.bMax = price; if (ms > c.bLast) c.bLast = ms; if (vipFlag) c.bVip = true; if (ms) { const [f2, s2] = twoMin(c.bFirst, c.bSecond, ms); c.bFirst = f2; c.bSecond = s2 } }
-      else if (REPAIR_CH.indexOf(channel) >= 0) { c.rO++; if (price > c.rMax) c.rMax = price; if (ms > c.rLast) c.rLast = ms; if (vipFlag) c.rVip = true; if (ms) { const [f3, s3] = twoMin(c.rFirst, c.rSecond, ms); c.rFirst = f3; c.rSecond = s3 } }
+      if (BEAUTY_CH.indexOf(channel) >= 0) {
+        c.bO++; if (price > c.bMax) c.bMax = price; if (ms > c.bLast) c.bLast = ms; if (vipFlag) c.bVip = true
+        if (ms) { if (ms >= W.d90.pS && ms < W.d90.pE) c.bp90 = true; if (ms >= W.d90.pE && ms <= W.d90.nE) c.bn90 = true; if (ms >= W.d120.pS && ms < W.d120.pE) c.bp120 = true; if (ms >= W.d120.pE && ms <= W.d120.nE) c.bn120 = true }
+      } else if (REPAIR_CH.indexOf(channel) >= 0) {
+        c.rO++; if (price > c.rMax) c.rMax = price; if (ms > c.rLast) c.rLast = ms; if (vipFlag) c.rVip = true
+        if (ms) { if (ms >= W.d90.pS && ms < W.d90.pE) c.rp90 = true; if (ms >= W.d90.pE && ms <= W.d90.nE) c.rn90 = true; if (ms >= W.d120.pS && ms < W.d120.pE) c.rp120 = true; if (ms >= W.d120.pE && ms <= W.d120.nE) c.rn120 = true }
+      }
       const yk = monthKey(ms).slice(0, 4)
       if (yk === '2025') y2025.add(key)
       else if (yk === '2026') { y2026.add(key); c.has26 = true }
@@ -174,43 +194,31 @@ export async function computeDdCustomerInsights(): Promise<DdCustomerInsights> {
     }
   }
 
-  // ── Retention analysis ──────────────────────────────────────────────────
-  const DAY = 86400000
-  const nowMs = Date.now()
+  // ── Retention analysis (period-overlap: bought in prior window AND next window) ──
   const custArr = Array.from(map.values())
-  const cohortRB = (getFirst: (c: Cust) => number, getSecond: (c: Cust) => number, X: number): RetBucket => {
-    const cut = nowMs - X * DAY
+  const overlapRB = (pKey: keyof Cust, nKey: keyof Cust): RetBucket => {
     let num = 0, denom = 0
-    for (const c of custArr) {
-      const f = getFirst(c)
-      if (f === MAXMS || f > cut) continue   // no order on this scope, or not matured yet
-      denom++
-      const s = getSecond(c)
-      if (s !== MAXMS && s <= f + X * DAY) num++
-    }
+    for (const c of custArr) { if (c[pKey]) { denom++; if (c[nKey]) num++ } }
     return { num, denom, rate: denom ? Math.round((num / denom) * 1000) / 10 : 0 }
   }
-  const activityRB = (X: number): RetBucket => {
-    const cut = nowMs - X * DAY
-    let a = 0, t = 0
-    for (const c of custArr) { if (c.firstMs === MAXMS) continue; t++; if (c.lastMs >= cut) a++ }
-    return { num: a, denom: t, rate: t ? Math.round((a / t) * 1000) / 10 : 0 }
-  }
+  // Yearly retention (your formula): bought in 2025 AND 2026 ÷ 2025 buyers.
+  let bothYears = 0
+  for (const k of Array.from(y2025)) if (y2026.has(k)) bothYears++
+  const yearlyRetention = { retained: bothYears, base: y2025.size, rate: y2025.size ? Math.round((bothYears / y2025.size) * 1000) / 10 : 0 }
   const retentionMetrics: RetentionMetrics = {
-    cohort: {
-      d90:  cohortRB(c => c.firstMs, c => c.secondMs, 90),
-      d120: cohortRB(c => c.firstMs, c => c.secondMs, 120),
-      d365: cohortRB(c => c.firstMs, c => c.secondMs, 365),
-    },
-    activity: { d90: activityRB(90), d120: activityRB(120), d365: activityRB(365) },
-    beauty: { d90: cohortRB(c => c.bFirst, c => c.bSecond, 90), d120: cohortRB(c => c.bFirst, c => c.bSecond, 120) },
-    repair: { d90: cohortRB(c => c.rFirst, c => c.rSecond, 90), d120: cohortRB(c => c.rFirst, c => c.rSecond, 120) },
+    d60:  overlapRB('p60', 'n60'),
+    d90:  overlapRB('p90', 'n90'),
+    d120: overlapRB('p120', 'n120'),
+    d365: { num: bothYears, denom: y2025.size, rate: yearlyRetention.rate },
+    beauty: { d90: overlapRB('bp90', 'bn90'), d120: overlapRB('bp120', 'bn120') },
+    repair: { d90: overlapRB('rp90', 'rn90'), d120: overlapRB('rp120', 'rn120') },
   }
 
   return {
     totalCustomers: total,
     newThisMonth: newM,
     retentionCount: retention,
+    yearlyRetention,
     retentionMetrics,
     vipCount: vip,
     customerLtv: total ? Math.round(spendSum / total) : 0,
