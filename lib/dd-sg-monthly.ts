@@ -51,6 +51,10 @@ export interface SgMonth {
   repeatOrder: number; repeatSales: number; repeatAov: number
 }
 
+// The GET records endpoint returns AUTO N/R as an option ID — map it to New/Repeat.
+const NR_MAP: Record<string, string> = { optjM3sSTm: 'New', opt5RJTkyU: 'Repeat', opt1A1ejf7: 'No' }
+const nrVal = (v: unknown) => { const s = fstr(v); return NR_MAP[s] ?? s }
+
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export async function computeDdSgMonthly(year = 2026): Promise<SgMonth[]> {
@@ -81,7 +85,7 @@ export async function computeDdSgMonthly(year = 2026): Promise<SgMonth[]> {
     if (!price) continue
     const m = monthKey(fdateMs(f['Date']))
     if (!m || m.slice(0, 4) !== String(year)) continue
-    const nr = fstr(f['AUTO N/R'])
+    const nr = nrVal(f['AUTO N/R'])
     const x = get(m)
     x.sales += price
     if (nr === 'New') { x.no++; x.ns += price }
