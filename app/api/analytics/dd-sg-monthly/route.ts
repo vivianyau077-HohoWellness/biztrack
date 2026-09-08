@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   try {
     const data = await computeDdSgMonthly(2026)
-    return NextResponse.json({ months: data })
+    return NextResponse.json(data)
   } catch (e) {
     console.error('[dd-sg-monthly] error:', e)
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Failed' }, { status: 500 })

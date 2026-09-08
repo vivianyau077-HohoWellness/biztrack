@@ -57,14 +57,25 @@ const nrVal = (v: unknown) => { const s = fstr(v); return NR_MAP[s] ?? s }
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-export async function computeDdSgMonthly(year = 2026): Promise<SgMonth[]> {
+export interface SgChannel {
+  channel: string
+  newOrders: number; newSales: number
+  repeatOrders: number; repeatSales: number
+  total: number
+}
+export interface SgResult { months: SgMonth[]; byChannel: SgChannel[] }
+
+export async function computeDdSgMonthly(year = 2026): Promise<SgResult> {
   const [report, orders] = await Promise.all([
-    fetchLarkRecords(T_REPORT, APP, undefined, ['Date', 'SG Total Pm', 'WA Pmed (SG)', 'Total Ad Spent SG']),
+    fetchLarkRecords(T_REPORT, APP, undefined, ['Date', 'SG Total Pm', 'WA Pmed (SG)', 'Total Ad Spent SG', 'Total Sales SG']),
     fetchLarkRecords(T_ORDER_26, APP, undefined, ['Date', 'Channel', 'AUTO N/R', 'Total Price', 'Price Domain']),
   ])
 
   const map = new Map<string, { pmFb: number; pmWa: number; sales: number; ad: number; no: number; ro: number; ns: number; rs: number }>()
   const get = (m: string) => { let x = map.get(m); if (!x) { x = { pmFb: 0, pmWa: 0, sales: 0, ad: 0, no: 0, ro: 0, ns: 0, rs: 0 }; map.set(m, x) } return x }
+  // Per-channel New/Repeat sales distribution (across the year)
+  const chMap = new Map<string, { newOrders: number; newSales: number; repeatOrders: number; repeatSales: number }>()
+  const getCh = (c: string) => { let x = chMap.get(c); if (!x) { x = { newOrders: 0, newSales: 0, repeatOrders: 0, repeatSales: 0 }; chMap.set(c, x) } return x }
 
   // PM + ad spend from the Race Report
   for (const r of report) {
@@ -75,21 +86,25 @@ export async function computeDdSgMonthly(year = 2026): Promise<SgMonth[]> {
     x.pmFb += fnum(f['SG Total Pm'])
     x.pmWa += fnum(f['WA Pmed (SG)'])
     x.ad += fnum(f['Total Ad Spent SG'])
+    x.sales += fnum(f['Total Sales SG'])   // Total Sales SG follows the Race Report formula (incl Shopee)
   }
   // Sales + New/Repeat from the ORDER table (SG channels only)
   for (const r of orders) {
     const f = r.fields
     const channel = fstr(f['Channel'])
-    if (channel === 'Return' || channel.toLowerCase().indexOf('sg') < 0) continue
+    const cl = channel.toLowerCase()
+    // All SG channels (incl Shopee SG) count toward Total Sales SG.
+    if (channel === 'Return' || cl.indexOf('sg') < 0) continue
     const price = fnum(f['Total Price']) || fnum(f['Price Domain'])
     if (!price) continue
     const m = monthKey(fdateMs(f['Date']))
     if (!m || m.slice(0, 4) !== String(year)) continue
     const nr = nrVal(f['AUTO N/R'])
     const x = get(m)
-    x.sales += price
-    if (nr === 'New') { x.no++; x.ns += price }
-    else if (nr === 'Repeat') { x.ro++; x.rs += price }
+    const ch = getCh(channel)
+    // Sales total follows the report (above); order table drives New/Repeat + per-channel detail.
+    if (nr === 'New') { x.no++; x.ns += price; ch.newOrders++; ch.newSales += price }
+    else if (nr === 'Repeat') { x.ro++; x.rs += price; ch.repeatOrders++; ch.repeatSales += price }
   }
 
   const out: SgMonth[] = []
@@ -107,5 +122,12 @@ export async function computeDdSgMonthly(year = 2026): Promise<SgMonth[]> {
       repeatOrder: Math.round(x.ro), repeatSales: Math.round(x.rs), repeatAov: x.ro ? Math.round(x.rs / x.ro) : 0,
     })
   }
-  return out
+  const byChannel: SgChannel[] = Array.from(chMap.entries()).map(([channel, c]) => ({
+    channel,
+    newOrders: c.newOrders, newSales: Math.round(c.newSales),
+    repeatOrders: c.repeatOrders, repeatSales: Math.round(c.repeatSales),
+    total: Math.round(c.newSales + c.repeatSales),
+  })).sort((a, b) => b.total - a.total)
+
+  return { months: out, byChannel }
 }

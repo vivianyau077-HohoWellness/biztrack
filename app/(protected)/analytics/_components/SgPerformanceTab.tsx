@@ -13,6 +13,10 @@ interface SgMonth {
   newOrder: number; newSales: number; newAov: number
   repeatOrder: number; repeatSales: number; repeatAov: number
 }
+interface SgChannel {
+  channel: string; newOrders: number; newSales: number
+  repeatOrders: number; repeatSales: number; total: number
+}
 
 const rm = (n: number) => `RM ${Math.round(n).toLocaleString()}`
 
@@ -23,7 +27,7 @@ export default function SgPerformanceTab({ selectedBrand }: { selectedBrand?: st
     queryFn: async () => {
       const res = await fetch('/api/analytics/dd-sg-monthly')
       if (!res.ok) { const b = await res.json().catch(() => null); throw new Error(b?.error || `HTTP ${res.status}`) }
-      return res.json() as Promise<{ months: SgMonth[] }>
+      return res.json() as Promise<{ months: SgMonth[]; byChannel: SgChannel[] }>
     },
     retry: false,
   })
@@ -175,6 +179,53 @@ export default function SgPerformanceTab({ selectedBrand }: { selectedBrand?: st
                       <td className="px-3 py-2 text-right">{rO.toLocaleString()}</td>
                       <td className="px-3 py-2 text-right">{rm(rS)}</td>
                       <td className="px-3 py-2 text-right">{rm(rO ? rS / rO : 0)}</td>
+                    </tr>
+                  )
+                })()}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* By channel — New vs Repeat sales distribution */}
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-sm">By Channel (SG) · New vs Repeat sales distribution</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/50">
+                <tr className="border-b">
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Channel</th>
+                  <th className="px-3 py-2 text-right font-medium text-emerald-600">New Order</th>
+                  <th className="px-3 py-2 text-right font-medium text-emerald-600">New Sales</th>
+                  <th className="px-3 py-2 text-right font-medium text-blue-600">Repeat Order</th>
+                  <th className="px-3 py-2 text-right font-medium text-blue-600">Repeat Sales</th>
+                  <th className="px-3 py-2 text-right font-medium text-muted-foreground">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(data?.byChannel ?? []).map(c => (
+                  <tr key={c.channel} className="border-b hover:bg-muted/30">
+                    <td className="px-3 py-2 font-medium">{c.channel}</td>
+                    <td className="px-3 py-2 text-right">{c.newOrders.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right">{rm(c.newSales)}</td>
+                    <td className="px-3 py-2 text-right">{c.repeatOrders.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right">{rm(c.repeatSales)}</td>
+                    <td className="px-3 py-2 text-right font-semibold">{rm(c.total)}</td>
+                  </tr>
+                ))}
+                {(data?.byChannel?.length ?? 0) > 0 && (() => {
+                  const b = data!.byChannel
+                  const s = (k: keyof SgChannel) => b.reduce((a, c) => a + (c[k] as number), 0)
+                  return (
+                    <tr className="border-t-2 font-semibold bg-muted/30">
+                      <td className="px-3 py-2">Total</td>
+                      <td className="px-3 py-2 text-right">{s('newOrders').toLocaleString()}</td>
+                      <td className="px-3 py-2 text-right">{rm(s('newSales'))}</td>
+                      <td className="px-3 py-2 text-right">{s('repeatOrders').toLocaleString()}</td>
+                      <td className="px-3 py-2 text-right">{rm(s('repeatSales'))}</td>
+                      <td className="px-3 py-2 text-right">{rm(s('total'))}</td>
                     </tr>
                   )
                 })()}
