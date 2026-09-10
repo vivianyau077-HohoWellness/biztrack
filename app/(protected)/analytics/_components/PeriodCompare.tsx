@@ -113,17 +113,27 @@ function iso(d: Date) {
   return y + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day
 }
 
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+const MON_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const pad2 = (n: number) => (n < 10 ? '0' : '') + n
+
 export default function PeriodCompare() {
   const today = new Date()
-  const dayNo = today.getDate()
-  const aFromD = new Date(today.getFullYear(), today.getMonth(), 1)
-  const bFromD = new Date(today.getFullYear(), today.getMonth() - 1, 1)
-  const bToD = new Date(today.getFullYear(), today.getMonth() - 1, dayNo) // same day-of-month, prev month
+  const prevMonth = today.getMonth() - 1 < 0 ? 11 : today.getMonth() - 1
+  const prevYear = today.getMonth() - 1 < 0 ? today.getFullYear() - 1 : today.getFullYear()
 
-  const [aFrom, setAFrom] = useState(iso(aFromD))
-  const [aTo, setATo] = useState(iso(today))
-  const [bFrom, setBFrom] = useState(iso(bFromD))
-  const [bTo, setBTo] = useState(iso(bToD))
+  // Pick month by NAME + a shared day range (e.g. Sep 1–10 vs Aug 1–10).
+  const [monthA, setMonthA] = useState(today.getMonth())
+  const [yearA, setYearA] = useState(today.getFullYear())
+  const [monthB, setMonthB] = useState(prevMonth)
+  const [yearB, setYearB] = useState(prevYear)
+  const [dayFrom, setDayFrom] = useState(1)
+  const [dayTo, setDayTo] = useState(today.getDate())
+
+  const aFrom = `${yearA}-${pad2(monthA + 1)}-${pad2(dayFrom)}`
+  const aTo = `${yearA}-${pad2(monthA + 1)}-${pad2(dayTo)}`
+  const bFrom = `${yearB}-${pad2(monthB + 1)}-${pad2(dayFrom)}`
+  const bTo = `${yearB}-${pad2(monthB + 1)}-${pad2(dayTo)}`
 
   const { data, isLoading, error, isFetching } = useQuery({
     queryKey: ['period-compare', aFrom, aTo, bFrom, bTo],
@@ -139,27 +149,46 @@ export default function PeriodCompare() {
     retry: false,
   })
 
-  const dateInput = (v: string, set: (s: string) => void) => (
-    <input type="date" value={v} onChange={e => set(e.target.value)}
-      className="h-9 rounded-md border border-input bg-background px-2 text-sm" />
-  )
-  const MON_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   const niceDay = (iso: string) => { const p = iso.split('-'); return p.length === 3 ? `${MON_SHORT[+p[1] - 1]} ${+p[2]}` : iso }
   const niceRange = (f: string, t: string) => `${niceDay(f)} → ${niceDay(t)}, ${f.slice(0, 4)}`
+  const selClass = 'h-9 rounded-md border border-input bg-background px-2 text-sm'
+  const YEARS = [today.getFullYear() - 1, today.getFullYear()]
+  const monthSelect = (m: number, setM: (n: number) => void, y: number, setY: (n: number) => void) => (
+    <div className="flex items-center gap-1.5">
+      <select value={m} onChange={e => setM(+e.target.value)} className={selClass}>
+        {MONTHS.map((name, i) => <option key={i} value={i}>{name}</option>)}
+      </select>
+      <select value={y} onChange={e => setY(+e.target.value)} className={selClass}>
+        {YEARS.map(yr => <option key={yr} value={yr}>{yr}</option>)}
+      </select>
+    </div>
+  )
 
   return (
     <Card>
       <CardContent className="p-4">
         <div className="flex flex-wrap items-end gap-4 mb-4">
           <div>
-            <p className="text-xs font-semibold mb-1" style={{ color: '#1C7293' }}>Period A</p>
-            <div className="flex items-center gap-1.5 text-sm">{dateInput(aFrom, setAFrom)}<span className="text-muted-foreground">→</span>{dateInput(aTo, setATo)}</div>
+            <p className="text-xs font-semibold mb-1" style={{ color: '#1C7293' }}>Period A · month</p>
+            {monthSelect(monthA, setMonthA, yearA, setYearA)}
             <p className="text-xs mt-1 font-medium" style={{ color: '#1C7293' }}>{niceRange(aFrom, aTo)}</p>
           </div>
           <div>
-            <p className="text-xs font-semibold mb-1" style={{ color: '#7E57C2' }}>Period B</p>
-            <div className="flex items-center gap-1.5 text-sm">{dateInput(bFrom, setBFrom)}<span className="text-muted-foreground">→</span>{dateInput(bTo, setBTo)}</div>
+            <p className="text-xs font-semibold mb-1" style={{ color: '#7E57C2' }}>Period B · month</p>
+            {monthSelect(monthB, setMonthB, yearB, setYearB)}
             <p className="text-xs mt-1 font-medium" style={{ color: '#7E57C2' }}>{niceRange(bFrom, bTo)}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold mb-1 text-muted-foreground">Days (both months)</p>
+            <div className="flex items-center gap-1.5">
+              <select value={dayFrom} onChange={e => setDayFrom(+e.target.value)} className={selClass}>
+                {Array.from({ length: 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+              <span className="text-muted-foreground">→</span>
+              <select value={dayTo} onChange={e => setDayTo(+e.target.value)} className={selClass}>
+                {Array.from({ length: 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
           </div>
           <span className="text-xs text-muted-foreground pb-2">Deviance = A − B {isFetching && '· loading…'}</span>
         </div>
