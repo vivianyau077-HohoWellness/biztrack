@@ -143,6 +143,9 @@ export default function PeriodCompare() {
     <input type="date" value={v} onChange={e => set(e.target.value)}
       className="h-9 rounded-md border border-input bg-background px-2 text-sm" />
   )
+  const MON_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const niceDay = (iso: string) => { const p = iso.split('-'); return p.length === 3 ? `${MON_SHORT[+p[1] - 1]} ${+p[2]}` : iso }
+  const niceRange = (f: string, t: string) => `${niceDay(f)} → ${niceDay(t)}, ${f.slice(0, 4)}`
 
   return (
     <Card>
@@ -151,10 +154,12 @@ export default function PeriodCompare() {
           <div>
             <p className="text-xs font-semibold mb-1" style={{ color: '#1C7293' }}>Period A</p>
             <div className="flex items-center gap-1.5 text-sm">{dateInput(aFrom, setAFrom)}<span className="text-muted-foreground">→</span>{dateInput(aTo, setATo)}</div>
+            <p className="text-xs mt-1 font-medium" style={{ color: '#1C7293' }}>{niceRange(aFrom, aTo)}</p>
           </div>
           <div>
             <p className="text-xs font-semibold mb-1" style={{ color: '#7E57C2' }}>Period B</p>
             <div className="flex items-center gap-1.5 text-sm">{dateInput(bFrom, setBFrom)}<span className="text-muted-foreground">→</span>{dateInput(bTo, setBTo)}</div>
+            <p className="text-xs mt-1 font-medium" style={{ color: '#7E57C2' }}>{niceRange(bFrom, bTo)}</p>
           </div>
           <span className="text-xs text-muted-foreground pb-2">Deviance = A − B {isFetching && '· loading…'}</span>
         </div>
@@ -169,8 +174,8 @@ export default function PeriodCompare() {
               <thead>
                 <tr>
                   <th className="px-4 py-2.5 text-left font-semibold sticky top-0 z-10 bg-muted" style={{ width: '34%' }}>Metric</th>
-                  <th className="px-4 py-2.5 text-right font-semibold sticky top-0 z-10 bg-muted" style={{ color: '#1C7293', width: '22%' }}>A · {aFrom} → {aTo}</th>
-                  <th className="px-4 py-2.5 text-right font-semibold sticky top-0 z-10 bg-muted" style={{ color: '#7E57C2', width: '22%' }}>B · {bFrom} → {bTo}</th>
+                  <th className="px-4 py-2.5 text-right font-semibold sticky top-0 z-10 bg-muted" style={{ color: '#1C7293', width: '22%' }}>A · {niceRange(aFrom, aTo)}</th>
+                  <th className="px-4 py-2.5 text-right font-semibold sticky top-0 z-10 bg-muted" style={{ color: '#7E57C2', width: '22%' }}>B · {niceRange(bFrom, bTo)}</th>
                   <th className="px-4 py-2.5 text-right font-semibold sticky top-0 z-10 bg-muted" style={{ width: '22%' }}>Deviance</th>
                 </tr>
               </thead>
