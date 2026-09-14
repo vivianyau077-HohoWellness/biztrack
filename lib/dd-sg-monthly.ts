@@ -51,9 +51,6 @@ export interface SgMonth {
   repeatOrder: number; repeatSales: number; repeatAov: number
 }
 
-// SG channels — must match the Race Report "sales SG" formula exactly (New+Repeat then tally).
-const SG_CHANNELS = ['FB SG', 'Shopee SG', 'FB SG MY', 'WhatsApp SG', 'FB SG ENG']
-
 // The GET records endpoint returns AUTO N/R as an option ID — map it to New/Repeat.
 const NR_MAP: Record<string, string> = { optjM3sSTm: 'New', opt5RJTkyU: 'Repeat', opt1A1ejf7: 'No' }
 const nrVal = (v: unknown) => { const s = fstr(v); return NR_MAP[s] ?? s }
@@ -95,8 +92,8 @@ export async function computeDdSgMonthly(year = 2026): Promise<SgResult> {
   for (const r of orders) {
     const f = r.fields
     const channel = fstr(f['Channel'])
-    // Exactly the 5 channels the Race Report uses (incl Shopee SG) — so New+Repeat tally.
-    if (SG_CHANNELS.indexOf(channel) < 0) continue
+    // ALL SG channels (same scope as the report's Total Sales SG) so New+Repeat tally with Total.
+    if (channel === 'Return' || channel.toLowerCase().indexOf('sg') < 0) continue
     const price = fnum(f['Total Price']) || fnum(f['Price Domain'])
     if (!price) continue
     const m = monthKey(fdateMs(f['Date']))
