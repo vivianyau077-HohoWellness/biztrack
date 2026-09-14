@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -14,13 +15,15 @@ interface SgMonth {
   repeatOrder: number; repeatSales: number; repeatAov: number
 }
 interface SgChannel {
-  channel: string; newOrders: number; newSales: number
+  month: string; label: string; channel: string
+  newOrders: number; newSales: number
   repeatOrders: number; repeatSales: number; total: number
 }
 
 const rm = (n: number) => `RM ${Math.round(n).toLocaleString()}`
 
 export default function SgPerformanceTab({ selectedBrand }: { selectedBrand?: string }) {
+  const [chMonth, setChMonth] = useState('all')
   const { data, isLoading, error } = useQuery({
     queryKey: ['dd-sg-monthly'],
     enabled: selectedBrand === 'DD',
@@ -38,6 +41,18 @@ export default function SgPerformanceTab({ selectedBrand }: { selectedBrand?: st
   const totals = months.reduce((a, m) => ({ pm: a.pm + m.pm, sales: a.sales + m.sales, ad: a.ad + m.ad }), { pm: 0, sales: 0, ad: 0 })
   const totCpm = totals.pm ? Math.round((totals.ad / totals.pm) * 100) / 100 : 0
   const totRoas = totals.ad ? Math.round((totals.sales / totals.ad) * 100) / 100 : 0
+
+  // By-channel rows filtered/aggregated by the selected month
+  const rawCh = data?.byChannel ?? []
+  const chMonthOpts = Array.from(new Map(rawCh.map(c => [c.month, c.label] as [string, string])).entries()).sort((a, b) => a[0].localeCompare(b[0]))
+  const filteredCh = chMonth === 'all' ? rawCh : rawCh.filter(c => c.month === chMonth)
+  const chRowsMap = new Map<string, SgChannel>()
+  for (const c of filteredCh) {
+    const e = chRowsMap.get(c.channel)
+    if (e) { e.newOrders += c.newOrders; e.newSales += c.newSales; e.repeatOrders += c.repeatOrders; e.repeatSales += c.repeatSales; e.total += c.total }
+    else chRowsMap.set(c.channel, { ...c })
+  }
+  const chRows = Array.from(chRowsMap.values()).sort((a, b) => b.total - a.total)
 
   return (
     <div className="space-y-4">
@@ -188,9 +203,17 @@ export default function SgPerformanceTab({ selectedBrand }: { selectedBrand?: st
         </CardContent>
       </Card>
 
-      {/* By channel — New vs Repeat sales distribution */}
+      {/* By channel — New vs Repeat sales distribution (per month) */}
       <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">By Channel (SG) · New vs Repeat sales distribution</CardTitle></CardHeader>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-sm">By Channel (SG) · New vs Repeat sales distribution</CardTitle>
+            <select value={chMonth} onChange={e => setChMonth(e.target.value)} className="h-8 rounded-md border border-input bg-background px-2 text-xs">
+              <option value="all">All months</option>
+              {chMonthOpts.map(([m, label]) => <option key={m} value={m}>{label}</option>)}
+            </select>
+          </div>
+        </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -205,7 +228,7 @@ export default function SgPerformanceTab({ selectedBrand }: { selectedBrand?: st
                 </tr>
               </thead>
               <tbody>
-                {(data?.byChannel ?? []).map(c => (
+                {chRows.map(c => (
                   <tr key={c.channel} className="border-b hover:bg-muted/30">
                     <td className="px-3 py-2 font-medium">{c.channel}</td>
                     <td className="px-3 py-2 text-right">{c.newOrders.toLocaleString()}</td>
@@ -215,9 +238,8 @@ export default function SgPerformanceTab({ selectedBrand }: { selectedBrand?: st
                     <td className="px-3 py-2 text-right font-semibold">{rm(c.total)}</td>
                   </tr>
                 ))}
-                {(data?.byChannel?.length ?? 0) > 0 && (() => {
-                  const b = data!.byChannel
-                  const s = (k: keyof SgChannel) => b.reduce((a, c) => a + (c[k] as number), 0)
+                {chRows.length > 0 && (() => {
+                  const s = (k: keyof SgChannel) => chRows.reduce((a, c) => a + (c[k] as number), 0)
                   return (
                     <tr className="border-t-2 font-semibold bg-muted/30">
                       <td className="px-3 py-2">Total</td>

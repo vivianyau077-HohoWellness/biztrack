@@ -58,6 +58,7 @@ const nrVal = (v: unknown) => { const s = fstr(v); return NR_MAP[s] ?? s }
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export interface SgChannel {
+  month: string; label: string
   channel: string
   newOrders: number; newSales: number
   repeatOrders: number; repeatSales: number
@@ -100,7 +101,7 @@ export async function computeDdSgMonthly(year = 2026): Promise<SgResult> {
     if (!m || m.slice(0, 4) !== String(year)) continue
     const nr = nrVal(f['AUTO N/R'])
     const x = get(m)
-    const ch = getCh(channel)
+    const ch = getCh(m + '|' + channel)
     // Sales total follows the report (above); order table drives New/Repeat + per-channel detail.
     if (nr === 'New') { x.no++; x.ns += price; ch.newOrders++; ch.newSales += price }
     else if (nr === 'Repeat') { x.ro++; x.rs += price; ch.repeatOrders++; ch.repeatSales += price }
@@ -121,12 +122,18 @@ export async function computeDdSgMonthly(year = 2026): Promise<SgResult> {
       repeatOrder: Math.round(x.ro), repeatSales: Math.round(x.rs), repeatAov: x.ro ? Math.round(x.rs / x.ro) : 0,
     })
   }
-  const byChannel: SgChannel[] = Array.from(chMap.entries()).map(([channel, c]) => ({
-    channel,
-    newOrders: c.newOrders, newSales: Math.round(c.newSales),
-    repeatOrders: c.repeatOrders, repeatSales: Math.round(c.repeatSales),
-    total: Math.round(c.newSales + c.repeatSales),
-  })).sort((a, b) => b.total - a.total)
+  const byChannel: SgChannel[] = Array.from(chMap.entries()).map(([key, c]) => {
+    const sep = key.indexOf('|')
+    const month = key.slice(0, sep)
+    return {
+      month,
+      label: MON[parseInt(month.slice(5, 7), 10) - 1] ?? month,
+      channel: key.slice(sep + 1),
+      newOrders: c.newOrders, newSales: Math.round(c.newSales),
+      repeatOrders: c.repeatOrders, repeatSales: Math.round(c.repeatSales),
+      total: Math.round(c.newSales + c.repeatSales),
+    }
+  }).sort((a, b) => (a.month === b.month ? b.total - a.total : a.month.localeCompare(b.month)))
 
   return { months: out, byChannel }
 }
