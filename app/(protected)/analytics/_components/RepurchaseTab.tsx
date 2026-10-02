@@ -7,7 +7,8 @@ import { cn } from '@/lib/utils'
 
 const BANDS = ['<300', '300-499', '500-699', '700-999', '1000+']
 
-type BandRow = { band: string; firstCount: number; repeatCount: number; repeatRate: number; firstAvg: number; nextAvg: number; mig: Record<string, number> }
+type Pk = { pkg: string; count: number }
+type BandRow = { band: string; firstCount: number; repeatCount: number; repeatRate: number; firstAvg: number; nextAvg: number; avgDays: number; topPkgs: Pk[]; topNext: Pk[]; mig: Record<string, number> }
 type LineRepurchase = { key: string; label: string; totalFirst: number; totalRepeat: number; overallRate: number; nextAvg: number; firstAvg: number; bands: BandRow[] }
 type PkgJourney = { pkg: string; firstCount: number; repeatCount: number; repeatRate: number; avgDays: number; firstAvg: number; nextAvg: number; topNext: { pkg: string; count: number }[] }
 type DdRepurchase = { lines: LineRepurchase[]; byPackage: PkgJourney[] }
@@ -66,34 +67,33 @@ export default function RepurchaseTab({ selectedBrand }: { selectedBrand?: strin
         ))}
       </div>
 
-      {/* Repeat rate + price progression */}
+      {/* By price range: packages, repeat rate, return time, next */}
       <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">Repeat rate &amp; price progression by first-order band</CardTitle></CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="text-sm">By price range · 配套示例 · 多久回来 · 下一单买什么</CardTitle></CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="bg-muted/50"><tr className="border-b">
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">First order band</th>
-                <th className="px-3 py-2 text-right font-medium text-muted-foreground">First-time buyers</th>
+                <th className="px-3 py-2 text-left font-medium text-muted-foreground">Price range</th>
+                <th className="px-3 py-2 text-left font-medium text-muted-foreground">配套示例 (first)</th>
+                <th className="px-3 py-2 text-right font-medium text-muted-foreground">First buyers</th>
                 <th className="px-3 py-2 text-right font-medium text-muted-foreground">Repeat rate</th>
-                <th className="px-3 py-2 text-right font-medium text-muted-foreground">Avg 1st</th>
+                <th className="px-3 py-2 text-right font-medium text-blue-600">Avg days to return</th>
                 <th className="px-3 py-2 text-right font-medium text-emerald-600">Avg next</th>
-                <th className="px-3 py-2 text-right font-medium text-muted-foreground">Δ</th>
+                <th className="px-3 py-2 text-left font-medium text-muted-foreground">下一单常买</th>
               </tr></thead>
               <tbody>
-                {lineData.bands.filter(b => b.firstCount > 0).map(b => {
-                  const delta = b.firstAvg ? Math.round((b.nextAvg - b.firstAvg) / b.firstAvg * 100) : 0
-                  return (
-                    <tr key={b.band} className="border-b hover:bg-muted/30">
-                      <td className="px-3 py-2 font-medium">RM {b.band}</td>
-                      <td className="px-3 py-2 text-right">{b.firstCount.toLocaleString()}</td>
-                      <td className="px-3 py-2 text-right font-semibold">{b.repeatRate}%</td>
-                      <td className="px-3 py-2 text-right">{rm(b.firstAvg)}</td>
-                      <td className="px-3 py-2 text-right font-semibold text-emerald-600">{rm(b.nextAvg)}</td>
-                      <td className={cn('px-3 py-2 text-right font-medium', delta > 0 ? 'text-emerald-600' : delta < 0 ? 'text-red-500' : 'text-muted-foreground')}>{delta > 0 ? '+' : ''}{delta}%</td>
-                    </tr>
-                  )
-                })}
+                {lineData.bands.filter(b => b.firstCount > 0).map(b => (
+                  <tr key={b.band} className="border-b hover:bg-muted/30 align-top">
+                    <td className="px-3 py-2 font-medium whitespace-nowrap">RM {b.band}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{b.topPkgs.map(p => p.pkg).join(' · ') || '—'}</td>
+                    <td className="px-3 py-2 text-right">{b.firstCount.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right font-semibold">{b.repeatRate}%</td>
+                    <td className="px-3 py-2 text-right font-semibold text-blue-600">{b.avgDays} 天</td>
+                    <td className="px-3 py-2 text-right text-emerald-600">{rm(b.nextAvg)}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{b.topNext.map(p => `${p.pkg} (${p.count})`).join(' · ') || '—'}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -127,39 +127,7 @@ export default function RepurchaseTab({ selectedBrand }: { selectedBrand?: strin
         </CardContent>
       </Card>
 
-      <p className="text-xs text-muted-foreground">Read a row: of people whose 1st order was that band and who came back, what band their 2nd order fell in. Green = where they land.</p>
-
-      {/* By first package (bundle journey) */}
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">By first package (bundle) · when they return &amp; what they buy next</CardTitle></CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-muted/50"><tr className="border-b">
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">First package</th>
-                <th className="px-3 py-2 text-right font-medium text-muted-foreground">First buyers</th>
-                <th className="px-3 py-2 text-right font-medium text-muted-foreground">Repeat rate</th>
-                <th className="px-3 py-2 text-right font-medium text-blue-600">Avg days to return</th>
-                <th className="px-3 py-2 text-right font-medium text-emerald-600">Avg next order</th>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">Top next packages</th>
-              </tr></thead>
-              <tbody>
-                {(data.byPackage ?? []).map(p => (
-                  <tr key={p.pkg} className="border-b hover:bg-muted/30 align-top">
-                    <td className="px-3 py-2 font-medium max-w-[200px]">{p.pkg}</td>
-                    <td className="px-3 py-2 text-right">{p.firstCount.toLocaleString()}</td>
-                    <td className="px-3 py-2 text-right font-semibold">{p.repeatRate}%</td>
-                    <td className="px-3 py-2 text-right font-semibold text-blue-600">{p.avgDays} 天</td>
-                    <td className="px-3 py-2 text-right text-emerald-600">{rm(p.nextAvg)}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{p.topNext.map(n => `${n.pkg} (${n.count})`).join(' · ') || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-      <p className="text-xs text-muted-foreground">按首单买的「配套」看:多久回来下第二单、下一单最常买哪个配套。用来定「什么时候催单」和「推哪个第二单 bundle」。只列首单客 ≥30 的配套。</p>
+      <p className="text-xs text-muted-foreground">Read a row: of people whose 1st order was that band and who came back, what band their 2nd order fell in. Green = where they land. 上面那张表把配套示例、平均回购天数、下一单常买都按价位段列好了——催单时机看「Avg days to return」,第二单推什么看「下一单常买」。</p>
     </div>
   )
 }

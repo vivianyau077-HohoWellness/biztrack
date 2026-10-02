@@ -70,7 +70,10 @@ function band(p: number): string {
 
 export type BandRow = {
   band: string; firstCount: number; repeatCount: number; repeatRate: number
-  firstAvg: number; nextAvg: number; mig: Record<string, number> // second-band -> % of repeaters
+  firstAvg: number; nextAvg: number; avgDays: number
+  topPkgs: { pkg: string; count: number }[]   // common packages in this first-order band
+  topNext: { pkg: string; count: number }[]    // what repeaters buy next
+  mig: Record<string, number> // second-band -> % of repeaters
 }
 export type LineRepurchase = { key: string; label: string; totalFirst: number; totalRepeat: number; overallRate: number; nextAvg: number; firstAvg: number; bands: BandRow[] }
 export type PkgJourney = { pkg: string; firstCount: number; repeatCount: number; repeatRate: number; avgDays: number; firstAvg: number; nextAvg: number; topNext: { pkg: string; count: number }[] }
@@ -110,14 +113,14 @@ export async function computeDdRepurchase(): Promise<DdRepurchase> {
   eat(ord26 as Array<{ fields: Record<string, unknown> }>)
   eat(daily25 as Array<{ fields: Record<string, unknown> }>)
 
+  const DAY = 86400000
   // accumulators per line group ('all','B','R') per first-band
-  type Acc = { firstCount: number; repeatCount: number; firstSum: number; nextSum: number; mig: Record<string, number> }
+  type Acc = { firstCount: number; repeatCount: number; firstSum: number; nextSum: number; daysSum: number; pkgs: Map<string, number>; nextPkgs: Map<string, number>; mig: Record<string, number> }
   const groups: Record<string, Record<string, Acc>> = { all: {}, B: {}, R: {} }
   const ensure = (g: string, b: string): Acc => {
-    if (!groups[g][b]) groups[g][b] = { firstCount: 0, repeatCount: 0, firstSum: 0, nextSum: 0, mig: {} }
+    if (!groups[g][b]) groups[g][b] = { firstCount: 0, repeatCount: 0, firstSum: 0, nextSum: 0, daysSum: 0, pkgs: new Map(), nextPkgs: new Map(), mig: {} }
     return groups[g][b]
   }
-  const DAY = 86400000
   type PAcc = { firstCount: number; repeatCount: number; daysSum: number; firstSum: number; nextSum: number; next: Map<string, number> }
   const pkgAcc = new Map<string, PAcc>()
   for (const orders of Array.from(map.values())) {
@@ -128,7 +131,12 @@ export async function computeDdRepurchase(): Promise<DdRepurchase> {
     const addTo = (g: string) => {
       const a = ensure(g, fb)
       a.firstCount++; a.firstSum += first.price
-      if (second) { a.repeatCount++; a.nextSum += second.price; const sb = band(second.price); a.mig[sb] = (a.mig[sb] || 0) + 1 }
+      a.pkgs.set(first.pkg, (a.pkgs.get(first.pkg) || 0) + 1)
+      if (second) {
+        a.repeatCount++; a.nextSum += second.price; a.daysSum += (second.ms - first.ms) / DAY
+        const sb = band(second.price); a.mig[sb] = (a.mig[sb] || 0) + 1
+        a.nextPkgs.set(second.pkg, (a.nextPkgs.get(second.pkg) || 0) + 1)
+      }
     }
     addTo('all')
     if (first.line === 'B') addTo('B')
@@ -141,15 +149,18 @@ export async function computeDdRepurchase(): Promise<DdRepurchase> {
   }
 
   const buildLine = (g: string, key: string, label: string): LineRepurchase => {
+    const top3 = (m?: Map<string, number>) => m ? Array.from(m.entries()).map(([pkg, count]) => ({ pkg, count })).sort((x, y) => y.count - x.count).slice(0, 3) : []
     const bands: BandRow[] = BANDS.map(b => {
-      const a = groups[g][b] ?? { firstCount: 0, repeatCount: 0, firstSum: 0, nextSum: 0, mig: {} }
+      const a = groups[g][b]
       const mig: Record<string, number> = {}
-      for (const sb of BANDS) mig[sb] = a.repeatCount ? Math.round((a.mig[sb] || 0) / a.repeatCount * 1000) / 10 : 0
+      for (const sb of BANDS) mig[sb] = a && a.repeatCount ? Math.round((a.mig[sb] || 0) / a.repeatCount * 1000) / 10 : 0
       return {
-        band: b, firstCount: a.firstCount, repeatCount: a.repeatCount,
-        repeatRate: a.firstCount ? Math.round(a.repeatCount / a.firstCount * 1000) / 10 : 0,
-        firstAvg: a.firstCount ? Math.round(a.firstSum / a.firstCount) : 0,
-        nextAvg: a.repeatCount ? Math.round(a.nextSum / a.repeatCount) : 0,
+        band: b, firstCount: a?.firstCount ?? 0, repeatCount: a?.repeatCount ?? 0,
+        repeatRate: a?.firstCount ? Math.round(a.repeatCount / a.firstCount * 1000) / 10 : 0,
+        firstAvg: a?.firstCount ? Math.round(a.firstSum / a.firstCount) : 0,
+        nextAvg: a?.repeatCount ? Math.round(a.nextSum / a.repeatCount) : 0,
+        avgDays: a?.repeatCount ? Math.round(a.daysSum / a.repeatCount) : 0,
+        topPkgs: top3(a?.pkgs), topNext: top3(a?.nextPkgs),
         mig,
       }
     })
