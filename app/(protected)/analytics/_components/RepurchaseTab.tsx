@@ -40,7 +40,6 @@ export default function RepurchaseTab({ selectedBrand }: { selectedBrand?: strin
       <div className="flex items-center justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold">Repurchase Ladder · first order → next order</h2>
-          <p className="text-xs text-muted-foreground">By first-order price band: how many come back, and what they buy next. Classified by product line (first order). Live from Lark.</p>
         </div>
         <div className="flex gap-1">
           {data.lines.map(l => (
@@ -127,7 +126,6 @@ export default function RepurchaseTab({ selectedBrand }: { selectedBrand?: strin
         </CardContent>
       </Card>
 
-      <p className="text-xs text-muted-foreground">Read a row: of people whose 1st order was that band and who came back, what band their 2nd order fell in. Green = where they land. 上面那张表把配套示例、平均回购天数、下一单常买都按价位段列好了——催单时机看「Avg days to return」,第二单推什么看「下一单常买」。</p>
     </div>
   )
 }
