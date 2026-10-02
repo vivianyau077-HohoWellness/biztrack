@@ -8,21 +8,25 @@ import { Button } from '@/components/ui/button'
 import { BRANDS, BRAND_COLORS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Upload, Users, RefreshCw, MessageSquare, Workflow, PieChart, Flag } from 'lucide-react'
+import { Upload, Users, RefreshCw, MessageSquare, Workflow, PieChart, Flag, Layers, TrendingUp } from 'lucide-react'
 import { subDays, format } from 'date-fns'
 import CustomerInsightsTab from './_components/CustomerInsightsTab'
 import FeedbackTab from './_components/FeedbackTab'
 import LifecycleTab from './_components/LifecycleTab'
 import SalesDistributionTab from './_components/SalesDistributionTab'
 import SgPerformanceTab from './_components/SgPerformanceTab'
+import SegmentationTab from './_components/SegmentationTab'
+import RepurchaseTab from './_components/RepurchaseTab'
 import AdSpendImportModal from './_components/AdSpendImportModal'
 
-type Tab = 'sales' | 'distribution' | 'ads' | 'customers' | 'lifecycle' | 'goals' | 'feedback' | 'sg'
+type Tab = 'sales' | 'distribution' | 'ads' | 'customers' | 'lifecycle' | 'goals' | 'feedback' | 'sg' | 'segments' | 'repurchase'
 
 const TAB_CONFIG = [
   { id: 'distribution' as Tab, label: 'Sales Distribution', icon: PieChart },
   { id: 'customers' as Tab, label: 'Customer Insights', icon: Users },
   { id: 'lifecycle' as Tab, label: 'Customer Lifecycle', icon: Workflow },
+  { id: 'segments' as Tab, label: 'Segmentation', icon: Layers },
+  { id: 'repurchase' as Tab, label: 'Repurchase Ladder', icon: TrendingUp },
   { id: 'sg' as Tab, label: 'SG Performance', icon: Flag },
   { id: 'feedback' as Tab, label: 'Feedback', icon: MessageSquare },
 ]
@@ -181,6 +185,12 @@ export default function AnalyticsPage() {
         )}
         {activeTab === 'sg' && (
           <SgPerformanceTab selectedBrand={selectedBrand} />
+        )}
+        {activeTab === 'segments' && (
+          <SegmentationTab selectedBrand={selectedBrand} />
+        )}
+        {activeTab === 'repurchase' && (
+          <RepurchaseTab selectedBrand={selectedBrand} />
         )}
         {activeTab === 'feedback' && (
           <FeedbackTab selectedBrand={selectedBrand} dateFrom={dateFrom} dateTo={dateTo} />
