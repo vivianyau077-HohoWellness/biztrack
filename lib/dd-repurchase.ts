@@ -51,6 +51,14 @@ function lineOf(channel: string, pkg: string): 'B' | 'R' | 'M' {
   if (REPAIR_CH.indexOf(channel) >= 0 || c.indexOf('伤口') >= 0 || c.indexOf('钻石露') >= 0) return 'R'
   return 'M'
 }
+function normPkg(p: string): string {
+  let s = (p || '').trim()
+  s = s.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')           // emoji (astral: 🔵 🟢 👍 …)
+  s = s.replace(/[←-⇿①-➿⬀-⯿✅✔️]/g, '')  // BMP symbols/ticks ✅ ✔ ⭐
+  s = s.replace(/[（(]\s*(Shopee|shopee|Lazada|lazada)\s*[）)]/g, '')
+  s = s.replace(/\s+/g, ' ').trim()
+  return s || '(no name)'
+}
 export const BANDS = ['<300', '300-499', '500-699', '700-999', '1000+'] as const
 function band(p: number): string {
   if (p < 300) return '<300'
@@ -65,14 +73,15 @@ export type BandRow = {
   firstAvg: number; nextAvg: number; mig: Record<string, number> // second-band -> % of repeaters
 }
 export type LineRepurchase = { key: string; label: string; totalFirst: number; totalRepeat: number; overallRate: number; nextAvg: number; firstAvg: number; bands: BandRow[] }
-export type DdRepurchase = { lines: LineRepurchase[] }
+export type PkgJourney = { pkg: string; firstCount: number; repeatCount: number; repeatRate: number; avgDays: number; firstAvg: number; nextAvg: number; topNext: { pkg: string; count: number }[] }
+export type DdRepurchase = { lines: LineRepurchase[]; byPackage: PkgJourney[] }
 
 export async function computeDdRepurchase(): Promise<DdRepurchase> {
   const [ord26, daily25] = await Promise.all([
     fetchLarkRecords(T_ORDER_26, APP, undefined, SLIM),
     fetchLarkRecords(T_DAILY_25, APP, undefined, SLIM),
   ])
-  type O = { ms: number; price: number; line: 'B' | 'R' | 'M' }
+  type O = { ms: number; price: number; line: 'B' | 'R' | 'M'; pkg: string }
   const map = new Map<string, O[]>()
   const eat = (recs: Array<{ fields: Record<string, unknown> }>) => {
     for (const rec of recs) {
@@ -94,7 +103,8 @@ export async function computeDdRepurchase(): Promise<DdRepurchase> {
       }
       let arr = map.get(key)
       if (!arr) { arr = []; map.set(key, arr) }
-      arr.push({ ms, price, line: lineOf(channel, fstr(f['Package'])) })
+      const pkg = fstr(f['Package'])
+      arr.push({ ms, price, line: lineOf(channel, pkg), pkg: normPkg(pkg) })
     }
   }
   eat(ord26 as Array<{ fields: Record<string, unknown> }>)
@@ -107,6 +117,9 @@ export async function computeDdRepurchase(): Promise<DdRepurchase> {
     if (!groups[g][b]) groups[g][b] = { firstCount: 0, repeatCount: 0, firstSum: 0, nextSum: 0, mig: {} }
     return groups[g][b]
   }
+  const DAY = 86400000
+  type PAcc = { firstCount: number; repeatCount: number; daysSum: number; firstSum: number; nextSum: number; next: Map<string, number> }
+  const pkgAcc = new Map<string, PAcc>()
   for (const orders of Array.from(map.values())) {
     orders.sort((a, b) => a.ms - b.ms)
     const first = orders[0]
@@ -120,6 +133,11 @@ export async function computeDdRepurchase(): Promise<DdRepurchase> {
     addTo('all')
     if (first.line === 'B') addTo('B')
     else if (first.line === 'R') addTo('R')
+    // by first package (bundle journey)
+    let pa = pkgAcc.get(first.pkg)
+    if (!pa) { pa = { firstCount: 0, repeatCount: 0, daysSum: 0, firstSum: 0, nextSum: 0, next: new Map() }; pkgAcc.set(first.pkg, pa) }
+    pa.firstCount++; pa.firstSum += first.price
+    if (second) { pa.repeatCount++; pa.daysSum += (second.ms - first.ms) / DAY; pa.nextSum += second.price; pa.next.set(second.pkg, (pa.next.get(second.pkg) || 0) + 1) }
   }
 
   const buildLine = (g: string, key: string, label: string): LineRepurchase => {
@@ -142,5 +160,19 @@ export async function computeDdRepurchase(): Promise<DdRepurchase> {
     return { key, label, totalFirst: tf, totalRepeat: tr, overallRate: tf ? Math.round(tr / tf * 1000) / 10 : 0, firstAvg: tf ? Math.round(fs / tf) : 0, nextAvg: tr ? Math.round(ns / tr) : 0, bands }
   }
 
-  return { lines: [buildLine('all', 'all', 'All'), buildLine('B', 'B', 'Beauty 焕肤王'), buildLine('R', 'R', 'Repair 钻石露')] }
+  const byPackage: PkgJourney[] = Array.from(pkgAcc.entries())
+    .filter(([, a]) => a.firstCount >= 30)
+    .map(([pkg, a]) => ({
+      pkg,
+      firstCount: a.firstCount,
+      repeatCount: a.repeatCount,
+      repeatRate: a.firstCount ? Math.round(a.repeatCount / a.firstCount * 1000) / 10 : 0,
+      avgDays: a.repeatCount ? Math.round(a.daysSum / a.repeatCount) : 0,
+      firstAvg: a.firstCount ? Math.round(a.firstSum / a.firstCount) : 0,
+      nextAvg: a.repeatCount ? Math.round(a.nextSum / a.repeatCount) : 0,
+      topNext: Array.from(a.next.entries()).map(([p, count]) => ({ pkg: p, count })).sort((x, y) => y.count - x.count).slice(0, 3),
+    }))
+    .sort((a, b) => b.firstCount - a.firstCount)
+
+  return { lines: [buildLine('all', 'all', 'All'), buildLine('B', 'B', 'Beauty 焕肤王'), buildLine('R', 'R', 'Repair 钻石露')], byPackage }
 }

@@ -9,7 +9,8 @@ const BANDS = ['<300', '300-499', '500-699', '700-999', '1000+']
 
 type BandRow = { band: string; firstCount: number; repeatCount: number; repeatRate: number; firstAvg: number; nextAvg: number; mig: Record<string, number> }
 type LineRepurchase = { key: string; label: string; totalFirst: number; totalRepeat: number; overallRate: number; nextAvg: number; firstAvg: number; bands: BandRow[] }
-type DdRepurchase = { lines: LineRepurchase[] }
+type PkgJourney = { pkg: string; firstCount: number; repeatCount: number; repeatRate: number; avgDays: number; firstAvg: number; nextAvg: number; topNext: { pkg: string; count: number }[] }
+type DdRepurchase = { lines: LineRepurchase[]; byPackage: PkgJourney[] }
 
 const rm = (n: number) => `RM ${Math.round(n).toLocaleString()}`
 
@@ -127,6 +128,38 @@ export default function RepurchaseTab({ selectedBrand }: { selectedBrand?: strin
       </Card>
 
       <p className="text-xs text-muted-foreground">Read a row: of people whose 1st order was that band and who came back, what band their 2nd order fell in. Green = where they land.</p>
+
+      {/* By first package (bundle journey) */}
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-sm">By first package (bundle) · when they return &amp; what they buy next</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/50"><tr className="border-b">
+                <th className="px-3 py-2 text-left font-medium text-muted-foreground">First package</th>
+                <th className="px-3 py-2 text-right font-medium text-muted-foreground">First buyers</th>
+                <th className="px-3 py-2 text-right font-medium text-muted-foreground">Repeat rate</th>
+                <th className="px-3 py-2 text-right font-medium text-blue-600">Avg days to return</th>
+                <th className="px-3 py-2 text-right font-medium text-emerald-600">Avg next order</th>
+                <th className="px-3 py-2 text-left font-medium text-muted-foreground">Top next packages</th>
+              </tr></thead>
+              <tbody>
+                {(data.byPackage ?? []).map(p => (
+                  <tr key={p.pkg} className="border-b hover:bg-muted/30 align-top">
+                    <td className="px-3 py-2 font-medium max-w-[200px]">{p.pkg}</td>
+                    <td className="px-3 py-2 text-right">{p.firstCount.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right font-semibold">{p.repeatRate}%</td>
+                    <td className="px-3 py-2 text-right font-semibold text-blue-600">{p.avgDays} 天</td>
+                    <td className="px-3 py-2 text-right text-emerald-600">{rm(p.nextAvg)}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{p.topNext.map(n => `${n.pkg} (${n.count})`).join(' · ') || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+      <p className="text-xs text-muted-foreground">按首单买的「配套」看:多久回来下第二单、下一单最常买哪个配套。用来定「什么时候催单」和「推哪个第二单 bundle」。只列首单客 ≥30 的配套。</p>
     </div>
   )
 }
