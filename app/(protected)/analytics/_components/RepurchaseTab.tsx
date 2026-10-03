@@ -15,20 +15,23 @@ type DdRepurchase = { lines: LineRepurchase[]; byPackage: PkgJourney[] }
 
 const rm = (n: number) => `RM ${Math.round(n).toLocaleString()}`
 
+const SUPPORTED = ['DD', 'Juji']
+
 export default function RepurchaseTab({ selectedBrand }: { selectedBrand?: string }) {
   const [line, setLine] = useState('all')
+  const api = selectedBrand === 'Juji' ? 'juji-repurchase' : 'dd-repurchase'
   const { data, isLoading, error } = useQuery({
-    queryKey: ['dd-repurchase'],
-    enabled: selectedBrand === 'DD',
+    queryKey: ['repurchase', selectedBrand],
+    enabled: SUPPORTED.indexOf(selectedBrand ?? '') >= 0,
     queryFn: async () => {
-      const res = await fetch('/api/analytics/dd-repurchase')
+      const res = await fetch(`/api/analytics/${api}`)
       if (!res.ok) { const b = await res.json().catch(() => null); throw new Error(b?.error || `HTTP ${res.status}`) }
       return res.json() as Promise<DdRepurchase>
     },
     retry: false,
   })
 
-  if (selectedBrand !== 'DD') return <p className="text-sm text-muted-foreground">Select the DD brand to see the repurchase ladder.</p>
+  if (SUPPORTED.indexOf(selectedBrand ?? '') < 0) return <p className="text-sm text-muted-foreground">Select DD or Juji to see the repurchase ladder.</p>
   if (error) return <p className="text-sm text-red-600">Failed to load — {(error as Error).message}</p>
   if (isLoading || !data) return <div className="h-60 bg-muted/30 rounded-lg animate-pulse" />
 

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 type RfmLine = { count: number; spend: number; avg: number }
 type RfmSub = { key: string; label: string; desc: string; action: string; tone: 'up' | 'hold' | 'winback'; total: RfmLine; beauty: RfmLine; repair: RfmLine; mixed: RfmLine }
 type RfmTier = { key: string; label: string; total: RfmLine; subs: RfmSub[] }
-type DdRfm = { totalCustomers: number; tiers: RfmTier[] }
+type DdRfm = { totalCustomers: number; tiers: RfmTier[]; productLine?: boolean }
 
 const rm = (n: number) => `RM ${Math.round(n).toLocaleString()}`
 const TONE: Record<string, { badge: string; label: string; bar: string }> = {
@@ -14,21 +14,23 @@ const TONE: Record<string, { badge: string; label: string; bar: string }> = {
   hold: { badge: 'bg-blue-500/15 text-blue-400', label: '= Hold / convert', bar: 'bg-blue-500' },
   winback: { badge: 'bg-orange-500/15 text-orange-400', label: '↓ Win-back', bar: 'bg-orange-500' },
 }
-const TIER_COLOR: Record<string, string> = { new: '#378add', repeat: '#1baf7a', myvip: '#a855f7', sgvip: '#eb6834' }
+const TIER_COLOR: Record<string, string> = { new: '#378add', repeat: '#1baf7a', myvip: '#a855f7', sgvip: '#eb6834', vip: '#a855f7' }
+const SUPPORTED = ['DD', 'Juji']
 
 export default function SegmentationTab({ selectedBrand }: { selectedBrand?: string }) {
+  const api = selectedBrand === 'Juji' ? 'juji-rfm' : 'dd-rfm'
   const { data, isLoading, error } = useQuery({
-    queryKey: ['dd-rfm'],
-    enabled: selectedBrand === 'DD',
+    queryKey: ['rfm', selectedBrand],
+    enabled: SUPPORTED.indexOf(selectedBrand ?? '') >= 0,
     queryFn: async () => {
-      const res = await fetch('/api/analytics/dd-rfm')
+      const res = await fetch(`/api/analytics/${api}`)
       if (!res.ok) { const b = await res.json().catch(() => null); throw new Error(b?.error || `HTTP ${res.status}`) }
       return res.json() as Promise<DdRfm>
     },
     retry: false,
   })
 
-  if (selectedBrand !== 'DD') return <p className="text-sm text-muted-foreground">Select the DD brand to see customer segmentation.</p>
+  if (SUPPORTED.indexOf(selectedBrand ?? '') < 0) return <p className="text-sm text-muted-foreground">Select DD or Juji to see customer segmentation.</p>
   if (error) return <p className="text-sm text-red-600">Failed to load segmentation — {(error as Error).message}</p>
   if (isLoading || !data) return <div className="h-60 bg-muted/30 rounded-lg animate-pulse" />
 
@@ -47,7 +49,7 @@ export default function SegmentationTab({ selectedBrand }: { selectedBrand?: str
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold">Customer Segmentation · pricing lens</h2>
-        <p className="text-xs text-muted-foreground">Tier 1 = New / Repeat / Malaysia VIP / Singapore VIP · Tier 2 = RFM (New uses recency×value) · split by product line (Beauty 焕肤王 / Repair 钻石露). Phone-deduped, live from Lark · {data.totalCustomers.toLocaleString()} customers.</p>
+        <p className="text-xs text-muted-foreground">{data.totalCustomers.toLocaleString()} customers · live from Lark.</p>
       </div>
 
       {data.tiers.map(tier => {
@@ -86,11 +88,13 @@ export default function SegmentationTab({ selectedBrand }: { selectedBrand?: str
                           <div className="text-[11px] text-muted-foreground">total · avg {rm(s.total.avg)}</div>
                         </div>
                       </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        {lineCell('Beauty 焕肤王', '#22a06b', s.beauty)}
-                        {lineCell('Repair 钻石露', '#c0392b', s.repair)}
-                        {lineCell('Mixed', '#888780', s.mixed)}
-                      </div>
+                      {data.productLine !== false && (
+                        <div className="grid grid-cols-3 gap-2">
+                          {lineCell('Beauty 焕肤王', '#22a06b', s.beauty)}
+                          {lineCell('Repair 钻石露', '#c0392b', s.repair)}
+                          {lineCell('Mixed', '#888780', s.mixed)}
+                        </div>
+                      )}
                       <p className="text-xs leading-relaxed"><span className="font-medium">Pricing:</span> {s.action}</p>
                     </CardContent>
                   </Card>
