@@ -1,4 +1,4 @@
-import { fetchLarkRecords } from './lark'
+import { fetchLarkRecordsSearch } from './lark'
 
 // Nutrieye shared loader — merges the 2025 (old schema) and 2026 (new schema) order tables
 // into one normalised order stream used by both segmentation and the repurchase ladder.
@@ -60,7 +60,7 @@ function phoneKey(raw: string, channel: string): string {
 export type NeOrder = { key: string; ms: number; price: number; pkg: string }
 
 async function buildPkgMaps() {
-  const pkgRecs = await fetchLarkRecords(T_PKG, NE_APP, undefined, ['SKUs', 'Price', 'Status', 'what'])
+  const pkgRecs = await fetchLarkRecordsSearch(T_PKG, NE_APP, ['SKUs', 'Price', 'Status', 'what'])
   const byId = new Map<string, string>()
   const byPrice = new Map<number, string>()
   const score = new Map<number, number>()
@@ -82,8 +82,8 @@ async function buildPkgMaps() {
 
 export async function loadNeOrders(): Promise<NeOrder[]> {
   const [recs26, recs25, maps] = await Promise.all([
-    fetchLarkRecords(T_2026, NE_APP, undefined, SLIM_2026),
-    fetchLarkRecords(T_2025, NE_APP, undefined, SLIM_2025),
+    fetchLarkRecordsSearch(T_2026, NE_APP, SLIM_2026),
+    fetchLarkRecordsSearch(T_2025, NE_APP, SLIM_2025),
     buildPkgMaps(),
   ])
   const out: NeOrder[] = []

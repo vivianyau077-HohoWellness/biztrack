@@ -132,6 +132,57 @@ async function fetchLarkRecordsUncached(
   return all
 }
 
+// Some wiki-hosted bases reject the GET list-records endpoint with 99991663 even
+// though the same tenant token can read them via POST records/search. Use this
+// variant for those bases (e.g. Nutrieye). Field shapes match the search API,
+// which the ne-/juji- parsers already expect.
+export async function fetchLarkRecordsSearch(
+  tableId: string,
+  appToken: string,
+  fieldNames?: string[],
+): Promise<LarkRecord[]> {
+  const fkey = fieldNames && fieldNames.length ? ':f=' + fieldNames.join(',') : ''
+  const cacheKey = 'search:' + appToken + ':' + tableId + fkey
+  const hit = _recCache.get(cacheKey)
+  if (hit && Date.now() - hit.at < REC_TTL_MS) return hit.data
+  const inflight = _recInflight.get(cacheKey)
+  if (inflight) return inflight
+
+  const run = (async () => {
+    const all: LarkRecord[] = []
+    let pageToken: string | undefined
+    let useFields = !!(fieldNames && fieldNames.length)
+    for (;;) {
+      const params = new URLSearchParams({ page_size: '500' })
+      if (pageToken) params.set('page_token', pageToken)
+      const body: Record<string, unknown> = {}
+      if (useFields) body.field_names = fieldNames
+      const data = await larkFetch(
+        `/bitable/v1/apps/${appToken}/tables/${tableId}/records/search?${params}`,
+        { method: 'POST', body: JSON.stringify(body) },
+      )
+      if (data.code !== 0) {
+        if (useFields) { useFields = false; all.length = 0; pageToken = undefined; continue }
+        throw new Error(`Lark fetchLarkRecords error (${data.code}): ${data.msg}`)
+      }
+      const items: LarkRecord[] = data.data?.items ?? []
+      all.push(...items)
+      if (data.data?.has_more) { pageToken = data.data.page_token as string; continue }
+      break
+    }
+    return all
+  })()
+
+  _recInflight.set(cacheKey, run)
+  try {
+    const data = await run
+    _recCache.set(cacheKey, { at: Date.now(), data })
+    return data
+  } finally {
+    _recInflight.delete(cacheKey)
+  }
+}
+
 // ── Wiki helpers ──────────────────────────────────────────────────────────────
 
 export interface WikiNode {
