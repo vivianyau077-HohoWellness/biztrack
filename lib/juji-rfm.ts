@@ -1,10 +1,10 @@
 import { fetchLarkRecords } from './lark'
 
-// Jujigrainz customer segmentation (RFM) — single product line, VIP = Active/Inactive (threshold RM537).
-// Lives in a separate Lark base; the app reads it with the same tenant token.
+// Jujigrainz customer segmentation (RFM) — single product line, no VIP concept.
+// New = 1 order, Repeat = 2+ orders. Lives in a separate Lark base; read with the same tenant token.
 const JUJI_APP = 'GXamw6ldPipdXFkkNY1j8RKzpzg'
 const T_ORDER = 'tblIb0g8xEeRGsbe'
-const SLIM = ['Date', 'Channel', 'Name', 'Phone Number', 'Total Price', 'Price Domain', 'AUTO VIP']
+const SLIM = ['Date', 'Channel', 'Name', 'Phone Number', 'Total Price', 'Price Domain']
 
 function fnum(v: unknown): number {
   if (v == null) return 0
@@ -41,7 +41,7 @@ export type JujiRfm = { totalCustomers: number; productLine: boolean; tiers: Rfm
 
 type SubDef = { key: string; label: string; desc: string; action: string; tone: 'up' | 'hold' | 'winback' }
 const NEW_SUBS: SubDef[] = [
-  { key: 'fresh_hi', label: 'Fresh · high-value', desc: 'First order ≤180d · ≥RM537', action: 'Future VIP seed — guide to membership / bigger tin bundle, don\'t discount.', tone: 'up' },
+  { key: 'fresh_hi', label: 'Fresh · high-value', desc: 'First order ≤180d · ≥RM537', action: 'Big first basket — guide to a bigger tin bundle on the 2nd order, don\'t discount.', tone: 'up' },
   { key: 'fresh_std', label: 'Fresh · standard', desc: 'First order ≤180d · <RM537', action: 'Push the 2nd purchase; keep entry (1 Tin/Box) low-friction.', tone: 'hold' },
   { key: 'lapsing', label: 'Lapsing', desc: 'First order 180–365d · no 2nd', action: 'Urgent 2nd-order offer before lost.', tone: 'hold' },
   { key: 'lost', label: 'Lost', desc: 'First order >1yr · still 1 order', action: 'Low-barrier win-back bundle.', tone: 'winback' },
@@ -51,15 +51,10 @@ const REPEAT_SUBS: SubDef[] = [
   { key: 'atrisk', label: 'At-risk', desc: 'Repeat · 180–365d quiet', action: 'Retention price — hold, pull back before lost.', tone: 'hold' },
   { key: 'dormant', label: 'Dormant', desc: 'Repeat · >1yr quiet', action: 'Strong win-back.', tone: 'winback' },
 ]
-const VIP_SUBS: SubDef[] = [
-  { key: 'active', label: 'Active VIP', desc: 'VIP (spent ≥RM537) · ordered ≤180d', action: 'Crown jewels (36% of base, biggest revenue) — premium/exclusive bundles, bigger tins, raise OK.', tone: 'up' },
-  { key: 'atrisk', label: 'Lapsing VIP', desc: 'VIP · 180–365d quiet', action: 'VIP rescue — exclusive retention, don\'t lose.', tone: 'hold' },
-  { key: 'dormant', label: 'Dormant VIP', desc: 'VIP · >1yr quiet', action: 'Top win-back priority.', tone: 'winback' },
-]
 
 export async function computeJujiRfm(): Promise<JujiRfm> {
   const recs = await fetchLarkRecords(T_ORDER, JUJI_APP, undefined, SLIM)
-  type C = { orders: number; spend: number; lastMs: number; vip: boolean }
+  type C = { orders: number; spend: number; lastMs: number }
   const map = new Map<string, C>()
   for (const rec of recs) {
     const f = rec.fields
@@ -73,11 +68,9 @@ export async function computeJujiRfm(): Promise<JujiRfm> {
     const key = phone || (nm ? 'name:' + nm.toLowerCase() : '')
     if (!key) continue
     let c = map.get(key)
-    if (!c) { c = { orders: 0, spend: 0, lastMs: 0, vip: false }; map.set(key, c) }
+    if (!c) { c = { orders: 0, spend: 0, lastMs: 0 }; map.set(key, c) }
     c.orders++; c.spend += price
     if (ms > c.lastMs) c.lastMs = ms
-    const vip = fstr(f['AUTO VIP'])
-    if (vip === 'Active VIP' || vip === 'Inactive VIP') c.vip = true
   }
 
   const now = Date.now(), DAY = 86400000
@@ -85,10 +78,8 @@ export async function computeJujiRfm(): Promise<JujiRfm> {
   const ens = (t: string, s: string): [number, number] => { if (!A[t]) A[t] = {}; if (!A[t][s]) A[t][s] = [0, 0]; return A[t][s] }
   for (const c of Array.from(map.values())) {
     const rec = c.lastMs ? (now - c.lastMs) / DAY : 99999
-    let tier: string, sub: string
-    if (c.vip) tier = 'vip'
-    else if (c.orders >= 2) tier = 'repeat'
-    else tier = 'new'
+    const tier = c.orders >= 2 ? 'repeat' : 'new'
+    let sub: string
     if (tier === 'new') sub = rec <= 180 && c.spend >= 537 ? 'fresh_hi' : rec <= 180 ? 'fresh_std' : rec <= 365 ? 'lapsing' : 'lost'
     else sub = rec <= 180 ? 'active' : rec <= 365 ? 'atrisk' : 'dormant'
     const cell = ens(tier, sub); cell[0]++; cell[1] += c.spend
@@ -109,6 +100,6 @@ export async function computeJujiRfm(): Promise<JujiRfm> {
   return {
     totalCustomers: map.size,
     productLine: false,
-    tiers: [buildTier('new', 'New customers', NEW_SUBS), buildTier('repeat', 'Repeat (non-VIP)', REPEAT_SUBS), buildTier('vip', 'VIP (Active + Inactive)', VIP_SUBS)],
+    tiers: [buildTier('new', 'New customers', NEW_SUBS), buildTier('repeat', 'Repeat customers', REPEAT_SUBS)],
   }
 }
