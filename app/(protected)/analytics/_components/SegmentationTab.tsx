@@ -15,10 +15,10 @@ const TONE: Record<string, { badge: string; label: string; bar: string }> = {
   winback: { badge: 'bg-orange-500/15 text-orange-400', label: '↓ Win-back', bar: 'bg-orange-500' },
 }
 const TIER_COLOR: Record<string, string> = { new: '#378add', repeat: '#1baf7a', myvip: '#a855f7', sgvip: '#eb6834', vip: '#a855f7' }
-const SUPPORTED = ['DD', 'Juji']
+const SUPPORTED = ['DD', 'Juji', 'NE']
 
 export default function SegmentationTab({ selectedBrand }: { selectedBrand?: string }) {
-  const api = selectedBrand === 'Juji' ? 'juji-rfm' : 'dd-rfm'
+  const api = selectedBrand === 'Juji' ? 'juji-rfm' : selectedBrand === 'NE' ? 'ne-rfm' : 'dd-rfm'
   const { data, isLoading, error } = useQuery({
     queryKey: ['rfm', selectedBrand],
     enabled: SUPPORTED.indexOf(selectedBrand ?? '') >= 0,
@@ -30,7 +30,7 @@ export default function SegmentationTab({ selectedBrand }: { selectedBrand?: str
     retry: false,
   })
 
-  if (SUPPORTED.indexOf(selectedBrand ?? '') < 0) return <p className="text-sm text-muted-foreground">Select DD or Juji to see customer segmentation.</p>
+  if (SUPPORTED.indexOf(selectedBrand ?? '') < 0) return <p className="text-sm text-muted-foreground">Select DD, Juji or NE to see customer segmentation.</p>
   if (error) return <p className="text-sm text-red-600">Failed to load segmentation — {(error as Error).message}</p>
   if (isLoading || !data) return <div className="h-60 bg-muted/30 rounded-lg animate-pulse" />
 

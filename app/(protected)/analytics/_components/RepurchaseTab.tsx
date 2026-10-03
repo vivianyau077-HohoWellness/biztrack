@@ -15,11 +15,11 @@ type DdRepurchase = { lines: LineRepurchase[]; byPackage: PkgJourney[] }
 
 const rm = (n: number) => `RM ${Math.round(n).toLocaleString()}`
 
-const SUPPORTED = ['DD', 'Juji']
+const SUPPORTED = ['DD', 'Juji', 'NE']
 
 export default function RepurchaseTab({ selectedBrand }: { selectedBrand?: string }) {
   const [line, setLine] = useState('all')
-  const api = selectedBrand === 'Juji' ? 'juji-repurchase' : 'dd-repurchase'
+  const api = selectedBrand === 'Juji' ? 'juji-repurchase' : selectedBrand === 'NE' ? 'ne-repurchase' : 'dd-repurchase'
   const { data, isLoading, error } = useQuery({
     queryKey: ['repurchase', selectedBrand],
     enabled: SUPPORTED.indexOf(selectedBrand ?? '') >= 0,
@@ -31,7 +31,7 @@ export default function RepurchaseTab({ selectedBrand }: { selectedBrand?: strin
     retry: false,
   })
 
-  if (SUPPORTED.indexOf(selectedBrand ?? '') < 0) return <p className="text-sm text-muted-foreground">Select DD or Juji to see the repurchase ladder.</p>
+  if (SUPPORTED.indexOf(selectedBrand ?? '') < 0) return <p className="text-sm text-muted-foreground">Select DD, Juji or NE to see the repurchase ladder.</p>
   if (error) return <p className="text-sm text-red-600">Failed to load — {(error as Error).message}</p>
   if (isLoading || !data) return <div className="h-60 bg-muted/30 rounded-lg animate-pulse" />
 
