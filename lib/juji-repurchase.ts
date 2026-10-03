@@ -57,14 +57,30 @@ export type JujiRepurchase = { lines: LineRepurchase[]; byPackage: [] }
 export async function computeJujiRepurchase(): Promise<JujiRepurchase> {
   const [orders, pkgRecs] = await Promise.all([
     fetchLarkRecords(T_ORDER, JUJI_APP, undefined, SLIM),
-    fetchLarkRecords(T_PKG, JUJI_APP, undefined, ['SKUs']),
+    fetchLarkRecords(T_PKG, JUJI_APP, undefined, ['SKUs', 'Price', 'Status']),
   ])
-  const pkgName = new Map<string, string>()
-  for (const r of pkgRecs as Array<{ record_id: string; fields: Record<string, unknown> }>) {
-    const n = fstr(r.fields['SKUs'])
-    if (n) pkgName.set(r.record_id, n)
-  }
   const cleanPkg = (s: string) => s.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '').replace(/[←-➿⬀-⯿✅✔️]/g, '').replace(/\s+/g, ' ').trim()
+  // Resolve a package name two ways: by link record_id, and by price (robust fallback —
+  // Total Price always comes through even if the link field doesn't on the GET endpoint).
+  const pkgName = new Map<string, string>()          // record_id -> clean SKU
+  const pkgByPrice = new Map<number, string>()        // price -> canonical clean SKU
+  const priceScore = new Map<number, number>()        // price -> score of current best
+  for (const r of pkgRecs as Array<{ record_id: string; fields: Record<string, unknown> }>) {
+    const raw = fstr(r.fields['SKUs'])
+    const n = cleanPkg(raw)
+    if (!n) continue
+    if (r.record_id) pkgName.set(r.record_id, n)
+    const price = fnum(r.fields['Price'])
+    if (price <= 0) continue
+    // Prefer canonical packages: penalise Shopee / SP / promo / copy / crossed-out variants.
+    let score = 0
+    if (fstr(r.fields['Status']).indexOf('Current') >= 0) score += 4
+    if (!/shopee|SP |（Shopee|copy|1\.0|❌|🟠/i.test(raw)) score += 2
+    if (!/promo|【/i.test(raw)) score += 1
+    if (!priceScore.has(price) || score > (priceScore.get(price) || 0)) {
+      priceScore.set(price, score); pkgByPrice.set(price, n)
+    }
+  }
 
   type O = { ms: number; price: number; pkg: string }
   const map = new Map<string, O[]>()
@@ -80,11 +96,13 @@ export async function computeJujiRepurchase(): Promise<JujiRepurchase> {
     const nm = fstr(f['Name'])
     const key = phone || (nm ? 'name:' + nm.toLowerCase() : '')
     if (!key) continue
-    // Package LINK (packages-table SKU) is source of truth; the free-text `List of package` mislabels Tins as 盒, so use it only as a fallback.
+    // Name priority: link SKU → price→SKU map → free-text (mislabels Tins as 盒) → RM amount.
+    // Never trust `List of package` first; it is hand-typed and wrong for most Tin packages.
     const ids = linkIds(f['Package'])
     let pkg = ids.map(id => pkgName.get(id) || '').filter(Boolean).join(', ')
-    if (!pkg) pkg = fstr(f['List of package'])
-    pkg = cleanPkg(pkg) || '(no name)'
+    if (!pkg) pkg = pkgByPrice.get(price) || ''
+    if (!pkg) pkg = cleanPkg(fstr(f['List of package']))
+    if (!pkg) pkg = `RM${price}`
     let arr = map.get(key); if (!arr) { arr = []; map.set(key, arr) }
     arr.push({ ms, price, pkg })
   }
