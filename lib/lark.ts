@@ -11,9 +11,11 @@ export async function getTenantAccessToken(): Promise<string> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      // App ID is non-secret; hardcode it so it can never mismatch the secret env var
-      // (a wrong/missing LARK_APP_ID was causing 99991663 invalid-token errors).
-      app_id:     'cli_aa9f9f568da19e18',
+      // Use the project's OWN Lark app. app_id + app_secret MUST be a matched pair
+      // from the same app, or Lark returns 99991663 "invalid access token".
+      // Read the id from env (so it pairs with LARK_APP_SECRET); fall back to the
+      // known app id if the env var is missing on the deploy.
+      app_id:     process.env.LARK_APP_ID || 'cli_a97a5ade4db81e15',
       app_secret: process.env.LARK_APP_SECRET,
     }),
   })
