@@ -80,8 +80,10 @@ export async function computeJujiRepurchase(): Promise<JujiRepurchase> {
     const nm = fstr(f['Name'])
     const key = phone || (nm ? 'name:' + nm.toLowerCase() : '')
     if (!key) continue
-    let pkg = fstr(f['List of package'])
-    if (!pkg) { const ids = linkIds(f['Package']); pkg = ids.map(id => pkgName.get(id) || '').filter(Boolean).join(', ') }
+    // Package LINK (packages-table SKU) is source of truth; the free-text `List of package` mislabels Tins as 盒, so use it only as a fallback.
+    const ids = linkIds(f['Package'])
+    let pkg = ids.map(id => pkgName.get(id) || '').filter(Boolean).join(', ')
+    if (!pkg) pkg = fstr(f['List of package'])
     pkg = cleanPkg(pkg) || '(no name)'
     let arr = map.get(key); if (!arr) { arr = []; map.set(key, arr) }
     arr.push({ ms, price, pkg })
