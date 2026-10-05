@@ -32,14 +32,15 @@ export default function SalesDistributionTab({ dateFrom, selectedBrand }: { date
   const [selYear, setSelYear] = useState('')
   const [selMonth, setSelMonth] = useState('')
 
-  const isNE = selectedBrand === 'NE'
+  const isNE = selectedBrand === 'NE' || selectedBrand === 'Juji'
   const chan = isNE ? 'Sales' : 'WhatsApp'
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['sales-matrix', selectedBrand],
     queryFn: async () => {
       if (isNE) {
-        const res = await fetch('/api/analytics/ne-sales-report')
+        const api = selectedBrand === 'Juji' ? 'juji-sales-report' : 'ne-sales-report'
+        const res = await fetch(`/api/analytics/${api}`)
         if (!res.ok) throw new Error('Failed to load')
         const r = await res.json() as { months: string[]; metrics: Array<{ month: string; total: number; newSales: number; repeatSales: number }> }
         const mm = r.metrics as Array<{ month: string; total: number; newSales: number; repeatSales: number; newOrders?: number; repeatOrders?: number }>
