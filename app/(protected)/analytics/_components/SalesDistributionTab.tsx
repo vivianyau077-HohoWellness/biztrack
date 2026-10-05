@@ -117,12 +117,12 @@ export default function SalesDistributionTab({ dateFrom, selectedBrand }: { date
         <Card><CardContent className="p-4">
           <p className="text-xs text-muted-foreground">New · {mlabel(sel)}</p>
           <p className="text-2xl font-bold" style={{ color: NEW_C }}>{selRow ? selRow.newPct.toFixed(1) + '%' : '—'}</p>
-          {selRow && <p className="text-[11px] text-muted-foreground">{rm(selRow.newWa)}{isNE && ` · ${selRow.newOrd.toLocaleString()} 笔`}</p>}
+          {selRow && <p className="text-[11px] text-muted-foreground">{rm(selRow.newWa)}{isNE && ` · ${selRow.newOrd.toLocaleString()} orders`}</p>}
         </CardContent></Card>
         <Card><CardContent className="p-4">
           <p className="text-xs text-muted-foreground">Repeat · {mlabel(sel)}</p>
           <p className="text-2xl font-bold" style={{ color: REP_C }}>{selRow ? selRow.repPct.toFixed(1) + '%' : '—'}</p>
-          {selRow && <p className="text-[11px] text-muted-foreground">{rm(selRow.repWa)}{isNE && ` · ${selRow.repOrd.toLocaleString()} 笔`}</p>}
+          {selRow && <p className="text-[11px] text-muted-foreground">{rm(selRow.repWa)}{isNE && ` · ${selRow.repOrd.toLocaleString()} orders`}</p>}
         </CardContent></Card>
       </div>
 
@@ -175,10 +175,10 @@ export default function SalesDistributionTab({ dateFrom, selectedBrand }: { date
                     return (
                       <Fragment key={y}>
                         <td className="px-3 py-1.5 text-right">
-                          {r ? <><span style={{ color: NEW_C }} className="text-base font-semibold">{rm(r.newWa)}</span><br /><span className="text-xs text-muted-foreground">{r.newPct.toFixed(1)}%{isNE && ` · ${r.newOrd.toLocaleString()} 笔`}</span></> : <span className="text-muted-foreground">—</span>}
+                          {r ? <><span style={{ color: NEW_C }} className="text-base font-semibold">{rm(r.newWa)}</span><br /><span className="text-xs text-muted-foreground">{r.newPct.toFixed(1)}%{isNE && ` · ${r.newOrd.toLocaleString()} orders`}</span></> : <span className="text-muted-foreground">—</span>}
                         </td>
                         <td className="px-3 py-1.5 text-right border-r">
-                          {r ? <><span style={{ color: REP_C }} className="text-base font-semibold">{rm(r.repWa)}</span><br /><span className="text-xs text-muted-foreground">{r.repPct.toFixed(1)}%{isNE && ` · ${r.repOrd.toLocaleString()} 笔`}</span></> : <span className="text-muted-foreground">—</span>}
+                          {r ? <><span style={{ color: REP_C }} className="text-base font-semibold">{rm(r.repWa)}</span><br /><span className="text-xs text-muted-foreground">{r.repPct.toFixed(1)}%{isNE && ` · ${r.repOrd.toLocaleString()} orders`}</span></> : <span className="text-muted-foreground">—</span>}
                         </td>
                       </Fragment>
                     )
