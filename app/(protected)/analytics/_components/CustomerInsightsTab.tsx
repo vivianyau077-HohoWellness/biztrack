@@ -207,6 +207,17 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
   const data = (selectedBrand === 'DD' && liveDd && rawData)
     ? { ...rawData, total: liveDd.totalCustomers, newThisMonth: liveDd.newThisMonth, retentionCount: liveDd.retentionCount, vipCount: liveDd.vipCount, customerLtv: liveDd.customerLtv }
     : rawData
+
+  // Top 10 customers by spend, live from each brand's Lark order table.
+  const { data: brandTop } = useQuery({
+    queryKey: ['brand-top-customers', selectedBrand],
+    enabled: selectedBrand === 'DD' || selectedBrand === 'Juji' || selectedBrand === 'NE',
+    queryFn: async () => {
+      const res = await fetch('/api/analytics/brand-top-customers?brand=' + encodeURIComponent(selectedBrand!))
+      if (!res.ok) throw new Error('Failed')
+      return (await res.json()).top10 as Array<{ name: string; phone: string; tag: string; total_orders: number; total_spent: number }>
+    },
+  })
   // Churn customers (all-time, deduped by phone) — independent of date range, scoped by brand
   const { data: churn } = useQuery({
     queryKey: ['churn', projectId],
@@ -876,7 +887,9 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
         <Card>
           <CardHeader><CardTitle className="text-sm font-medium">Top 10 Customers by Spend</CardTitle></CardHeader>
           <CardContent className="p-0">
-            {data.top10.length === 0 ? (
+            {(() => {
+            const topList: Array<{ id?: string; name: string; phone: string; tag: string; total_orders: number; total_spent: number }> = (brandTop && brandTop.length) ? brandTop : data.top10
+            return topList.length === 0 ? (
               <p className="text-sm text-muted-foreground p-6 text-center">No customer data</p>
             ) : (
               <table className="w-full text-xs">
@@ -890,11 +903,13 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
                   </tr>
                 </thead>
                 <tbody>
-                  {data.top10.map((c, i) => (
+                  {topList.map((c, i) => (
                     <tr key={i} className="border-b hover:bg-muted/30">
                       <td className="px-3 py-2 font-mono text-muted-foreground">{i + 1}</td>
                       <td className="px-3 py-2">
-                        <Link href={`/customers/${c.id}`} className="font-medium hover:text-green-600 hover:underline">{c.name}</Link>
+                        {c.id
+                          ? <Link href={`/customers/${c.id}`} className="font-medium hover:text-green-600 hover:underline">{c.name}</Link>
+                          : <span className="font-medium">{c.name}</span>}
                         <div className="text-muted-foreground">{c.phone}</div>
                       </td>
                       <td className="px-3 py-2 text-center">
@@ -906,7 +921,8 @@ export default function CustomerInsightsTab({ projectId, dateFrom, dateTo, selec
                   ))}
                 </tbody>
               </table>
-            )}
+            )
+            })()}
           </CardContent>
         </Card>
 
