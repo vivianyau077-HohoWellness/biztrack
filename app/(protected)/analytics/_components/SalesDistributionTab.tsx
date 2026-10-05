@@ -26,13 +26,22 @@ const REP_C = '#1C7293'
 
 type Row = { raw: string; month: string; newWa: number; repWa: number; waTotal: number; newPct: number; repPct: number }
 
-export default function SalesDistributionTab({ dateFrom }: { dateFrom?: string; dateTo?: string }) {
+export default function SalesDistributionTab({ dateFrom, selectedBrand }: { dateFrom?: string; dateTo?: string; selectedBrand?: string }) {
   const [selYear, setSelYear] = useState('')
   const [selMonth, setSelMonth] = useState('')
 
+  const isNE = selectedBrand === 'NE'
+  const chan = isNE ? 'Sales' : 'WhatsApp'
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ['sales-matrix'],
+    queryKey: ['sales-matrix', selectedBrand],
     queryFn: async () => {
+      if (isNE) {
+        const res = await fetch('/api/analytics/ne-sales-report')
+        if (!res.ok) throw new Error('Failed to load')
+        const r = await res.json() as { months: string[]; metrics: Array<{ month: string; total: number; newSales: number; repeatSales: number }> }
+        return { months: r.months, metrics: r.metrics.map(m => ({ month: m.month, whatsapp: m.total, newWaSales: m.newSales, repeatWaSales: m.repeatSales })) } as Data
+      }
       const res = await fetch('/api/analytics/sales-analysis')
       if (!res.ok) throw new Error('Failed to load')
       return res.json() as Promise<Data>
@@ -74,9 +83,11 @@ export default function SalesDistributionTab({ dateFrom }: { dateFrom?: string; 
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">WhatsApp — New vs Repeat Sales Distribution</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{chan} — New vs Repeat Sales Distribution</h2>
           <p className="text-sm text-muted-foreground">
-            Where WhatsApp customers&apos; sales land — New vs Repeat, classified by phone number &amp; AUTO N/R. Live from Lark.
+            {isNE
+              ? 'Monthly sales split New vs Repeat, 2025 vs 2026 side by side. From the daily Race Report (all channels). Live from Lark.'
+              : 'Where WhatsApp customers’ sales land — New vs Repeat, classified by phone number & AUTO N/R. Live from Lark.'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -93,9 +104,9 @@ export default function SalesDistributionTab({ dateFrom }: { dateFrom?: string; 
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Card><CardContent className="p-4">
-          <p className="text-xs text-muted-foreground">WhatsApp Sales · {mlabel(sel)}</p>
+          <p className="text-xs text-muted-foreground">{chan} Sales · {mlabel(sel)}</p>
           <p className="text-2xl font-bold">{selRow ? rm(selRow.newWa + selRow.repWa) : '—'}</p>
-          {selRow && <p className="text-[11px] text-muted-foreground">Total incl. untagged: {rm(selRow.waTotal)}</p>}
+          {selRow && <p className="text-[11px] text-muted-foreground">Total incl. unclassified: {rm(selRow.waTotal)}</p>}
         </CardContent></Card>
         <Card><CardContent className="p-4">
           <p className="text-xs text-muted-foreground">New · {mlabel(sel)}</p>
@@ -110,7 +121,7 @@ export default function SalesDistributionTab({ dateFrom }: { dateFrom?: string; 
       </div>
 
       <Card><CardContent className="p-4">
-        <p className="text-sm font-semibold mb-3">Monthly WhatsApp sales — New + Repeat · {yr} (selected month highlighted)</p>
+        <p className="text-sm font-semibold mb-3">Monthly {chan.toLowerCase()} sales — New + Repeat · {yr} (selected month highlighted)</p>
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={yearRows} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
@@ -132,7 +143,7 @@ export default function SalesDistributionTab({ dateFrom }: { dateFrom?: string; 
 
       <Card><CardContent className="p-4">
         <p className="text-sm font-semibold mb-1">Same month, across years — New vs Repeat</p>
-        <p className="text-[11px] text-muted-foreground mb-3">Read across a row to compare the same month year-over-year. % = share of classified WhatsApp sales; RM under.</p>
+        <p className="text-[11px] text-muted-foreground mb-3">Read across a row to compare the same month year-over-year. % = share of classified {chan.toLowerCase()} sales; RM under.</p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
@@ -171,7 +182,7 @@ export default function SalesDistributionTab({ dateFrom }: { dateFrom?: string; 
             </tbody>
           </table>
         </div>
-        <p className="text-[11px] text-muted-foreground mt-2">&quot;—&quot; = no WhatsApp data that month. New % / Repeat % are shares of classified WhatsApp sales (New + Repeat).</p>
+        <p className="text-[11px] text-muted-foreground mt-2">&quot;—&quot; = no {chan.toLowerCase()} data that month. New % / Repeat % are shares of classified {chan.toLowerCase()} sales (New + Repeat).</p>
       </CardContent></Card>
     </div>
   )

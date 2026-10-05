@@ -12,10 +12,10 @@ export async function getTenantAccessToken(): Promise<string> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       // app_id + app_secret MUST be a matched pair from the same app, or Lark
-      // returns 99991663. Prefer Vercel's LARK_APP_ID; fall back to the app that
-      // pairs with the secret currently on Vercel (Vivian-MCP) — this is the
-      // config that originally worked.
-      app_id:     process.env.LARK_APP_ID || 'cli_aa9f9f568da19e18',
+      // returns an auth error. This project's app is cli_a97a5ade4db81e15; its
+      // secret lives in LARK_APP_SECRET. (cli_aa9f… is the Claude connector app,
+      // a different app — do not use it here.)
+      app_id:     process.env.LARK_APP_ID || 'cli_a97a5ade4db81e15',
       app_secret: process.env.LARK_APP_SECRET,
     }),
   })

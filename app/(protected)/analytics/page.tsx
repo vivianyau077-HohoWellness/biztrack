@@ -170,7 +170,7 @@ export default function AnalyticsPage() {
       {/* Tab content */}
       <div className="min-h-[400px]">
         {activeTab === 'distribution' && (
-          <SalesDistributionTab dateFrom={dateFrom} dateTo={dateTo} />
+          <SalesDistributionTab dateFrom={dateFrom} dateTo={dateTo} selectedBrand={selectedBrand} />
         )}
         {activeTab === 'customers' && (
           <CustomerInsightsTab
