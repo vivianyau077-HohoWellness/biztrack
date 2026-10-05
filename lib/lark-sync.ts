@@ -319,9 +319,7 @@ export async function runLarkSync(): Promise<SyncResult> {
   const results = await Promise.all([
     syncBrand('DD2025'),
     syncBrand('DD'),
-    syncBrand('FIOR'),
     syncBrand('Juji'),
-    syncBrand('KHH'),
     syncBrand('NE'),
   ])
 

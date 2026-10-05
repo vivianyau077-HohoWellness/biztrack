@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 
-const BRANDS     = ['FIOR', 'NE', 'DD', 'KHH', 'Juji']
+const BRANDS     = ['NE', 'DD', 'Juji']
 const PLATFORMS  = ['Facebook', 'TikTok', 'Shopee Ads', 'Lazada Ads', 'Google', 'Instagram', 'Other']
 const STATUSES   = ['Draft', 'Active', 'Paused', 'Completed']
 const OBJECTIVES = ['Sales', 'Brand Awareness', 'Lead Generation', 'Traffic']

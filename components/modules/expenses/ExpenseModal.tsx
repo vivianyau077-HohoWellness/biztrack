@@ -13,7 +13,7 @@ const CATEGORIES = [
   'Ad Spend', 'Shipping', 'Packaging', 'Staff Salary',
   'Platform Fees', 'SST', 'Rent', 'Utilities', 'Raw Materials', 'Other',
 ]
-const BRANDS   = ['FIOR', 'NE', 'DD', 'KHH', 'Juji']
+const BRANDS   = ['NE', 'DD', 'Juji']
 const PAYMENTS = ['Cash', 'Bank Transfer', 'Credit Card', 'E-Wallet']
 
 interface Props {

@@ -10,6 +10,8 @@ type M = {
   whatsapp: number
   newWaSales: number
   repeatWaSales: number
+  newOrders?: number
+  repeatOrders?: number
 }
 type Data = { months: string[]; metrics: M[] }
 
@@ -24,7 +26,7 @@ const rm = (n: number) => 'RM ' + Math.round(n).toLocaleString()
 const NEW_C = '#22a06b'
 const REP_C = '#1C7293'
 
-type Row = { raw: string; month: string; newWa: number; repWa: number; waTotal: number; newPct: number; repPct: number }
+type Row = { raw: string; month: string; newWa: number; repWa: number; waTotal: number; newPct: number; repPct: number; newOrd: number; repOrd: number }
 
 export default function SalesDistributionTab({ dateFrom, selectedBrand }: { dateFrom?: string; dateTo?: string; selectedBrand?: string }) {
   const [selYear, setSelYear] = useState('')
@@ -40,7 +42,8 @@ export default function SalesDistributionTab({ dateFrom, selectedBrand }: { date
         const res = await fetch('/api/analytics/ne-sales-report')
         if (!res.ok) throw new Error('Failed to load')
         const r = await res.json() as { months: string[]; metrics: Array<{ month: string; total: number; newSales: number; repeatSales: number }> }
-        return { months: r.months, metrics: r.metrics.map(m => ({ month: m.month, whatsapp: m.total, newWaSales: m.newSales, repeatWaSales: m.repeatSales })) } as Data
+        const mm = r.metrics as Array<{ month: string; total: number; newSales: number; repeatSales: number; newOrders?: number; repeatOrders?: number }>
+        return { months: r.months, metrics: mm.map(m => ({ month: m.month, whatsapp: m.total, newWaSales: m.newSales, repeatWaSales: m.repeatSales, newOrders: m.newOrders, repeatOrders: m.repeatOrders })) } as Data
       }
       const res = await fetch('/api/analytics/sales-analysis')
       if (!res.ok) throw new Error('Failed to load')
@@ -71,6 +74,8 @@ export default function SalesDistributionTab({ dateFrom, selectedBrand }: { date
       waTotal: m.whatsapp || 0,
       newPct: base ? (nw / base) * 100 : 0,
       repPct: base ? (rw / base) * 100 : 0,
+      newOrd: m.newOrders ?? 0,
+      repOrd: m.repeatOrders ?? 0,
     }
   })
 
@@ -111,12 +116,12 @@ export default function SalesDistributionTab({ dateFrom, selectedBrand }: { date
         <Card><CardContent className="p-4">
           <p className="text-xs text-muted-foreground">New · {mlabel(sel)}</p>
           <p className="text-2xl font-bold" style={{ color: NEW_C }}>{selRow ? selRow.newPct.toFixed(1) + '%' : '—'}</p>
-          {selRow && <p className="text-[11px] text-muted-foreground">{rm(selRow.newWa)}</p>}
+          {selRow && <p className="text-[11px] text-muted-foreground">{rm(selRow.newWa)}{isNE && ` · ${selRow.newOrd.toLocaleString()} 笔`}</p>}
         </CardContent></Card>
         <Card><CardContent className="p-4">
           <p className="text-xs text-muted-foreground">Repeat · {mlabel(sel)}</p>
           <p className="text-2xl font-bold" style={{ color: REP_C }}>{selRow ? selRow.repPct.toFixed(1) + '%' : '—'}</p>
-          {selRow && <p className="text-[11px] text-muted-foreground">{rm(selRow.repWa)}</p>}
+          {selRow && <p className="text-[11px] text-muted-foreground">{rm(selRow.repWa)}{isNE && ` · ${selRow.repOrd.toLocaleString()} 笔`}</p>}
         </CardContent></Card>
       </div>
 
@@ -169,10 +174,10 @@ export default function SalesDistributionTab({ dateFrom, selectedBrand }: { date
                     return (
                       <Fragment key={y}>
                         <td className="px-3 py-1.5 text-right">
-                          {r ? <><span style={{ color: NEW_C }} className="text-base font-semibold">{rm(r.newWa)}</span><br /><span className="text-xs text-muted-foreground">{r.newPct.toFixed(1)}%</span></> : <span className="text-muted-foreground">—</span>}
+                          {r ? <><span style={{ color: NEW_C }} className="text-base font-semibold">{rm(r.newWa)}</span><br /><span className="text-xs text-muted-foreground">{r.newPct.toFixed(1)}%{isNE && ` · ${r.newOrd.toLocaleString()} 笔`}</span></> : <span className="text-muted-foreground">—</span>}
                         </td>
                         <td className="px-3 py-1.5 text-right border-r">
-                          {r ? <><span style={{ color: REP_C }} className="text-base font-semibold">{rm(r.repWa)}</span><br /><span className="text-xs text-muted-foreground">{r.repPct.toFixed(1)}%</span></> : <span className="text-muted-foreground">—</span>}
+                          {r ? <><span style={{ color: REP_C }} className="text-base font-semibold">{rm(r.repWa)}</span><br /><span className="text-xs text-muted-foreground">{r.repPct.toFixed(1)}%{isNE && ` · ${r.repOrd.toLocaleString()} 笔`}</span></> : <span className="text-muted-foreground">—</span>}
                         </td>
                       </Fragment>
                     )

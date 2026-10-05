@@ -6,5 +6,5 @@ export const BRAND_COLORS: Record<string, { bg: string; text: string; border: st
   NE:   { bg: 'bg-red-100',    text: 'text-red-700',    border: 'border-red-200',    tab: 'red'    },
 }
 
-export const BRANDS = ['DD', 'FIOR', 'Juji', 'KHH', 'NE'] as const
+export const BRANDS = ['DD', 'Juji', 'NE'] as const
 export type Brand = typeof BRANDS[number]
