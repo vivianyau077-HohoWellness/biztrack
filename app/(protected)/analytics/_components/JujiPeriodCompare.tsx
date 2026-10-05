@@ -46,10 +46,6 @@ const ROWS: Row[] = [
   { label: 'Repeat Sales', key: 'repeatSales', fmt: 'rm' },
   { label: 'Repeat AOV', key: 'repeatAov', fmt: 'rm' },
   { label: '', spacer: true },
-  { label: 'VIP Order', key: 'vipOrder', fmt: 'num', bold: true },
-  { label: 'VIP Sales', key: 'vipSales', fmt: 'rm' },
-  { label: 'VIP AOV', key: 'vipAov', fmt: 'rm' },
-  { label: '', spacer: true },
   { label: 'Overall AOV', key: 'overallAov', fmt: 'rm', bold: true },
 ]
 
