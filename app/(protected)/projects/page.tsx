@@ -12,6 +12,7 @@ import AdLeadPlanner from '../analytics/_components/AdLeadPlanner'
 import MonthlySalesAnalysis from '../analytics/_components/MonthlySalesAnalysis'
 import PeriodCompare from '../analytics/_components/PeriodCompare'
 import JujiMonthlySalesAnalysis from '../analytics/_components/JujiMonthlySalesAnalysis'
+import JujiPeriodCompare from '../analytics/_components/JujiPeriodCompare'
 
 const PROJECT_BRANDS = ['DD', 'Juji', 'NE'] as const
 type PBrand = typeof PROJECT_BRANDS[number]
@@ -86,7 +87,12 @@ export default function ProjectsPage() {
             <JujiMonthlySalesAnalysis />
           </div>
           <div className="mt-8 border-t pt-6">
-            <p className="text-sm text-muted-foreground">Period Comparison, Profit Target and Ad &amp; Lead Planning for Jujigrainz are coming next.</p>
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">Period Comparison</h2>
+            <p className="text-sm text-muted-foreground mb-3">Compare any two date ranges — e.g. 1–7 this month vs 1–7 another month — apples-to-apples.</p>
+            <JujiPeriodCompare />
+          </div>
+          <div className="mt-8 border-t pt-6">
+            <p className="text-sm text-muted-foreground">Profit Target and Ad &amp; Lead Planning for Jujigrainz are coming next.</p>
           </div>
         </>
       )}
