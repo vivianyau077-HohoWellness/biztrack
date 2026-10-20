@@ -118,7 +118,9 @@ export default function LifecycleTab({ projectId, selectedBrand, dateFrom, dateT
     URL.revokeObjectURL(url)
   }
 
-  if (error && selectedBrand !== 'DD') return <p className="text-sm text-red-600">Failed to load lifecycle data.</p>
+  if (error && selectedBrand !== 'DD') return (
+    <p className="text-sm text-muted-foreground">Customer Lifecycle isn&apos;t available for {selectedBrand || 'this brand'} yet. For {selectedBrand || 'this brand'}, see Segmentation and Repurchase Ladder.</p>
+  )
 
   // DD: show two SEPARATE per-page blocks (Beauty 焕肤王 / Repair 钻石露), live from Lark.
   if (selectedBrand === 'DD') {
