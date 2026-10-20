@@ -57,14 +57,14 @@ function fmtVal(v: number, fmt?: Fmt) {
   return n0(v)
 }
 
-export default function JujiMonthlySalesAnalysis() {
+export default function JujiMonthlySalesAnalysis({ api = '/api/analytics/juji-monthly', fbLabel = 'FB (JUJI)' }: { api?: string; fbLabel?: string } = {}) {
   const [selYear, setSelYear] = useState('')
   const [selMonth, setSelMonth] = useState('')
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['juji-monthly'],
+    queryKey: ['monthly-analysis', api],
     queryFn: async () => {
-      const res = await fetch('/api/analytics/juji-monthly')
+      const res = await fetch(api)
       if (!res.ok) { const b = await res.json().catch(() => null); throw new Error(b?.error || ('HTTP ' + res.status)) }
       return res.json() as Promise<Data>
     },
@@ -119,7 +119,7 @@ export default function JujiMonthlySalesAnalysis() {
                 const dev = curV - selV
                 return (
                   <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
-                    <td className={'px-4 py-2 text-left ' + (row.bold ? 'font-semibold text-base' : 'text-muted-foreground')}>{row.label}</td>
+                    <td className={'px-4 py-2 text-left ' + (row.bold ? 'font-semibold text-base' : 'text-muted-foreground')}>{row.key === 'fb' ? fbLabel : row.label}</td>
                     <td className={'px-4 py-2 text-right whitespace-nowrap ' + (row.bold ? 'font-semibold text-base' : '')}>{fmtVal(selV, row.fmt)}</td>
                     <td className={'px-4 py-2 text-right whitespace-nowrap ' + (row.bold ? 'font-semibold text-base' : '')}>{fmtVal(curV, row.fmt)}</td>
                     <td className={cn('px-4 py-2 text-right whitespace-nowrap font-medium', dev < 0 ? 'text-orange-600' : dev > 0 ? 'text-green-600' : 'text-muted-foreground')}>

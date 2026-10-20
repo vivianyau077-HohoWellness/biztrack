@@ -98,9 +98,21 @@ export default function ProjectsPage() {
       )}
 
       {brand === 'NE' && (
-        <div className="mt-6">
-          <p className="text-sm text-muted-foreground">Nutrieye business dashboard is coming next. For now see NE under Analytics → Sales Distribution / Segmentation / Repurchase Ladder.</p>
-        </div>
+        <>
+          <div className="mt-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">Monthly Sales Analysis</h2>
+            <p className="text-sm text-muted-foreground mb-3">By channel · New / Repeat orders &amp; sales · ROAS, ad spend &amp; messages · month vs current.</p>
+            <JujiMonthlySalesAnalysis api="/api/analytics/ne-monthly" fbLabel="FB (Nutrieye)" />
+          </div>
+          <div className="mt-8 border-t pt-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">Period Comparison</h2>
+            <p className="text-sm text-muted-foreground mb-3">Compare any two date ranges — e.g. 1–7 this month vs 1–7 another month — apples-to-apples.</p>
+            <JujiPeriodCompare api="/api/analytics/ne-period-compare" fbLabel="FB (Nutrieye)" />
+          </div>
+          <div className="mt-8 border-t pt-6">
+            <p className="text-sm text-muted-foreground">Profit Target and Ad &amp; Lead Planning for Nutrieye are coming next.</p>
+          </div>
+        </>
       )}
     </div>
   )

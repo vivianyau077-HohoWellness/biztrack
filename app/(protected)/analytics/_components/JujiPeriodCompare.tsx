@@ -59,7 +59,7 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 const MON_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const pad2 = (n: number) => (n < 10 ? '0' : '') + n
 
-export default function JujiPeriodCompare() {
+export default function JujiPeriodCompare({ api = '/api/analytics/juji-period-compare', fbLabel = 'FB (JUJI)' }: { api?: string; fbLabel?: string } = {}) {
   const today = new Date()
   const prevMonth = today.getMonth() - 1 < 0 ? 11 : today.getMonth() - 1
   const prevYear = today.getMonth() - 1 < 0 ? today.getFullYear() - 1 : today.getFullYear()
@@ -77,10 +77,10 @@ export default function JujiPeriodCompare() {
   const bTo = `${yearB}-${pad2(monthB + 1)}-${pad2(dayTo)}`
 
   const { data, isLoading, error, isFetching } = useQuery({
-    queryKey: ['juji-period-compare', aFrom, aTo, bFrom, bTo],
+    queryKey: ['period-compare', api, aFrom, aTo, bFrom, bTo],
     queryFn: async () => {
       const qs = new URLSearchParams({ aFrom, aTo, bFrom, bTo }).toString()
-      const res = await fetch('/api/analytics/juji-period-compare?' + qs)
+      const res = await fetch(api + '?' + qs)
       if (!res.ok) { const b = await res.json().catch(() => null); throw new Error(b?.error || ('HTTP ' + res.status)) }
       return res.json() as Promise<Resp>
     },
@@ -154,7 +154,7 @@ export default function JujiPeriodCompare() {
                 const dev = aV - bV
                 return (
                   <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
-                    <td className={'px-4 py-2 text-left ' + (row.bold ? 'font-semibold text-base' : 'text-muted-foreground')}>{row.label}</td>
+                    <td className={'px-4 py-2 text-left ' + (row.bold ? 'font-semibold text-base' : 'text-muted-foreground')}>{row.key === 'fb' ? fbLabel : row.label}</td>
                     <td className={'px-4 py-2 text-right whitespace-nowrap ' + (row.bold ? 'font-semibold text-base' : '')}>{fmtVal(aV, row.fmt)}</td>
                     <td className={'px-4 py-2 text-right whitespace-nowrap ' + (row.bold ? 'font-semibold text-base' : '')}>{fmtVal(bV, row.fmt)}</td>
                     <td className={cn('px-4 py-2 text-right whitespace-nowrap font-medium', dev > 0 ? 'text-green-600' : dev < 0 ? 'text-orange-600' : 'text-muted-foreground')}>
