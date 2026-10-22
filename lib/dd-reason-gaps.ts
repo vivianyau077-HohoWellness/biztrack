@@ -1,4 +1,4 @@
-import { fetchLarkRecordsSearch } from './lark'
+import { fetchLarkRecords } from './lark'
 import { fnum, fstr } from './ne-data'
 
 // DD — orders where Purchase reason is blank but the SAME customer (by phone) stated
@@ -27,9 +27,11 @@ export type ReasonGaps = { customers: number; rows: ReasonGapRow[] }
 type Ord = { ms: number; name: string; phone: string; channel: string; reason: string; nr: string; price: number }
 
 export async function computeDdReasonGaps(): Promise<ReasonGaps> {
+  // GET list-records is immediately consistent after writes; records/search has an
+  // indexing delay, so it kept showing just-backfilled orders as still blank.
   const [a, b] = await Promise.all([
-    fetchLarkRecordsSearch(T_2026, APP, F),
-    fetchLarkRecordsSearch(T_2025, APP, F),
+    fetchLarkRecords(T_2026, APP, undefined, F),
+    fetchLarkRecords(T_2025, APP, undefined, F),
   ])
   const byPhone = new Map<string, Ord[]>()
   for (const rec of [...a, ...b]) {
