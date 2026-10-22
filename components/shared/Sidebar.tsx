@@ -10,7 +10,7 @@ import {
   LayoutDashboard, ShoppingCart, BarChart2,
   FolderKanban, Settings, LogOut, Leaf, ChevronDown, ChevronRight,
   PanelLeftClose, PanelLeft,
-  Crown,
+  Crown, ListChecks,
 } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
@@ -35,6 +35,7 @@ const NAV: NavGroup[] = [
     ],
   },
   { label: 'Analytics', icon: BarChart2, href: '/analytics' },
+  { label: 'Reason Gaps', icon: ListChecks, href: '/reason-gaps' },
   { label: 'Projects',   icon: FolderKanban, href: '/projects' },
   { label: 'VIP',        icon: Crown,        href: '/vip' },
   { label: 'Settings',   icon: Settings,     href: '/settings' },
