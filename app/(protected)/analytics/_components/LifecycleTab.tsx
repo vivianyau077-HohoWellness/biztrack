@@ -77,11 +77,16 @@ function csvCell(v: string | number) {
 export default function LifecycleTab({ projectId, selectedBrand, dateFrom, dateTo }: Props) {
   const [openSeg, setOpenSeg] = useState<SegKey | null>(null)
 
+  const isBrandLc = selectedBrand === 'NE' || selectedBrand === 'Juji'
   const { data, isLoading, error } = useQuery({
-    queryKey: ['lifecycle', projectId, dateFrom, dateTo],
+    queryKey: ['lifecycle', selectedBrand, projectId, dateFrom, dateTo],
     enabled: selectedBrand !== 'DD',
+    retry: false,
     queryFn: async () => {
-      const res = await fetch(`/api/analytics/lifecycle?projectId=${encodeURIComponent(projectId)}&from=${dateFrom}&to=${dateTo}`)
+      const url = isBrandLc
+        ? `/api/analytics/brand-lifecycle?brand=${encodeURIComponent(selectedBrand!)}`
+        : `/api/analytics/lifecycle?projectId=${encodeURIComponent(projectId)}&from=${dateFrom}&to=${dateTo}`
+      const res = await fetch(url)
       if (!res.ok) throw new Error('Failed to load lifecycle')
       return res.json() as Promise<{ total: number; from: string; to: string; segments: Segment[] }>
     },
