@@ -1,10 +1,12 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import PageHeader from '@/components/shared/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Download } from 'lucide-react'
+import { Download, Wand2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 type Row = { name: string; phone: string; reason: string; date: string; channel: string; nr: string; price: number }
 type Data = { customers: number; rows: Row[] }
@@ -12,6 +14,8 @@ type Data = { customers: number; rows: Row[] }
 function csvCell(v: string | number) { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
 
 export default function ReasonGapsPage() {
+  const qc = useQueryClient()
+  const [filling, setFilling] = useState(false)
   const { data, isLoading, error } = useQuery({
     queryKey: ['dd-reason-gaps'],
     queryFn: async () => {
@@ -21,6 +25,23 @@ export default function ReasonGapsPage() {
     },
     retry: false,
   })
+
+  const backfill = async () => {
+    if (!data || !data.rows.length) return
+    if (!window.confirm(`Fill the Purchase reason on ${data.rows.length} blank 2026 orders, each with that customer's first-purchase reason? This writes to Lark and only fills blanks (never overwrites an existing reason).`)) return
+    setFilling(true)
+    try {
+      const res = await fetch('/api/analytics/dd-reason-backfill', { method: 'POST' })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(body?.error || ('HTTP ' + res.status))
+      toast.success(`Backfilled ${body.updated} orders${body.failed ? ` · ${body.failed} failed` : ''}`)
+      await qc.invalidateQueries({ queryKey: ['dd-reason-gaps'] })
+    } catch (e) {
+      toast.error('Backfill failed — ' + (e as Error).message)
+    } finally {
+      setFilling(false)
+    }
+  }
 
   const download = () => {
     if (!data) return
@@ -48,7 +69,10 @@ export default function ReasonGapsPage() {
             <p className="text-sm text-muted-foreground">
               <span className="font-semibold text-foreground">{data.customers.toLocaleString()}</span> customers · <span className="font-semibold text-foreground">{data.rows.length.toLocaleString()}</span> blank orders that can take a carried-forward reason.
             </p>
-            <Button onClick={download} size="sm" variant="outline" disabled={!data.rows.length}><Download className="h-4 w-4 mr-1" /> Download CSV</Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={download} size="sm" variant="outline" disabled={!data.rows.length}><Download className="h-4 w-4 mr-1" /> Download CSV</Button>
+              <Button onClick={backfill} size="sm" disabled={!data.rows.length || filling}><Wand2 className="h-4 w-4 mr-1" /> {filling ? 'Backfilling…' : 'Backfill into Lark'}</Button>
+            </div>
           </div>
 
           <Card>
