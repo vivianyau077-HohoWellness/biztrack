@@ -19,6 +19,7 @@ function dateMs(v: unknown): number {
   const s = fstr(v); const t = Date.parse(s); return isNaN(t) ? 0 : t
 }
 const ymd = (ms: number) => ms ? new Date(ms + 28800000).toISOString().slice(0, 10) : ''
+const yearOf = (ms: number) => ms ? new Date(ms + 28800000).getUTCFullYear() : 0
 
 export type ReasonGapRow = { name: string; phone: string; reason: string; date: string; channel: string; nr: string; price: number }
 export type ReasonGaps = { customers: number; rows: ReasonGapRow[] }
@@ -54,12 +55,12 @@ export async function computeDdReasonGaps(): Promise<ReasonGaps> {
   let customers = 0
   for (const arr of Array.from(byPhone.values())) {
     arr.sort((x, y) => x.ms - y.ms)
-    const withReason = arr.filter(o => o.reason)
-    if (withReason.length === 0) continue
-    const firstReasonMs = withReason[0].ms
-    const stated = withReason[0].reason // earliest stated reason
-    // blanks on/after the reason was first captured — these are the carry-forward targets
-    const blanks = arr.filter(o => !o.reason && o.ms >= firstReasonMs)
+    const first = arr[0]
+    // the customer's FIRST purchase (2025 or 2026) must carry a reason
+    if (!first || !first.reason) continue
+    const stated = first.reason
+    // their later purchases, in 2026, with no reason recorded
+    const blanks = arr.filter(o => !o.reason && o.ms > first.ms && yearOf(o.ms) === 2026)
     if (blanks.length === 0) continue
     customers++
     const name = (arr.find(o => o.name && !o.name.includes('/')) || arr[0]).name || arr[0].name

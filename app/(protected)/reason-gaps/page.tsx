@@ -36,7 +36,7 @@ export default function ReasonGapsPage() {
 
   return (
     <div>
-      <PageHeader title="Purchase Reason Gaps — DD" description="Orders with a blank Purchase reason whose customer stated a reason on another order (tracked by phone)" />
+      <PageHeader title="Purchase Reason Gaps — DD" description="2026 orders with a blank Purchase reason, whose customer's first purchase (2025 or 2026) did state a reason — tracked by phone" />
 
       {error ? (
         <p className="text-sm text-red-600 mt-6">Failed to load — {(error as Error).message}</p>
