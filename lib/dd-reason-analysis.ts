@@ -24,7 +24,7 @@ function yearOf(v: unknown): number { const ms = fnum(v); return ms ? new Date(m
 // Campaign / channel markers — not real purchase reasons; excluded from the analysis.
 const EXCLUDE = new Set(['Community', 'Community RM10', 'Shopee PIN'])
 
-export type ReasonRow = { reason: string; customers: number; continuing: number; repeat2026: number; retentionPct: number; avgLTV: number; totalLTV: number }
+export type ReasonRow = { reason: string; customers: number; continuing: number; repeat2026: number; retentionPct: number; avgLTV: number; ltvContinuing: number; ltvRepeat2026: number; totalLTV: number }
 export type DdReasonAnalysis = { totalCustomers: number; continuing: number; repeat2026: number; rows: ReasonRow[] }
 
 export async function computeDdReasonAnalysis(): Promise<DdReasonAnalysis> {
@@ -53,6 +53,7 @@ export async function computeDdReasonAnalysis(): Promise<DdReasonAnalysis> {
 
   let continuing = 0, repeat2026Total = 0
   const sum = new Map<string, number>(), all = new Map<string, number>(), cont = new Map<string, number>(), rep26 = new Map<string, number>()
+  const contSum = new Map<string, number>(), rep26Sum = new Map<string, number>()
   for (const c of Array.from(cust.values())) {
     const isCont = c.years.has(2025) && c.years.has(2026)   // bought in both years
     const isRep26 = c.orders2026 >= 2                        // repurchased within 2026
@@ -61,16 +62,19 @@ export async function computeDdReasonAnalysis(): Promise<DdReasonAnalysis> {
     for (const r of Array.from(c.reasons)) {
       all.set(r, (all.get(r) || 0) + 1)
       sum.set(r, (sum.get(r) || 0) + c.spend)
-      if (isCont) cont.set(r, (cont.get(r) || 0) + 1)
-      if (isRep26) rep26.set(r, (rep26.get(r) || 0) + 1)
+      if (isCont) { cont.set(r, (cont.get(r) || 0) + 1); contSum.set(r, (contSum.get(r) || 0) + c.spend) }
+      if (isRep26) { rep26.set(r, (rep26.get(r) || 0) + 1); rep26Sum.set(r, (rep26Sum.get(r) || 0) + c.spend) }
     }
   }
   const rows: ReasonRow[] = Array.from(all.entries()).map(([reason, customers]) => {
     const continuingN = cont.get(reason) || 0
+    const rep26N = rep26.get(reason) || 0
     return {
-      reason, customers, continuing: continuingN, repeat2026: rep26.get(reason) || 0,
+      reason, customers, continuing: continuingN, repeat2026: rep26N,
       retentionPct: customers ? Math.round((continuingN / customers) * 1000) / 10 : 0,
       avgLTV: customers ? Math.round((sum.get(reason) || 0) / customers) : 0,
+      ltvContinuing: continuingN ? Math.round((contSum.get(reason) || 0) / continuingN) : 0,
+      ltvRepeat2026: rep26N ? Math.round((rep26Sum.get(reason) || 0) / rep26N) : 0,
       totalLTV: Math.round(sum.get(reason) || 0),
     }
   }).sort((x, y) => y.customers - x.customers)
