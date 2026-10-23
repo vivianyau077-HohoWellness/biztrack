@@ -16,7 +16,7 @@ const csvCell = (v: string | number) => { const s = String(v ?? ''); return /[",
 type SortKey = 'customers' | 'returned' | 'retentionPct' | 'avgLTV' | 'r1' | 'r2' | 'r3plus'
 
 export default function PurchaseReasonTab({ selectedBrand }: { selectedBrand?: string }) {
-  const [minN, setMinN] = useState(10)
+  const [minN, setMinN] = useState(30)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['dd-reason-analysis', selectedBrand],
@@ -39,6 +39,9 @@ export default function PurchaseReasonTab({ selectedBrand }: { selectedBrand?: s
         <h2 className="text-xl font-bold">Purchase Reason · retention &amp; LTV</h2>
         <p className="text-sm text-muted-foreground mt-1">
           Every customer counted once (deduped by phone, name fallback). Data window: <span className="font-medium text-foreground">{data.window}</span>. Campaign tags (Shopee PIN, Community) excluded.
+        </p>
+        <p className="text-xs text-muted-foreground mt-1">
+          <b>Min sample</b> hides reasons with too few customers — a 30% retention on 13 people is noise, a 10% on 1,700 is real. Raise it to trust the percentages; lower it to see every reason.
         </p>
       </div>
 
@@ -110,9 +113,9 @@ function CohortTable({ title, subtitle, colCustomers, colReturned, colRet, colLt
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Min customers</span>
+          <span className="text-sm text-muted-foreground" title="Hide reasons with fewer customers than this — small samples give unreliable %">Min sample size</span>
           <select value={minN} onChange={e => setMinN(+e.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm">
-            {[1, 5, 10, 20, 50].map(v => <option key={v} value={v}>{v}</option>)}
+            {[1, 10, 30, 50, 100].map(v => <option key={v} value={v}>{v === 1 ? 'Show all' : `≥ ${v}`}</option>)}
           </select>
           <Button onClick={download} size="sm" variant="outline"><Download className="h-4 w-4 mr-1" /> CSV</Button>
         </div>
