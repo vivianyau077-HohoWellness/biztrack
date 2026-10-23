@@ -98,7 +98,7 @@ function CohortTable({ title, subtitle, colCustomers, colReturned, colRet, colLt
   }
 
   const SortTh = ({ k, label, hint }: { k: SortKey; label: string; hint?: string }) => (
-    <th title={hint} className={cn('px-3 py-2.5 text-right font-semibold cursor-pointer select-none hover:text-foreground', sort === k ? 'text-foreground' : 'text-muted-foreground')} onClick={() => setSort(k)}>
+    <th title={hint} className={cn('px-3 py-2.5 text-right font-semibold cursor-pointer select-none hover:text-foreground bg-background', sort === k ? 'text-foreground' : 'text-muted-foreground')} onClick={() => setSort(k)}>
       {label}{sort === k ? ' ↓' : ''}
     </th>
   )
@@ -122,11 +122,11 @@ function CohortTable({ title, subtitle, colCustomers, colReturned, colRet, colLt
       </div>
 
       <Card><CardContent className="p-0">
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[65vh] rounded-md">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50">
+            <thead className="sticky top-0 z-10 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
               <tr className="border-b">
-                <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground">Purchase reason</th>
+                <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground bg-background">Purchase reason</th>
                 <SortTh k="customers" label={colCustomers} />
                 {ladder && <SortTh k="r1" label="1st repeat" hint="Bought exactly 1 more time (2 orders total)" />}
                 {ladder && <SortTh k="r2" label="2nd repeat" hint="Bought 2 more times (3 orders total)" />}
