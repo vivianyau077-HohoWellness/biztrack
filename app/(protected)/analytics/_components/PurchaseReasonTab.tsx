@@ -7,13 +7,13 @@ import { Button } from '@/components/ui/button'
 import { Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-type CohortRow = { reason: string; customers: number; returned: number; retentionPct: number; avgLTV: number }
+type CohortRow = { reason: string; customers: number; returned: number; retentionPct: number; avgLTV: number; r1?: number; r2?: number; r3plus?: number }
 type Cohort = { totalCustomers: number; returned: number; rows: CohortRow[] }
 type Data = { window: string; cross: Cohort; within: Cohort }
 
 const rm = (n: number) => 'RM ' + Math.round(n).toLocaleString()
 const csvCell = (v: string | number) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
-type SortKey = 'customers' | 'returned' | 'retentionPct' | 'avgLTV'
+type SortKey = 'customers' | 'returned' | 'retentionPct' | 'avgLTV' | 'r1' | 'r2' | 'r3plus'
 
 export default function PurchaseReasonTab({ selectedBrand }: { selectedBrand?: string }) {
   const [minN, setMinN] = useState(10)
@@ -66,6 +66,7 @@ export default function PurchaseReasonTab({ selectedBrand }: { selectedBrand?: s
         cohort={data.within}
         minN={minN} setMinN={setMinN}
         csvName="dd-reason-2026-to-2026"
+        ladder
       />
 
       <Insights cross={data.cross} within={data.within} />
@@ -73,16 +74,20 @@ export default function PurchaseReasonTab({ selectedBrand }: { selectedBrand?: s
   )
 }
 
-function CohortTable({ title, subtitle, colCustomers, colReturned, colRet, colLtv, ltvHint, cohort, minN, setMinN, csvName }: {
+function CohortTable({ title, subtitle, colCustomers, colReturned, colRet, colLtv, ltvHint, cohort, minN, setMinN, csvName, ladder }: {
   title: string; subtitle: string; colCustomers: string; colReturned: string; colRet: string; colLtv: string; ltvHint: string
-  cohort: Cohort; minN: number; setMinN: (n: number) => void; csvName: string
+  cohort: Cohort; minN: number; setMinN: (n: number) => void; csvName: string; ladder?: boolean
 }) {
   const [sort, setSort] = useState<SortKey>('customers')
-  const rows = [...cohort.rows].filter(r => r.customers >= minN).sort((a, b) => (b[sort] as number) - (a[sort] as number))
+  const rows = [...cohort.rows].filter(r => r.customers >= minN).sort((a, b) => ((b[sort] as number) || 0) - ((a[sort] as number) || 0))
 
   const download = () => {
-    const header = ['Purchase reason', colCustomers, colReturned, colRet, colLtv]
-    const lines = [header, ...[...cohort.rows].sort((a, b) => b.customers - a.customers).map(r => [r.reason, r.customers, r.returned, r.retentionPct, r.avgLTV])]
+    const header = ladder
+      ? ['Purchase reason', colCustomers, '1st repeat (2 orders)', '2nd repeat (3 orders)', '3rd+ repeat (4+ orders)', colReturned, colRet, colLtv]
+      : ['Purchase reason', colCustomers, colReturned, colRet, colLtv]
+    const lines = [header, ...[...cohort.rows].sort((a, b) => b.customers - a.customers).map(r => ladder
+      ? [r.reason, r.customers, r.r1 ?? 0, r.r2 ?? 0, r.r3plus ?? 0, r.returned, r.retentionPct, r.avgLTV]
+      : [r.reason, r.customers, r.returned, r.retentionPct, r.avgLTV])]
     const csv = lines.map(l => l.map(csvCell).join(',')).join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob); const a = document.createElement('a')
@@ -120,7 +125,10 @@ function CohortTable({ title, subtitle, colCustomers, colReturned, colRet, colLt
               <tr className="border-b">
                 <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground">Purchase reason</th>
                 <SortTh k="customers" label={colCustomers} />
-                <SortTh k="returned" label={colReturned} />
+                {ladder && <SortTh k="r1" label="1st repeat" hint="Bought exactly 1 more time (2 orders total)" />}
+                {ladder && <SortTh k="r2" label="2nd repeat" hint="Bought 2 more times (3 orders total)" />}
+                {ladder && <SortTh k="r3plus" label="3rd+ repeat" hint="Bought 3 or more times (4+ orders total)" />}
+                <SortTh k="returned" label={colReturned} hint="Any repeat (1st + 2nd + 3rd+)" />
                 <SortTh k="retentionPct" label={colRet} hint="Returned ÷ customers" />
                 <SortTh k="avgLTV" label={colLtv} hint={ltvHint} />
               </tr>
@@ -130,6 +138,9 @@ function CohortTable({ title, subtitle, colCustomers, colReturned, colRet, colLt
                 <tr key={r.reason} className="border-b hover:bg-muted/30">
                   <td className="px-3 py-2 font-medium">{r.reason}</td>
                   <td className="px-3 py-2 text-right">{r.customers.toLocaleString()}</td>
+                  {ladder && <td className="px-3 py-2 text-right text-sky-600">{(r.r1 ?? 0).toLocaleString()}</td>}
+                  {ladder && <td className="px-3 py-2 text-right text-indigo-600">{(r.r2 ?? 0).toLocaleString()}</td>}
+                  {ladder && <td className="px-3 py-2 text-right text-violet-600 font-medium">{(r.r3plus ?? 0).toLocaleString()}</td>}
                   <td className="px-3 py-2 text-right text-emerald-600 font-medium">{r.returned.toLocaleString()}</td>
                   <td className="px-3 py-2 text-right">{r.retentionPct}%</td>
                   <td className="px-3 py-2 text-right font-semibold">{r.avgLTV ? rm(r.avgLTV) : '—'}</td>

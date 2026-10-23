@@ -30,7 +30,9 @@ const EXCLUDE = new Set(['Community', 'Community RM10', 'Shopee PIN'])
 // One row = one purchase reason. `customers` is the cohort size (the denominator),
 // `returned` the number who repurchased, `retentionPct` = returned/customers,
 // `avgLTV` = average lifetime spend of the customers who DID repurchase.
-export type CohortRow = { reason: string; customers: number; returned: number; retentionPct: number; avgLTV: number }
+// r1/r2/r3plus = repeat-depth ladder (only populated for the `within` cohort):
+// r1 = bought once more (2 orders), r2 = twice more (3 orders), r3plus = 3+ more (4+ orders).
+export type CohortRow = { reason: string; customers: number; returned: number; retentionPct: number; avgLTV: number; r1?: number; r2?: number; r3plus?: number }
 export type Cohort = { totalCustomers: number; returned: number; rows: CohortRow[] }
 export type DdReasonAnalysis = {
   window: string
@@ -69,6 +71,7 @@ export async function computeDdReasonAnalysis(): Promise<DdReasonAnalysis> {
   const aDen = new Map<string, number>(), aRet = new Map<string, number>(), aSum = new Map<string, number>()
   // Table B — customers whose first order is in 2026, repeated within 2026
   const bDen = new Map<string, number>(), bRet = new Map<string, number>(), bSum = new Map<string, number>()
+  const bR1 = new Map<string, number>(), bR2 = new Map<string, number>(), bR3 = new Map<string, number>()
   let aTot = 0, aRetTot = 0, bTot = 0, bRetTot = 0
   for (const c of Array.from(cust.values())) {
     const inA = c.has2025
@@ -87,19 +90,26 @@ export async function computeDdReasonAnalysis(): Promise<DdReasonAnalysis> {
       }
       if (inB) {
         bDen.set(r, (bDen.get(r) || 0) + 1)
-        if (bRepeated) { bRet.set(r, (bRet.get(r) || 0) + 1); bSum.set(r, (bSum.get(r) || 0) + c.spend) }
+        if (bRepeated) {
+          bRet.set(r, (bRet.get(r) || 0) + 1); bSum.set(r, (bSum.get(r) || 0) + c.spend)
+          if (c.orders2026 === 2) bR1.set(r, (bR1.get(r) || 0) + 1)
+          else if (c.orders2026 === 3) bR2.set(r, (bR2.get(r) || 0) + 1)
+          else bR3.set(r, (bR3.get(r) || 0) + 1)   // 4+ orders = 3rd-or-more repeat
+        }
       }
     }
   }
 
-  const build = (den: Map<string, number>, ret: Map<string, number>, sum: Map<string, number>): CohortRow[] =>
+  const build = (den: Map<string, number>, ret: Map<string, number>, sum: Map<string, number>, ladder?: boolean): CohortRow[] =>
     Array.from(den.entries()).map(([reason, customers]) => {
       const returned = ret.get(reason) || 0
-      return {
+      const row: CohortRow = {
         reason, customers, returned,
         retentionPct: customers ? Math.round((returned / customers) * 1000) / 10 : 0,
         avgLTV: returned ? Math.round((sum.get(reason) || 0) / returned) : 0,
       }
+      if (ladder) { row.r1 = bR1.get(reason) || 0; row.r2 = bR2.get(reason) || 0; row.r3plus = bR3.get(reason) || 0 }
+      return row
     }).sort((x, y) => y.customers - x.customers)
 
   const fmt = (ms: number) => new Date(ms).toISOString().slice(0, 10)
@@ -108,6 +118,6 @@ export async function computeDdReasonAnalysis(): Promise<DdReasonAnalysis> {
   return {
     window,
     cross: { totalCustomers: aTot, returned: aRetTot, rows: build(aDen, aRet, aSum) },
-    within: { totalCustomers: bTot, returned: bRetTot, rows: build(bDen, bRet, bSum) },
+    within: { totalCustomers: bTot, returned: bRetTot, rows: build(bDen, bRet, bSum, true) },
   }
 }
