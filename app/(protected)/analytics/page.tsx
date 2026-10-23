@@ -17,9 +17,10 @@ import SalesDistributionTab from './_components/SalesDistributionTab'
 import SgPerformanceTab from './_components/SgPerformanceTab'
 import SegmentationTab from './_components/SegmentationTab'
 import RepurchaseTab from './_components/RepurchaseTab'
+import PurchaseReasonTab from './_components/PurchaseReasonTab'
 import AdSpendImportModal from './_components/AdSpendImportModal'
 
-type Tab = 'sales' | 'distribution' | 'ads' | 'customers' | 'lifecycle' | 'goals' | 'feedback' | 'sg' | 'segments' | 'repurchase'
+type Tab = 'sales' | 'distribution' | 'ads' | 'customers' | 'lifecycle' | 'goals' | 'feedback' | 'sg' | 'segments' | 'repurchase' | 'reason'
 
 const TAB_CONFIG = [
   { id: 'distribution' as Tab, label: 'Sales Distribution', icon: PieChart },
@@ -27,6 +28,7 @@ const TAB_CONFIG = [
   { id: 'lifecycle' as Tab, label: 'Customer Lifecycle', icon: Workflow },
   { id: 'segments' as Tab, label: 'Segmentation', icon: Layers },
   { id: 'repurchase' as Tab, label: 'Repurchase Ladder', icon: TrendingUp },
+  { id: 'reason' as Tab, label: 'Purchase Reason', icon: MessageSquare },
   { id: 'sg' as Tab, label: 'SG Performance', icon: Flag },
   { id: 'feedback' as Tab, label: 'Feedback', icon: MessageSquare },
 ]
@@ -191,6 +193,9 @@ export default function AnalyticsPage() {
         )}
         {activeTab === 'repurchase' && (
           <RepurchaseTab selectedBrand={selectedBrand} />
+        )}
+        {activeTab === 'reason' && (
+          <PurchaseReasonTab selectedBrand={selectedBrand} />
         )}
         {activeTab === 'feedback' && (
           <FeedbackTab selectedBrand={selectedBrand} dateFrom={dateFrom} dateTo={dateTo} />
