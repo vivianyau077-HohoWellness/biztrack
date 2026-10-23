@@ -122,9 +122,9 @@ function CohortTable({ title, subtitle, colCustomers, colReturned, colRet, colLt
       </div>
 
       <Card><CardContent className="p-0">
-        <div className="overflow-x-auto max-h-[60vh]">
+        <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50 sticky top-0">
+            <thead className="bg-muted/50">
               <tr className="border-b">
                 <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground">Purchase reason</th>
                 <SortTh k="customers" label={colCustomers} />
