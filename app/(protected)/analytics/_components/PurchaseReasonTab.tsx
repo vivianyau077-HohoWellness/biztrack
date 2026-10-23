@@ -7,12 +7,12 @@ import { Button } from '@/components/ui/button'
 import { Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-type Row = { reason: string; customers: number; continuing: number; retentionPct: number; avgLTV: number; totalLTV: number }
-type Data = { totalCustomers: number; continuing: number; rows: Row[] }
+type Row = { reason: string; customers: number; continuing: number; repeat2026: number; retentionPct: number; avgLTV: number; totalLTV: number }
+type Data = { totalCustomers: number; continuing: number; repeat2026: number; rows: Row[] }
 
 const rm = (n: number) => 'RM ' + Math.round(n).toLocaleString()
 const csvCell = (v: string | number) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
-type SortKey = 'customers' | 'continuing' | 'retentionPct' | 'avgLTV'
+type SortKey = 'customers' | 'continuing' | 'repeat2026' | 'retentionPct' | 'avgLTV'
 
 export default function PurchaseReasonTab({ selectedBrand }: { selectedBrand?: string }) {
   const [sort, setSort] = useState<SortKey>('customers')
@@ -36,8 +36,8 @@ export default function PurchaseReasonTab({ selectedBrand }: { selectedBrand?: s
   const rows = [...data.rows].filter(r => r.customers >= minN).sort((a, b) => (b[sort] as number) - (a[sort] as number))
 
   const download = () => {
-    const header = ['Purchase reason', 'Customers', 'Continuing 25→26', 'Retention %', 'Avg LTV (RM)', 'Total LTV (RM)']
-    const lines = [header, ...[...data.rows].sort((a, b) => b.customers - a.customers).map(r => [r.reason, r.customers, r.continuing, r.retentionPct, r.avgLTV, r.totalLTV])]
+    const header = ['Purchase reason', 'Customers', 'Continuing 25→26', 'Repeat in 2026', 'Retention %', 'Avg LTV (RM)', 'Total LTV (RM)']
+    const lines = [header, ...[...data.rows].sort((a, b) => b.customers - a.customers).map(r => [r.reason, r.customers, r.continuing, r.repeat2026, r.retentionPct, r.avgLTV, r.totalLTV])]
     const csv = lines.map(l => l.map(csvCell).join(',')).join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob); const a = document.createElement('a')
@@ -56,7 +56,7 @@ export default function PurchaseReasonTab({ selectedBrand }: { selectedBrand?: s
         <div>
           <h2 className="text-lg font-semibold">Purchase Reason · retention &amp; LTV</h2>
           <p className="text-xs text-muted-foreground">
-            {data.totalCustomers.toLocaleString()} customers · <span className="font-medium text-foreground">{data.continuing.toLocaleString()}</span> kept repurchasing 2025→2026 · deduped by phone (name fallback). Click a column to sort.
+            {data.totalCustomers.toLocaleString()} customers · <span className="font-medium text-foreground">{data.continuing.toLocaleString()}</span> kept repurchasing 2025→2026 · <span className="font-medium text-foreground">{data.repeat2026.toLocaleString()}</span> repurchased within 2026 · deduped by phone (name fallback). Click a column to sort.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -76,6 +76,7 @@ export default function PurchaseReasonTab({ selectedBrand }: { selectedBrand?: s
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">Purchase reason</th>
                 <SortTh k="customers" label="Customers" />
                 <SortTh k="continuing" label="Continuing 25→26" />
+                <SortTh k="repeat2026" label="Repeat in 2026" />
                 <SortTh k="retentionPct" label="Retention %" />
                 <SortTh k="avgLTV" label="Avg LTV" />
               </tr>
@@ -86,6 +87,7 @@ export default function PurchaseReasonTab({ selectedBrand }: { selectedBrand?: s
                   <td className="px-3 py-1.5 font-medium">{r.reason}</td>
                   <td className="px-3 py-1.5 text-right">{r.customers.toLocaleString()}</td>
                   <td className="px-3 py-1.5 text-right text-emerald-600">{r.continuing.toLocaleString()}</td>
+                  <td className="px-3 py-1.5 text-right text-blue-600">{r.repeat2026.toLocaleString()}</td>
                   <td className="px-3 py-1.5 text-right">{r.retentionPct}%</td>
                   <td className="px-3 py-1.5 text-right font-semibold">{rm(r.avgLTV)}</td>
                 </tr>
