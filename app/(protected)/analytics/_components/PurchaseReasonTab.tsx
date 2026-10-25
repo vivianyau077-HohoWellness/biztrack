@@ -104,7 +104,7 @@ export default function PurchaseReasonTab({ selectedBrand }: { selectedBrand?: s
         ladder
       />
 
-      {mode !== 'combo' && <Insights cross={md.cross} within={md.within} />}
+      <Insights cross={md.cross} within={md.within} label={mode === 'combo' ? 'combination' : 'reason'} />
     </div>
   )
 }
@@ -156,7 +156,7 @@ function CohortTable({ title, subtitle, colReason, colCustomers, colReturned, co
       <Card><CardContent className="p-0">
         <div className="overflow-auto max-h-[65vh] rounded-md">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 z-10 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
+            <thead className="sticky top-0 z-[1] bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
               <tr className="border-b">
                 <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground bg-background">{colReason}</th>
                 <SortTh k="customers" label={colCustomers} />
@@ -189,14 +189,19 @@ function CohortTable({ title, subtitle, colReason, colCustomers, colReturned, co
   )
 }
 
-function Insights({ cross, within }: { cross: Cohort; within: Cohort }) {
+function Insights({ cross, within, label }: { cross: Cohort; within: Cohort; label: string }) {
   const bigA = cross.rows.filter(r => r.customers >= 30)
   const bigB = within.rows.filter(r => r.customers >= 30)
   if (!bigA.length && !bigB.length) return null
+  // Cross-year (Table A) picks
   const topRet = [...bigA].filter(r => r.customers >= 50).sort((a, b) => b.retentionPct - a.retentionPct)[0]
   const topLtvA = [...bigA].filter(r => r.returned >= 10).sort((a, b) => b.avgLTV - a.avgLTV)[0]
   const topVol = [...bigA].sort((a, b) => b.customers - a.customers)[0]
-  const topRepeatB = [...bigB].filter(r => r.customers >= 50).sort((a, b) => b.retentionPct - a.retentionPct)[0]
+  // Within-year (Table B) picks — used as fallback when there's no 2025 history (e.g. Juji)
+  const topRepeatB = [...bigB].filter(r => r.customers >= 30).sort((a, b) => b.retentionPct - a.retentionPct)[0]
+  const topLtvB = [...bigB].filter(r => r.returned >= 5).sort((a, b) => b.avgLTV - a.avgLTV)[0]
+  const topVolB = [...bigB].sort((a, b) => b.customers - a.customers)[0]
+  const hasA = bigA.length > 0
 
   const Item = ({ title, body }: { title: string; body: ReactNode }) => (
     <div className="rounded-lg border bg-muted/20 p-4">
@@ -209,16 +214,21 @@ function Insights({ cross, within }: { cross: Cohort; within: Cohort }) {
     <div className="space-y-3">
       <h3 className="text-base font-semibold">What this tells us</h3>
       <div className="grid gap-3 md:grid-cols-2">
-        {topRet && <Item title="Stickiest reason (2025 → 2026)"
-          body={<>Of the big segments, <b>{topRet.reason}</b> retains best at <b>{topRet.retentionPct}%</b> ({topRet.returned} of {topRet.customers.toLocaleString()} 2025 buyers came back). Chronic/medical skin conditions hold customers; cosmetic reasons churn — guard this cohort with refill reminders.</>} />}
-        {topLtvA && <Item title="Most valuable returning customers"
-          body={<>Customers who repurchased 2025→2026 for <b>{topLtvA.reason}</b> are worth <b>{rm(topLtvA.avgLTV)}</b> each on average — your richest returning segment. Prioritise for upsell / VIP care.</>} />}
-        {topVol && <Item title="Biggest base, biggest opportunity"
+        {hasA && topRet && <Item title={`Stickiest ${label} (2025 → 2026)`}
+          body={<>Of the big segments, <b>{topRet.reason}</b> keeps the most customers — <b>{topRet.retentionPct}%</b> came back ({topRet.returned} of {topRet.customers.toLocaleString()} 2025 buyers). Protect this group with reorder reminders before they lapse.</>} />}
+        {hasA && topLtvA && <Item title="Most valuable returning customers"
+          body={<>Those who repurchased 2025→2026 for <b>{topLtvA.reason}</b> are worth <b>{rm(topLtvA.avgLTV)}</b> each on average — your richest returning segment. Prioritise for upsell / VIP care.</>} />}
+        {hasA && topVol && <Item title="Biggest base, biggest opportunity"
           body={<><b>{topVol.reason}</b> is your largest 2025 segment ({topVol.customers.toLocaleString()} customers) at {topVol.retentionPct}% retention. Volume is strong, loyalty is the gap — a structured 2nd-purchase flow here moves the most revenue.</>} />}
+
         {topRepeatB && <Item title="Fastest to a 2nd order (new in 2026)"
-          body={<>Among new-2026 customers, <b>{topRepeatB.reason}</b> repeats within the year best at <b>{topRepeatB.retentionPct}%</b>. Good signal that this reason converts first-timers into repeat buyers quickly — lean your 2026 acquisition toward it.</>} />}
+          body={<>Among new-2026 customers, <b>{topRepeatB.reason}</b> repeats within the year best at <b>{topRepeatB.retentionPct}%</b> — it converts first-timers into repeat buyers quickly, so lean 2026 acquisition toward it.</>} />}
+        {!hasA && topLtvB && <Item title="Most valuable repeat customers (2026)"
+          body={<>New-2026 customers who repeated for <b>{topLtvB.reason}</b> are worth <b>{rm(topLtvB.avgLTV)}</b> each on average — the segment to nurture into loyalty.</>} />}
+        {!hasA && topVolB && <Item title="Biggest base, biggest opportunity"
+          body={<><b>{topVolB.reason}</b> is your largest new-2026 segment ({topVolB.customers.toLocaleString()} customers) at {topVolB.retentionPct}% repeat. Volume is strong, loyalty is the gap — a 2nd-purchase flow here moves the most revenue.</>} />}
       </div>
-      <p className="text-xs text-muted-foreground">Retention % = returned ÷ cohort. Avg LTV = average lifetime spend of the customers who repurchased. Live from Lark.</p>
+      <p className="text-xs text-muted-foreground">Retention / repeat % = returned ÷ cohort. Avg LTV = average lifetime spend of the customers who repurchased. Live from Lark.</p>
     </div>
   )
 }
