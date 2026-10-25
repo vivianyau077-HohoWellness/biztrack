@@ -54,7 +54,7 @@ async function ddRows(): Promise<Row[]> {
 }
 
 async function jujiRows(): Promise<Row[]> {
-  const recs = await fetchLarkRecords('tblIb0g8xEeRGsbe', 'GXamw6ldPipdXFkkNY1j8RKzpzg', undefined, ['Channel', 'Total Price', 'Price Domain', 'Name', 'Phone Number', 'Phone no'])
+  const recs = await fetchLarkRecords('tblIb0g8xEeRGsbe', 'QV2vbeAyIaDiu2skeFojbNhspnh', undefined, ['Channel', 'Total Price', 'Price Domain', 'Name', 'Phone Number', 'Phone no'])
   const out: Row[] = []
   for (const rec of recs) {
     const f = rec.fields

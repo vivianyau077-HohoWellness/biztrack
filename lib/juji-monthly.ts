@@ -4,7 +4,7 @@ import { fnum, fstr } from './ne-data'
 // Jujigrainz monthly business analysis — by channel + New/Repeat/VIP, with ad / ROAS /
 // messages / goal from the Race Report. Mirrors the DD "Monthly Sales Analysis" but on
 // Juji's own channels (no 焕肤王/修复 product split).
-const JUJI_APP = 'GXamw6ldPipdXFkkNY1j8RKzpzg'
+const JUJI_APP = 'QV2vbeAyIaDiu2skeFojbNhspnh'
 const T_ORDER = 'tblIb0g8xEeRGsbe'
 const T_REPORT = 'tbliqUdaDADNXKAd'
 

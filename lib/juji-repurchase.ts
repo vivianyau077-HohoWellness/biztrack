@@ -1,7 +1,7 @@
 import { fetchLarkRecords } from './lark'
 
 // Jujigrainz first-order → next-order price ladder (single product line).
-const JUJI_APP = 'GXamw6ldPipdXFkkNY1j8RKzpzg'
+const JUJI_APP = 'QV2vbeAyIaDiu2skeFojbNhspnh'
 const T_ORDER = 'tblIb0g8xEeRGsbe'
 const T_PKG = 'tblSFCm5N8hAYXxv'
 const SLIM = ['Date', 'Channel', 'Name', 'Phone Number', 'Total Price', 'Price Domain', 'List of package', 'Package']

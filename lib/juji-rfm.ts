@@ -2,7 +2,7 @@ import { fetchLarkRecords } from './lark'
 
 // Jujigrainz customer segmentation (RFM) — single product line, no VIP concept.
 // New = 1 order, Repeat = 2+ orders. Lives in a separate Lark base; read with the same tenant token.
-const JUJI_APP = 'GXamw6ldPipdXFkkNY1j8RKzpzg'
+const JUJI_APP = 'QV2vbeAyIaDiu2skeFojbNhspnh'
 const T_ORDER = 'tblIb0g8xEeRGsbe'
 const SLIM = ['Date', 'Channel', 'Name', 'Phone Number', 'Total Price', 'Price Domain']
 

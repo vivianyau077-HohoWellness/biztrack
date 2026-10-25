@@ -2,7 +2,7 @@ import { fetchLarkRecordsSearch } from './lark'
 import { fnum, fstr } from './ne-data'
 
 // Jujigrainz metrics over an arbitrary date range — powers Period Comparison.
-const JUJI_APP = 'GXamw6ldPipdXFkkNY1j8RKzpzg'
+const JUJI_APP = 'QV2vbeAyIaDiu2skeFojbNhspnh'
 const T_ORDER = 'tblIb0g8xEeRGsbe'
 const T_REPORT = 'tbliqUdaDADNXKAd'
 const O = ['Date', 'Channel', 'Total Price', 'Price Domain', 'AUTO N/R', 'AUTO VIP']

@@ -3,7 +3,7 @@ import { fnum, fstr } from './ne-data'
 
 // Jujigrainz monthly sales distribution (New vs Repeat) from the official daily
 // Race Report. Juji launched in 2026, so there is only a 2026 report table.
-const JUJI_APP = 'GXamw6ldPipdXFkkNY1j8RKzpzg'
+const JUJI_APP = 'QV2vbeAyIaDiu2skeFojbNhspnh'
 const T_REPORT = 'tbliqUdaDADNXKAd'
 const F = { date: 'Date', newSales: 'Total New Sales', repSales: 'Total Repeat Sales', total: 'Total Sales', newOrd: 'New Order', repOrd: 'Repeat Order', ad: 'Total Ad Spent' }
 
