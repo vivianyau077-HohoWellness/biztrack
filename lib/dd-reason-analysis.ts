@@ -6,14 +6,25 @@ import { fnum, fstr } from './ne-data'
 //   Table B (2026 new → 2026 repeat): customers whose FIRST order was in 2026, and whether
 //            they bought again within 2026.
 // Deduped by phone (name fallback for marketplace orders with no phone). Reasons split
-// into atomic reasons so combo options count toward each. Brand-parameterized: DD reads
-// two order tables (2025 + 2026) via GET; Juji reads its single 2026 table via search.
-const F = ['Date', 'Phone Number', 'Channel', 'Name', 'Purchase reason', 'Total Price']
-
-type BrandCfg = { app: string; tables: string[]; fetch: 'get' | 'search' }
+// into atomic reasons so combo options count toward each. Brand-parameterized: each brand
+// lists its order tables, and each table carries its own field-name map (NE's 2025 and 2026
+// tables use different column names). DD reads via GET; Juji / NE read via search.
+type FieldMap = { date: string; phone: string; name: string; channel: string; reason: string; price: string }
+const STD: FieldMap = { date: 'Date', phone: 'Phone Number', name: 'Name', channel: 'Channel', reason: 'Purchase reason', price: 'Total Price' }
+type Src = { table: string; map: FieldMap }
+type BrandCfg = { app: string; fetch: 'get' | 'search'; sources: Src[] }
 const BRANDS: Record<string, BrandCfg> = {
-  DD: { app: 'S8XXb8PT2a82ouslzQWjBaYap2g', tables: ['tblpMwKyxbddnXNG', 'tblEy6fdbsuXhS6L'], fetch: 'get' },
-  Juji: { app: 'QV2vbeAyIaDiu2skeFojbNhspnh', tables: ['tblIb0g8xEeRGsbe'], fetch: 'search' },
+  DD: { app: 'S8XXb8PT2a82ouslzQWjBaYap2g', fetch: 'get', sources: [
+    { table: 'tblpMwKyxbddnXNG', map: STD }, // 2026
+    { table: 'tblEy6fdbsuXhS6L', map: STD }, // 2025
+  ] },
+  Juji: { app: 'QV2vbeAyIaDiu2skeFojbNhspnh', fetch: 'search', sources: [
+    { table: 'tblIb0g8xEeRGsbe', map: STD }, // 2026 only
+  ] },
+  NE: { app: 'GaBUwog1Niooyyk10fhjkUg6p9c', fetch: 'search', sources: [
+    { table: 'tblCgCKSZ3zALx6t', map: STD }, // 2026
+    { table: 'tbl7fjGsvklEaCh6', map: { date: 'Date', phone: 'Phone Key', name: 'FB Name', channel: 'Channel', reason: 'Purchase reason', price: 'Total Price' } }, // 2025 (different columns)
+  ] },
 }
 export function reasonBrandSupported(brand: string): boolean { return brand in BRANDS }
 
@@ -52,30 +63,35 @@ export async function computeDdReasonAnalysis(): Promise<DdReasonAnalysis> {
 export async function computeReasonAnalysis(brand: string): Promise<DdReasonAnalysis> {
   const cfg = BRANDS[brand]
   if (!cfg) throw new Error(`Purchase-reason analysis is not set up for ${brand}`)
-  const recs = await Promise.all(cfg.tables.map(t =>
-    cfg.fetch === 'get' ? fetchLarkRecords(t, cfg.app, undefined, F) : fetchLarkRecordsSearch(t, cfg.app, F),
-  ))
-  const all_recs = recs.flat()
+  const perSrc = await Promise.all(cfg.sources.map(async s => {
+    const fields = Array.from(new Set(Object.values(s.map)))
+    const recs = cfg.fetch === 'get'
+      ? await fetchLarkRecords(s.table, cfg.app, undefined, fields)
+      : await fetchLarkRecordsSearch(s.table, cfg.app, fields)
+    return { recs, map: s.map }
+  }))
   type C = { spend: number; firstDay: number; has2025: boolean; has2026: boolean; orders2026: number; reasons: Set<string> }
   const cust = new Map<string, C>()
   let minDay = Infinity, maxDay = 0
-  for (const rec of all_recs) {
-    const f = rec.fields
-    const ch = fstr(f['Channel'])
-    if (ch === 'Return') continue
-    const phone = fstr(f['Phone Number']).replace(/\D/g, '')
-    const name = fstr(f['Name']).toLowerCase().trim()
-    const key = phone.length >= 9 ? 'p:' + phone : (name ? 'n:' + name : '')
-    if (!key) continue
-    let c = cust.get(key)
-    if (!c) { c = { spend: 0, firstDay: Infinity, has2025: false, has2026: false, orders2026: 0, reasons: new Set() }; cust.set(key, c) }
-    const price = fnum(f['Total Price'])
-    if (price > 0) c.spend += price
-    const d = dayOf(f['Date']); const y = d ? new Date(d).getUTCFullYear() : 0
-    if (d) { if (d < c.firstDay) c.firstDay = d; if (d < minDay) minDay = d; if (d > maxDay) maxDay = d }
-    if (y === 2025) c.has2025 = true
-    if (y === 2026) { c.has2026 = true; c.orders2026 += 1 }
-    for (const r of reasonsOf(f['Purchase reason'])) if (!EXCLUDE.has(r)) c.reasons.add(r)
+  for (const { recs, map } of perSrc) {
+    for (const rec of recs) {
+      const f = rec.fields
+      const ch = fstr(f[map.channel])
+      if (ch === 'Return') continue
+      const phone = fstr(f[map.phone]).replace(/\D/g, '')
+      const name = fstr(f[map.name]).toLowerCase().trim()
+      const key = phone.length >= 9 ? 'p:' + phone : (name ? 'n:' + name : '')
+      if (!key) continue
+      let c = cust.get(key)
+      if (!c) { c = { spend: 0, firstDay: Infinity, has2025: false, has2026: false, orders2026: 0, reasons: new Set() }; cust.set(key, c) }
+      const price = fnum(f[map.price])
+      if (price > 0) c.spend += price
+      const d = dayOf(f[map.date]); const y = d ? new Date(d).getUTCFullYear() : 0
+      if (d) { if (d < c.firstDay) c.firstDay = d; if (d < minDay) minDay = d; if (d > maxDay) maxDay = d }
+      if (y === 2025) c.has2025 = true
+      if (y === 2026) { c.has2026 = true; c.orders2026 += 1 }
+      for (const r of reasonsOf(f[map.reason])) if (!EXCLUDE.has(r)) c.reasons.add(r)
+    }
   }
 
   // Table A — 2025 buyers, returned in 2026

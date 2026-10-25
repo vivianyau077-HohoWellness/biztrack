@@ -18,7 +18,7 @@ type SortKey = 'customers' | 'returned' | 'retentionPct' | 'avgLTV' | 'r1' | 'r2
 export default function PurchaseReasonTab({ selectedBrand }: { selectedBrand?: string }) {
   const [minN, setMinN] = useState(30)
 
-  const supported = selectedBrand === 'DD' || selectedBrand === 'Juji'
+  const supported = selectedBrand === 'DD' || selectedBrand === 'Juji' || selectedBrand === 'NE'
   const { data, isLoading, error } = useQuery({
     queryKey: ['reason-analysis', selectedBrand],
     enabled: supported,
@@ -30,7 +30,7 @@ export default function PurchaseReasonTab({ selectedBrand }: { selectedBrand?: s
     retry: false,
   })
 
-  if (!supported) return <p className="text-sm text-muted-foreground">Select DD or Juji to see purchase-reason analysis.</p>
+  if (!supported) return <p className="text-sm text-muted-foreground">Select DD, Juji, or NE to see purchase-reason analysis.</p>
   if (error) return <p className="text-sm text-red-600">Failed to load — {(error as Error).message}</p>
   if (isLoading || !data) return <div className="h-60 bg-muted/30 rounded-lg animate-pulse" />
 
