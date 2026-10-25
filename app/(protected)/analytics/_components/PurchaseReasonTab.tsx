@@ -15,8 +15,7 @@ type Mode = 'split' | 'single' | 'combo'
 
 const MODES: { id: Mode; label: string; hint: string }[] = [
   { id: 'split', label: 'By reason (overlapping)', hint: 'One row per reason. A customer with several reasons is counted in each — rows overlap and cannot be summed.' },
-  { id: 'single', label: 'One reason per customer', hint: 'Each customer counted once, under her primary reason (first reason on her earliest order). Rows sum to the total.' },
-  { id: 'combo', label: 'By reason combination', hint: 'The full set of a customer’s reasons is treated as one category (e.g. “干眼症, 黄斑病变, 眼睛蒙蒙”). Each customer counted once.' },
+  { id: 'combo', label: 'By reason combination', hint: 'Each customer’s full set of reasons is one category (e.g. “干眼症, 黄斑病变, 眼睛蒙蒙”; “老花” alone is its own; “白内障” alone is its own). Each customer counted once — nothing dropped, no overlap.' },
 ]
 
 const rm = (n: number) => 'RM ' + Math.round(n).toLocaleString()
