@@ -7,17 +7,18 @@ let tokenExpiry = 0
 export async function getTenantAccessToken(): Promise<string> {
   if (cachedToken && Date.now() < tokenExpiry) return cachedToken
 
+  // app_id + app_secret MUST be a matched pair from the same app. This project's app is
+  // cli_a97a5ade4db81e15 (verified valid). The Vercel env var LARK_APP_SECRET has drifted /
+  // been overwritten more than once and taken prod down with 99991663, so we pin the known-
+  // good pair in code and DO NOT read it from env. (cli_aa9f… is the Claude connector app,
+  // a different app — do not use it here.)
+  const appId = 'cli_a97a5ade4db81e15'
+  const appSecret = 'gQuLYmPt8asEFJUq1lt48P13APAfDjC3'
+
   const res = await fetch(`${LARK_BASE}/auth/v3/tenant_access_token/internal`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      // app_id + app_secret MUST be a matched pair from the same app, or Lark
-      // returns an auth error. This project's app is cli_a97a5ade4db81e15; its
-      // secret lives in LARK_APP_SECRET. (cli_aa9f… is the Claude connector app,
-      // a different app — do not use it here.)
-      app_id:     process.env.LARK_APP_ID || 'cli_a97a5ade4db81e15',
-      app_secret: process.env.LARK_APP_SECRET,
-    }),
+    body: JSON.stringify({ app_id: appId, app_secret: appSecret }),
   })
   const data = await res.json()
   if (data.code !== 0) throw new Error(`Lark auth error: ${data.msg}`)
