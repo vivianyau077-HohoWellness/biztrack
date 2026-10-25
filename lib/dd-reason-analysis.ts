@@ -1,16 +1,21 @@
-import { fetchLarkRecords } from './lark'
+import { fetchLarkRecords, fetchLarkRecordsSearch } from './lark'
 import { fnum, fstr } from './ne-data'
 
-// DD — Purchase Reason analysis, split into two clean cohorts:
+// Purchase Reason analysis, split into two clean cohorts:
 //   Table A (2025 → 2026): customers who ordered in 2025, and whether they came back in 2026.
 //   Table B (2026 new → 2026 repeat): customers whose FIRST order was in 2026, and whether
 //            they bought again within 2026.
-// Deduped by phone (name fallback for marketplace orders with no phone). Reasons read
-// immediately (GET), split into atomic reasons so combo options count toward each.
-const APP = 'S8XXb8PT2a82ouslzQWjBaYap2g'
-const T_2026 = 'tblpMwKyxbddnXNG'
-const T_2025 = 'tblEy6fdbsuXhS6L'
+// Deduped by phone (name fallback for marketplace orders with no phone). Reasons split
+// into atomic reasons so combo options count toward each. Brand-parameterized: DD reads
+// two order tables (2025 + 2026) via GET; Juji reads its single 2026 table via search.
 const F = ['Date', 'Phone Number', 'Channel', 'Name', 'Purchase reason', 'Total Price']
+
+type BrandCfg = { app: string; tables: string[]; fetch: 'get' | 'search' }
+const BRANDS: Record<string, BrandCfg> = {
+  DD: { app: 'S8XXb8PT2a82ouslzQWjBaYap2g', tables: ['tblpMwKyxbddnXNG', 'tblEy6fdbsuXhS6L'], fetch: 'get' },
+  Juji: { app: 'QV2vbeAyIaDiu2skeFojbNhspnh', tables: ['tblIb0g8xEeRGsbe'], fetch: 'search' },
+}
+export function reasonBrandSupported(brand: string): boolean { return brand in BRANDS }
 
 function reasonsOf(v: unknown): string[] {
   let a: unknown = v
@@ -41,14 +46,20 @@ export type DdReasonAnalysis = {
 }
 
 export async function computeDdReasonAnalysis(): Promise<DdReasonAnalysis> {
-  const [a, b] = await Promise.all([
-    fetchLarkRecords(T_2026, APP, undefined, F),
-    fetchLarkRecords(T_2025, APP, undefined, F),
-  ])
+  return computeReasonAnalysis('DD')
+}
+
+export async function computeReasonAnalysis(brand: string): Promise<DdReasonAnalysis> {
+  const cfg = BRANDS[brand]
+  if (!cfg) throw new Error(`Purchase-reason analysis is not set up for ${brand}`)
+  const recs = await Promise.all(cfg.tables.map(t =>
+    cfg.fetch === 'get' ? fetchLarkRecords(t, cfg.app, undefined, F) : fetchLarkRecordsSearch(t, cfg.app, F),
+  ))
+  const all_recs = recs.flat()
   type C = { spend: number; firstDay: number; has2025: boolean; has2026: boolean; orders2026: number; reasons: Set<string> }
   const cust = new Map<string, C>()
   let minDay = Infinity, maxDay = 0
-  for (const rec of [...a, ...b]) {
+  for (const rec of all_recs) {
     const f = rec.fields
     const ch = fstr(f['Channel'])
     if (ch === 'Return') continue

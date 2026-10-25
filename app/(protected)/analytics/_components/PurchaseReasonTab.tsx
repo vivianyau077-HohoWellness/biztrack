@@ -18,18 +18,19 @@ type SortKey = 'customers' | 'returned' | 'retentionPct' | 'avgLTV' | 'r1' | 'r2
 export default function PurchaseReasonTab({ selectedBrand }: { selectedBrand?: string }) {
   const [minN, setMinN] = useState(30)
 
+  const supported = selectedBrand === 'DD' || selectedBrand === 'Juji'
   const { data, isLoading, error } = useQuery({
-    queryKey: ['dd-reason-analysis', selectedBrand],
-    enabled: selectedBrand === 'DD',
+    queryKey: ['reason-analysis', selectedBrand],
+    enabled: supported,
     queryFn: async () => {
-      const res = await fetch('/api/analytics/dd-reason-analysis')
+      const res = await fetch('/api/analytics/dd-reason-analysis?brand=' + encodeURIComponent(selectedBrand || ''))
       if (!res.ok) { const b = await res.json().catch(() => null); throw new Error(b?.error || ('HTTP ' + res.status)) }
       return res.json() as Promise<Data>
     },
     retry: false,
   })
 
-  if (selectedBrand !== 'DD') return <p className="text-sm text-muted-foreground">Select DD to see purchase-reason analysis.</p>
+  if (!supported) return <p className="text-sm text-muted-foreground">Select DD or Juji to see purchase-reason analysis.</p>
   if (error) return <p className="text-sm text-red-600">Failed to load — {(error as Error).message}</p>
   if (isLoading || !data) return <div className="h-60 bg-muted/30 rounded-lg animate-pulse" />
 
@@ -45,18 +46,22 @@ export default function PurchaseReasonTab({ selectedBrand }: { selectedBrand?: s
         </p>
       </div>
 
-      <CohortTable
-        title="Table A · 2025 → 2026 retention"
-        subtitle="Customers who ordered in 2025 — did they come back in 2026?"
-        colCustomers="2025 customers"
-        colReturned="Returned in 2026"
-        colRet="Retention %"
-        colLtv="Avg LTV (returned)"
-        ltvHint="Average lifetime spend of the customers who came back"
-        cohort={data.cross}
-        minN={minN} setMinN={setMinN}
-        csvName="dd-reason-2025-to-2026"
-      />
+      {data.cross.totalCustomers > 0 ? (
+        <CohortTable
+          title="Table A · 2025 → 2026 retention"
+          subtitle="Customers who ordered in 2025 — did they come back in 2026?"
+          colCustomers="2025 customers"
+          colReturned="Returned in 2026"
+          colRet="Retention %"
+          colLtv="Avg LTV (returned)"
+          ltvHint="Average lifetime spend of the customers who came back"
+          cohort={data.cross}
+          minN={minN} setMinN={setMinN}
+          csvName={`${selectedBrand?.toLowerCase()}-reason-2025-to-2026`}
+        />
+      ) : (
+        <p className="text-sm text-muted-foreground">Table A (2025 → 2026) isn&apos;t shown — {selectedBrand} has no 2025 order history, so there&apos;s no cross-year cohort yet.</p>
+      )}
 
       <CohortTable
         title="Table B · 2026 new → 2026 repeat"
@@ -68,7 +73,7 @@ export default function PurchaseReasonTab({ selectedBrand }: { selectedBrand?: s
         ltvHint="Average lifetime spend of the customers who repeated"
         cohort={data.within}
         minN={minN} setMinN={setMinN}
-        csvName="dd-reason-2026-to-2026"
+        csvName={`${selectedBrand?.toLowerCase()}-reason-2026-to-2026`}
         ladder
       />
 
