@@ -10,7 +10,8 @@ import { cn } from '@/lib/utils'
 type CohortRow = { reason: string; customers: number; returned: number; retentionPct: number; avgLTV: number; r1?: number; r2?: number; r3plus?: number }
 type Cohort = { totalCustomers: number; returned: number; rows: CohortRow[] }
 type ModeData = { cross: Cohort; within: Cohort }
-type Data = { window: string; split: ModeData; single: ModeData; combo: ModeData }
+type TopProblem = { reason: string; customers: number }
+type Data = { window: string; totalCustomers: number; topProblem: { split: TopProblem | null; combo: TopProblem | null }; split: ModeData; single: ModeData; combo: ModeData }
 type Mode = 'split' | 'single' | 'combo'
 
 const MODES: { id: Mode; label: string; hint: string }[] = [
@@ -70,6 +71,23 @@ export default function PurchaseReasonTab({ selectedBrand }: { selectedBrand?: s
         </div>
         <p className="text-xs text-muted-foreground">{MODES.find(m => m.id === mode)?.hint}</p>
       </div>
+
+      {/* Headline: the single most common problem / combination across all unique customers */}
+      {(() => {
+        const t = mode === 'combo' ? data.topProblem.combo : data.topProblem.split
+        if (!t) return null
+        const pct = data.totalCustomers ? Math.round(t.customers / data.totalCustomers * 100) : 0
+        return (
+          <div className="rounded-lg border border-primary/40 bg-primary/5 p-4">
+            <p className="text-sm font-semibold">
+              {mode === 'combo' ? 'Most common combination' : 'Most common problem'} (across all {data.totalCustomers.toLocaleString()} customers)
+            </p>
+            <p className="text-base mt-0.5">
+              <b className="text-primary">{t.reason}</b> — <b>{t.customers.toLocaleString()}</b> customers ({pct}% of all)
+            </p>
+          </div>
+        )
+      })()}
 
       {md.cross.totalCustomers > 0 ? (
         <CohortTable

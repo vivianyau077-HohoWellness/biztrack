@@ -51,8 +51,11 @@ const EXCLUDE = new Set(['Community', 'Community RM10', 'Shopee PIN'])
 export type CohortRow = { reason: string; customers: number; returned: number; retentionPct: number; avgLTV: number; r1?: number; r2?: number; r3plus?: number }
 export type Cohort = { totalCustomers: number; returned: number; rows: CohortRow[] }
 export type ModeData = { cross: Cohort; within: Cohort }  // Table A (2025→2026) + Table B (2026 new→repeat)
+export type TopProblem = { reason: string; customers: number }
 export type DdReasonAnalysis = {
   window: string
+  totalCustomers: number
+  topProblem: { split: TopProblem | null; combo: TopProblem | null }
   split: ModeData    // one row per atomic reason (customer can appear in several; rows overlap)
   single: ModeData   // one primary reason per customer (each counted once; rows sum to total)
   combo: ModeData    // full reason combination as its own category (each customer counted once)
@@ -158,11 +161,23 @@ export async function computeReasonAnalysis(brand: string): Promise<DdReasonAnal
     }
   }
 
+  // Most common problem overall — counts every unique customer (any cohort) who has that
+  // key. For split: the single symptom the most customers have. For combo: the commonest set.
+  const overallTop = (keysOf: (c: C) => string[]): TopProblem | null => {
+    const m = new Map<string, number>()
+    for (const c of custList) for (const r of keysOf(c)) m.set(r, (m.get(r) || 0) + 1)
+    let best: TopProblem | null = null
+    for (const [reason, customers] of Array.from(m.entries())) if (!best || customers > best.customers) best = { reason, customers }
+    return best
+  }
+
   const fmt = (ms: number) => new Date(ms).toISOString().slice(0, 10)
   const window = minDay !== Infinity ? `${fmt(minDay)} → ${fmt(maxDay)}` : 'n/a'
 
   return {
     window,
+    totalCustomers: cust.size,
+    topProblem: { split: overallTop(keyersByMode.split), combo: overallTop(keyersByMode.combo) },
     split: buildMode(keyersByMode.split),
     single: buildMode(keyersByMode.single),
     combo: buildMode(keyersByMode.combo),
