@@ -9,7 +9,15 @@ import { cn } from '@/lib/utils'
 
 type CohortRow = { reason: string; customers: number; returned: number; retentionPct: number; avgLTV: number; r1?: number; r2?: number; r3plus?: number }
 type Cohort = { totalCustomers: number; returned: number; rows: CohortRow[] }
-type Data = { window: string; cross: Cohort; within: Cohort }
+type ModeData = { cross: Cohort; within: Cohort }
+type Data = { window: string; split: ModeData; single: ModeData; combo: ModeData }
+type Mode = 'split' | 'single' | 'combo'
+
+const MODES: { id: Mode; label: string; hint: string }[] = [
+  { id: 'split', label: 'By reason (overlapping)', hint: 'One row per reason. A customer with several reasons is counted in each — rows overlap and cannot be summed.' },
+  { id: 'single', label: 'One reason per customer', hint: 'Each customer counted once, under her primary reason (first reason on her earliest order). Rows sum to the total.' },
+  { id: 'combo', label: 'By reason combination', hint: 'The full set of a customer’s reasons is treated as one category (e.g. “干眼症, 黄斑病变, 眼睛蒙蒙”). Each customer counted once.' },
+]
 
 const rm = (n: number) => 'RM ' + Math.round(n).toLocaleString()
 const csvCell = (v: string | number) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
@@ -17,6 +25,7 @@ type SortKey = 'customers' | 'returned' | 'retentionPct' | 'avgLTV' | 'r1' | 'r2
 
 export default function PurchaseReasonTab({ selectedBrand }: { selectedBrand?: string }) {
   const [minN, setMinN] = useState(30)
+  const [mode, setMode] = useState<Mode>('split')
 
   const supported = selectedBrand === 'DD' || selectedBrand === 'Juji' || selectedBrand === 'NE'
   const { data, isLoading, error } = useQuery({
@@ -34,30 +43,48 @@ export default function PurchaseReasonTab({ selectedBrand }: { selectedBrand?: s
   if (error) return <p className="text-sm text-red-600">Failed to load — {(error as Error).message}</p>
   if (isLoading || !data) return <div className="h-60 bg-muted/30 rounded-lg animate-pulse" />
 
+  const md = data[mode]
+  const comboCol = mode === 'combo' ? 'Reason combination' : 'Purchase reason'
+
   return (
     <div className="space-y-8">
       <div>
         <h2 className="text-xl font-bold">Purchase Reason · retention &amp; LTV</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Every customer counted once (deduped by phone, name fallback). Data window: <span className="font-medium text-foreground">{data.window}</span>. Campaign tags (Shopee PIN, Community) excluded.
+          Deduped by phone (name fallback). Data window: <span className="font-medium text-foreground">{data.window}</span>. Campaign tags (Shopee PIN, Community) excluded.
         </p>
         <p className="text-xs text-muted-foreground mt-1">
           <b>Min sample</b> hides reasons with too few customers — a 30% retention on 13 people is noise, a 10% on 1,700 is real. Raise it to trust the percentages; lower it to see every reason.
         </p>
       </div>
 
-      {data.cross.totalCustomers > 0 ? (
+      {/* Attribution mode — how a customer with several reasons is counted */}
+      <div className="space-y-1.5">
+        <div className="flex flex-wrap gap-1.5">
+          {MODES.map(m => (
+            <button key={m.id} onClick={() => setMode(m.id)} title={m.hint}
+              className={cn('px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors',
+                mode === m.id ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:bg-muted')}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">{MODES.find(m => m.id === mode)?.hint}</p>
+      </div>
+
+      {md.cross.totalCustomers > 0 ? (
         <CohortTable
           title="Table A · 2025 → 2026 retention"
           subtitle="Customers who ordered in 2025 — did they come back in 2026?"
+          colReason={comboCol}
           colCustomers="2025 customers"
           colReturned="Returned in 2026"
           colRet="Retention %"
           colLtv="Avg LTV (returned)"
           ltvHint="Average lifetime spend of the customers who came back"
-          cohort={data.cross}
+          cohort={md.cross}
           minN={minN} setMinN={setMinN}
-          csvName={`${selectedBrand?.toLowerCase()}-reason-2025-to-2026`}
+          csvName={`${selectedBrand?.toLowerCase()}-reason-${mode}-2025-to-2026`}
         />
       ) : (
         <p className="text-sm text-muted-foreground">Table A (2025 → 2026) isn&apos;t shown — {selectedBrand} has no 2025 order history, so there&apos;s no cross-year cohort yet.</p>
@@ -66,24 +93,25 @@ export default function PurchaseReasonTab({ selectedBrand }: { selectedBrand?: s
       <CohortTable
         title="Table B · 2026 new → 2026 repeat"
         subtitle="Customers whose first-ever order was in 2026 — did they buy again within 2026?"
+        colReason={comboCol}
         colCustomers="New 2026 customers"
         colReturned="Repeated in 2026"
         colRet="Repeat %"
         colLtv="Avg LTV (repeated)"
         ltvHint="Average lifetime spend of the customers who repeated"
-        cohort={data.within}
+        cohort={md.within}
         minN={minN} setMinN={setMinN}
-        csvName={`${selectedBrand?.toLowerCase()}-reason-2026-to-2026`}
+        csvName={`${selectedBrand?.toLowerCase()}-reason-${mode}-2026-to-2026`}
         ladder
       />
 
-      <Insights cross={data.cross} within={data.within} />
+      {mode !== 'combo' && <Insights cross={md.cross} within={md.within} />}
     </div>
   )
 }
 
-function CohortTable({ title, subtitle, colCustomers, colReturned, colRet, colLtv, ltvHint, cohort, minN, setMinN, csvName, ladder }: {
-  title: string; subtitle: string; colCustomers: string; colReturned: string; colRet: string; colLtv: string; ltvHint: string
+function CohortTable({ title, subtitle, colReason, colCustomers, colReturned, colRet, colLtv, ltvHint, cohort, minN, setMinN, csvName, ladder }: {
+  title: string; subtitle: string; colReason: string; colCustomers: string; colReturned: string; colRet: string; colLtv: string; ltvHint: string
   cohort: Cohort; minN: number; setMinN: (n: number) => void; csvName: string; ladder?: boolean
 }) {
   const [sort, setSort] = useState<SortKey>('customers')
@@ -91,8 +119,8 @@ function CohortTable({ title, subtitle, colCustomers, colReturned, colRet, colLt
 
   const download = () => {
     const header = ladder
-      ? ['Purchase reason', colCustomers, '1st repeat (2 orders)', '2nd repeat (3 orders)', '3rd+ repeat (4+ orders)', colReturned, colRet, colLtv]
-      : ['Purchase reason', colCustomers, colReturned, colRet, colLtv]
+      ? [colReason, colCustomers, '1st repeat (2 orders)', '2nd repeat (3 orders)', '3rd+ repeat (4+ orders)', colReturned, colRet, colLtv]
+      : [colReason, colCustomers, colReturned, colRet, colLtv]
     const lines = [header, ...[...cohort.rows].sort((a, b) => b.customers - a.customers).map(r => ladder
       ? [r.reason, r.customers, r.r1 ?? 0, r.r2 ?? 0, r.r3plus ?? 0, r.returned, r.retentionPct, r.avgLTV]
       : [r.reason, r.customers, r.returned, r.retentionPct, r.avgLTV])]
@@ -131,7 +159,7 @@ function CohortTable({ title, subtitle, colCustomers, colReturned, colRet, colLt
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
               <tr className="border-b">
-                <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground bg-background">Purchase reason</th>
+                <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground bg-background">{colReason}</th>
                 <SortTh k="customers" label={colCustomers} />
                 {ladder && <SortTh k="r1" label="1st repeat" hint="Bought exactly 1 more time (2 orders total)" />}
                 {ladder && <SortTh k="r2" label="2nd repeat" hint="Bought 2 more times (3 orders total)" />}

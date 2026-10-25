@@ -50,10 +50,12 @@ const EXCLUDE = new Set(['Community', 'Community RM10', 'Shopee PIN'])
 // r1 = bought once more (2 orders), r2 = twice more (3 orders), r3plus = 3+ more (4+ orders).
 export type CohortRow = { reason: string; customers: number; returned: number; retentionPct: number; avgLTV: number; r1?: number; r2?: number; r3plus?: number }
 export type Cohort = { totalCustomers: number; returned: number; rows: CohortRow[] }
+export type ModeData = { cross: Cohort; within: Cohort }  // Table A (2025→2026) + Table B (2026 new→repeat)
 export type DdReasonAnalysis = {
   window: string
-  cross: Cohort    // Table A: 2025 → 2026
-  within: Cohort   // Table B: 2026 new → 2026 repeat
+  split: ModeData    // one row per atomic reason (customer can appear in several; rows overlap)
+  single: ModeData   // one primary reason per customer (each counted once; rows sum to total)
+  combo: ModeData    // full reason combination as its own category (each customer counted once)
 }
 
 export async function computeDdReasonAnalysis(): Promise<DdReasonAnalysis> {
@@ -70,7 +72,7 @@ export async function computeReasonAnalysis(brand: string): Promise<DdReasonAnal
       : await fetchLarkRecordsSearch(s.table, cfg.app, fields)
     return { recs, map: s.map }
   }))
-  type C = { spend: number; firstDay: number; has2025: boolean; has2026: boolean; orders2026: number; reasons: Set<string> }
+  type C = { spend: number; firstDay: number; has2025: boolean; has2026: boolean; orders2026: number; reasons: Set<string>; primaryDay: number; primary: string }
   const cust = new Map<string, C>()
   let minDay = Infinity, maxDay = 0
   for (const { recs, map } of perSrc) {
@@ -83,68 +85,86 @@ export async function computeReasonAnalysis(brand: string): Promise<DdReasonAnal
       const key = phone.length >= 9 ? 'p:' + phone : (name ? 'n:' + name : '')
       if (!key) continue
       let c = cust.get(key)
-      if (!c) { c = { spend: 0, firstDay: Infinity, has2025: false, has2026: false, orders2026: 0, reasons: new Set() }; cust.set(key, c) }
+      if (!c) { c = { spend: 0, firstDay: Infinity, has2025: false, has2026: false, orders2026: 0, reasons: new Set(), primaryDay: Infinity, primary: '' }; cust.set(key, c) }
       const price = fnum(f[map.price])
       if (price > 0) c.spend += price
       const d = dayOf(f[map.date]); const y = d ? new Date(d).getUTCFullYear() : 0
       if (d) { if (d < c.firstDay) c.firstDay = d; if (d < minDay) minDay = d; if (d > maxDay) maxDay = d }
       if (y === 2025) c.has2025 = true
       if (y === 2026) { c.has2026 = true; c.orders2026 += 1 }
-      for (const r of reasonsOf(f[map.reason])) if (!EXCLUDE.has(r)) c.reasons.add(r)
+      const rs = reasonsOf(f[map.reason]).filter(r => !EXCLUDE.has(r))
+      for (const r of rs) c.reasons.add(r)
+      // primary reason = first reason stated on the customer's earliest reason-bearing order
+      if (rs.length && d && d < c.primaryDay) { c.primaryDay = d; c.primary = rs[0] }
     }
   }
 
-  // Table A — 2025 buyers, returned in 2026
-  const aDen = new Map<string, number>(), aRet = new Map<string, number>(), aSum = new Map<string, number>()
-  // Table B — customers whose first order is in 2026, repeated within 2026
-  const bDen = new Map<string, number>(), bRet = new Map<string, number>(), bSum = new Map<string, number>()
-  const bR1 = new Map<string, number>(), bR2 = new Map<string, number>(), bR3 = new Map<string, number>()
-  let aTot = 0, aRetTot = 0, bTot = 0, bRetTot = 0
-  for (const c of Array.from(cust.values())) {
-    const inA = c.has2025
-    const aReturned = c.has2025 && c.has2026
-    const firstYear = c.firstDay !== Infinity ? new Date(c.firstDay).getUTCFullYear() : 0
-    const inB = firstYear === 2026
-    const bRepeated = inB && c.orders2026 >= 2
-    if (inA) aTot++
-    if (aReturned) aRetTot++
-    if (inB) bTot++
-    if (bRepeated) bRetTot++
-    for (const r of Array.from(c.reasons)) {
-      if (inA) {
-        aDen.set(r, (aDen.get(r) || 0) + 1)
-        if (aReturned) { aRet.set(r, (aRet.get(r) || 0) + 1); aSum.set(r, (aSum.get(r) || 0) + c.spend) }
-      }
-      if (inB) {
-        bDen.set(r, (bDen.get(r) || 0) + 1)
-        if (bRepeated) {
-          bRet.set(r, (bRet.get(r) || 0) + 1); bSum.set(r, (bSum.get(r) || 0) + c.spend)
-          if (c.orders2026 === 2) bR1.set(r, (bR1.get(r) || 0) + 1)
-          else if (c.orders2026 === 3) bR2.set(r, (bR2.get(r) || 0) + 1)
-          else bR3.set(r, (bR3.get(r) || 0) + 1)   // 4+ orders = 3rd-or-more repeat
+  // How each customer maps to category key(s), per attribution mode:
+  //  split  — one key per atomic reason (customer appears in several rows; rows overlap)
+  //  single — one key: the customer's primary reason (each customer counted once)
+  //  combo  — one key: the full set of reasons joined (the combination as its own category)
+  const keyersByMode = {
+    split: (c: C) => Array.from(c.reasons),
+    single: (c: C) => (c.primary ? [c.primary] : []),
+    combo: (c: C) => (c.reasons.size ? [Array.from(c.reasons).sort().join(', ')] : []),
+  }
+
+  const custList = Array.from(cust.values())
+  const buildMode = (keysOf: (c: C) => string[]): { cross: Cohort; within: Cohort } => {
+    const aDen = new Map<string, number>(), aRet = new Map<string, number>(), aSum = new Map<string, number>()
+    const bDen = new Map<string, number>(), bRet = new Map<string, number>(), bSum = new Map<string, number>()
+    const bR1 = new Map<string, number>(), bR2 = new Map<string, number>(), bR3 = new Map<string, number>()
+    let aTot = 0, aRetTot = 0, bTot = 0, bRetTot = 0
+    for (const c of custList) {
+      const inA = c.has2025
+      const aReturned = c.has2025 && c.has2026
+      const firstYear = c.firstDay !== Infinity ? new Date(c.firstDay).getUTCFullYear() : 0
+      const inB = firstYear === 2026
+      const bRepeated = inB && c.orders2026 >= 2
+      if (inA) aTot++
+      if (aReturned) aRetTot++
+      if (inB) bTot++
+      if (bRepeated) bRetTot++
+      for (const r of keysOf(c)) {
+        if (inA) {
+          aDen.set(r, (aDen.get(r) || 0) + 1)
+          if (aReturned) { aRet.set(r, (aRet.get(r) || 0) + 1); aSum.set(r, (aSum.get(r) || 0) + c.spend) }
+        }
+        if (inB) {
+          bDen.set(r, (bDen.get(r) || 0) + 1)
+          if (bRepeated) {
+            bRet.set(r, (bRet.get(r) || 0) + 1); bSum.set(r, (bSum.get(r) || 0) + c.spend)
+            if (c.orders2026 === 2) bR1.set(r, (bR1.get(r) || 0) + 1)
+            else if (c.orders2026 === 3) bR2.set(r, (bR2.get(r) || 0) + 1)
+            else bR3.set(r, (bR3.get(r) || 0) + 1)   // 4+ orders = 3rd-or-more repeat
+          }
         }
       }
     }
+    const build = (den: Map<string, number>, ret: Map<string, number>, sum: Map<string, number>, ladder?: boolean): CohortRow[] =>
+      Array.from(den.entries()).map(([reason, customers]) => {
+        const returned = ret.get(reason) || 0
+        const row: CohortRow = {
+          reason, customers, returned,
+          retentionPct: customers ? Math.round((returned / customers) * 1000) / 10 : 0,
+          avgLTV: returned ? Math.round((sum.get(reason) || 0) / returned) : 0,
+        }
+        if (ladder) { row.r1 = bR1.get(reason) || 0; row.r2 = bR2.get(reason) || 0; row.r3plus = bR3.get(reason) || 0 }
+        return row
+      }).sort((x, y) => y.customers - x.customers)
+    return {
+      cross: { totalCustomers: aTot, returned: aRetTot, rows: build(aDen, aRet, aSum) },
+      within: { totalCustomers: bTot, returned: bRetTot, rows: build(bDen, bRet, bSum, true) },
+    }
   }
-
-  const build = (den: Map<string, number>, ret: Map<string, number>, sum: Map<string, number>, ladder?: boolean): CohortRow[] =>
-    Array.from(den.entries()).map(([reason, customers]) => {
-      const returned = ret.get(reason) || 0
-      const row: CohortRow = {
-        reason, customers, returned,
-        retentionPct: customers ? Math.round((returned / customers) * 1000) / 10 : 0,
-        avgLTV: returned ? Math.round((sum.get(reason) || 0) / returned) : 0,
-      }
-      if (ladder) { row.r1 = bR1.get(reason) || 0; row.r2 = bR2.get(reason) || 0; row.r3plus = bR3.get(reason) || 0 }
-      return row
-    }).sort((x, y) => y.customers - x.customers)
 
   const fmt = (ms: number) => new Date(ms).toISOString().slice(0, 10)
   const window = minDay !== Infinity ? `${fmt(minDay)} → ${fmt(maxDay)}` : 'n/a'
 
   return {
     window,
-    cross: { totalCustomers: aTot, returned: aRetTot, rows: build(aDen, aRet, aSum) },
-    within: { totalCustomers: bTot, returned: bRetTot, rows: build(bDen, bRet, bSum, true) },
+    split: buildMode(keyersByMode.split),
+    single: buildMode(keyersByMode.single),
+    combo: buildMode(keyersByMode.combo),
   }
 }
