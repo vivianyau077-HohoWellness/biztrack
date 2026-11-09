@@ -65,7 +65,7 @@ async function jujiRows(): Promise<Row[]> {
 }
 
 async function neRows(): Promise<Row[]> {
-  const APP = 'GaBUwog1Niooyyk10fhjkUg6p9c'
+  const APP = 'Q50NbFCftaDPTgs6sgNjzeNrpNh'
   const [r26, r25] = await Promise.all([
     fetchLarkRecordsSearch('tblCgCKSZ3zALx6t', APP, ['Channel', 'Name', 'Phone Number', 'Phone no', 'Total Price', 'Price Domain']),
     fetchLarkRecordsSearch('tbl7fjGsvklEaCh6', APP, ['Channel', 'FB Name', 'Phone number', 'Price 1+2']),

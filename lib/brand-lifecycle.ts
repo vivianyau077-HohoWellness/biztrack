@@ -78,7 +78,7 @@ async function loadJuji(): Promise<Ord[]> {
 }
 
 async function loadNe(): Promise<Ord[]> {
-  const APP = 'GaBUwog1Niooyyk10fhjkUg6p9c'
+  const APP = 'Q50NbFCftaDPTgs6sgNjzeNrpNh'
   const [r26, r25, maps] = await Promise.all([
     fetchLarkRecordsSearch('tblCgCKSZ3zALx6t', APP, ['Date', 'Channel', 'Name', 'Phone Number', 'Phone no', 'Total Price', 'Price Domain', 'List of package', 'Package']),
     fetchLarkRecordsSearch('tbl7fjGsvklEaCh6', APP, ['Date', 'Channel', 'FB Name', 'Phone number', 'Price 1+2', 'Package 1', 'Package 2']),

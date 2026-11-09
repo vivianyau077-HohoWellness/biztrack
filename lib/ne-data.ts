@@ -3,7 +3,7 @@ import { fetchLarkRecordsSearch } from './lark'
 // Nutrieye shared loader — merges the 2025 (old schema) and 2026 (new schema) order tables
 // into one normalised order stream used by both segmentation and the repurchase ladder.
 // NE has no VIP concept (no AUTO VIP field), so tiers are New / Repeat only.
-export const NE_APP = 'GaBUwog1Niooyyk10fhjkUg6p9c'
+export const NE_APP = 'Q50NbFCftaDPTgs6sgNjzeNrpNh'
 export const T_2026 = 'tblCgCKSZ3zALx6t'
 export const T_2025 = 'tbl7fjGsvklEaCh6'
 export const T_PKG = 'tblE5pZHPeZiWR8o'

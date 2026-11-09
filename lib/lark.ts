@@ -1,5 +1,6 @@
 const LARK_BASE = 'https://open.larksuite.com/open-apis'
-// Deploy marker: all bases read via a97a (verified a97a reads DD + NE). Rev 2026-11-09b.
+// Deploy marker: NE now uses its REAL base token (not the wiki link token) — the fix that
+// cleared NE's 99991663, same as Juji earlier. All bases read via a97a. Rev 2026-11-09c.
 
 // Lark app. Credentials are pinned in code: the Vercel env var LARK_APP_SECRET has drifted /
 // been overwritten more than once and taken prod down with 99991663, so we do NOT read it

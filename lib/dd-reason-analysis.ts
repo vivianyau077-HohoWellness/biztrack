@@ -21,7 +21,7 @@ const BRANDS: Record<string, BrandCfg> = {
   Juji: { app: 'QV2vbeAyIaDiu2skeFojbNhspnh', fetch: 'search', sources: [
     { table: 'tblIb0g8xEeRGsbe', map: STD }, // 2026 only
   ] },
-  NE: { app: 'GaBUwog1Niooyyk10fhjkUg6p9c', fetch: 'search', sources: [
+  NE: { app: 'Q50NbFCftaDPTgs6sgNjzeNrpNh', fetch: 'search', sources: [
     { table: 'tblCgCKSZ3zALx6t', map: STD }, // 2026
     { table: 'tbl7fjGsvklEaCh6', map: { date: 'Date', phone: 'Phone Key', name: 'FB Name', channel: 'Channel', reason: 'Purchase reason', price: 'Total Price' } }, // 2025 (different columns)
   ] },
