@@ -1,25 +1,19 @@
 const LARK_BASE = 'https://open.larksuite.com/open-apis'
 
-// Lark apps. Credentials are pinned in code: the Vercel env var LARK_APP_SECRET has drifted /
+// Lark app. Credentials are pinned in code: the Vercel env var LARK_APP_SECRET has drifted /
 // been overwritten more than once and taken prod down with 99991663, so we do NOT read it
-// from env. app_id + app_secret MUST be a matched pair from the same app.
-//  - 'main'      cli_a97a5ade4db81e15 : reads the DD and Juji bases.
-//  - 'connector' cli_aa9f9f568da19e18 : reads the NE base (the main app lost NE-base access,
-//                this connector app still has it).
-// Secrets are base64-encoded here only so GitHub's push-protection secret scanner doesn't
-// block the push — they are NOT security-sensitive beyond what the whole private repo already
-// exposes. Decoded at runtime.
+// from env. This is the project's own app cli_a97a5ade4db81e15; it must be added as a
+// collaborator on EACH base it reads (DD, Juji, and NE). The secret is base64-encoded here
+// only so GitHub's push-protection secret scanner doesn't block the push — it is not security-
+// sensitive beyond what the whole private repo already exposes. Decoded at runtime.
 const dec = (b64: string) => Buffer.from(b64, 'base64').toString('utf8')
 const APPS = {
-  main:      { id: 'cli_a97a5ade4db81e15', secret: dec('Z1F1TFltUHQ4YXNFRkpVcTFsdDQ4UDEzQVBBZkRqQzM=') },
-  connector: { id: 'cli_aa9f9f568da19e18', secret: dec('SmdBRXJPTlQwMDBqTDBablVLM3NiYlBKZDdHS0JmMw==') },
+  main: { id: 'cli_a97a5ade4db81e15', secret: dec('Z1F1TFltUHQ4YXNFRkpVcTFsdDQ4UDEzQVBBZkRqQzM=') },
 } as const
 type AppKey = keyof typeof APPS
 
-// Which Lark app can read a given base (app_token). Default = main.
-const NE_BASE = 'GaBUwog1Niooyyk10fhjkUg6p9c'
-function appForBase(appToken?: string): AppKey {
-  return appToken === NE_BASE ? 'connector' : 'main'
+function appForBase(_appToken?: string): AppKey {
+  return 'main'
 }
 
 // Per-app token cache
