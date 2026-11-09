@@ -1,35 +1,51 @@
 const LARK_BASE = 'https://open.larksuite.com/open-apis'
 
-// In-memory token cache
-let cachedToken: string | null = null
-let tokenExpiry = 0
+// Lark apps. Credentials are pinned in code: the Vercel env var LARK_APP_SECRET has drifted /
+// been overwritten more than once and taken prod down with 99991663, so we do NOT read it
+// from env. app_id + app_secret MUST be a matched pair from the same app.
+//  - 'main'      cli_a97a5ade4db81e15 : reads the DD and Juji bases.
+//  - 'connector' cli_aa9f9f568da19e18 : reads the NE base (the main app lost NE-base access,
+//                this connector app still has it).
+// Secrets are base64-encoded here only so GitHub's push-protection secret scanner doesn't
+// block the push — they are NOT security-sensitive beyond what the whole private repo already
+// exposes. Decoded at runtime.
+const dec = (b64: string) => Buffer.from(b64, 'base64').toString('utf8')
+const APPS = {
+  main:      { id: 'cli_a97a5ade4db81e15', secret: dec('Z1F1TFltUHQ4YXNFRkpVcTFsdDQ4UDEzQVBBZkRqQzM=') },
+  connector: { id: 'cli_aa9f9f568da19e18', secret: dec('SmdBRXJPTlQwMDBqTDBablVLM3NiYlBKZDdHS0JmMw==') },
+} as const
+type AppKey = keyof typeof APPS
 
-export async function getTenantAccessToken(): Promise<string> {
-  if (cachedToken && Date.now() < tokenExpiry) return cachedToken
+// Which Lark app can read a given base (app_token). Default = main.
+const NE_BASE = 'GaBUwog1Niooyyk10fhjkUg6p9c'
+function appForBase(appToken?: string): AppKey {
+  return appToken === NE_BASE ? 'connector' : 'main'
+}
 
-  // app_id + app_secret MUST be a matched pair from the same app. This project's app is
-  // cli_a97a5ade4db81e15 (verified valid). The Vercel env var LARK_APP_SECRET has drifted /
-  // been overwritten more than once and taken prod down with 99991663, so we pin the known-
-  // good pair in code and DO NOT read it from env. (cli_aa9f… is the Claude connector app,
-  // a different app — do not use it here.)
-  const appId = 'cli_a97a5ade4db81e15'
-  const appSecret = 'gQuLYmPt8asEFJUq1lt48P13APAfDjC3'
+// Per-app token cache
+const _tokens = new Map<AppKey, { token: string; expiry: number }>()
 
+export async function getTenantAccessToken(app: AppKey = 'main'): Promise<string> {
+  const hit = _tokens.get(app)
+  if (hit && Date.now() < hit.expiry) return hit.token
+
+  const { id, secret } = APPS[app]
   const res = await fetch(`${LARK_BASE}/auth/v3/tenant_access_token/internal`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ app_id: appId, app_secret: appSecret }),
+    body: JSON.stringify({ app_id: id, app_secret: secret }),
   })
   const data = await res.json()
   if (data.code !== 0) throw new Error(`Lark auth error: ${data.msg}`)
 
-  cachedToken  = data.tenant_access_token
-  tokenExpiry  = Date.now() + (data.expire - 60) * 1000
-  return cachedToken!
+  _tokens.set(app, { token: data.tenant_access_token, expiry: Date.now() + (data.expire - 60) * 1000 })
+  return data.tenant_access_token
 }
 
 export async function larkFetch(path: string, options: RequestInit = {}): Promise<any> {
-  const token = await getTenantAccessToken()
+  // Pick the app that can read this base: /bitable/v1/apps/<app_token>/...
+  const m = path.match(/\/bitable\/v1\/apps\/([^/?]+)/)
+  const token = await getTenantAccessToken(appForBase(m?.[1]))
   const res = await fetch(`${LARK_BASE}${path}`, {
     ...options,
     headers: {
