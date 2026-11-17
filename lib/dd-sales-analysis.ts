@@ -234,7 +234,16 @@ export async function computeDdSalesMatrix() {
   const metrics2025 = await p2025
   const allMetrics = metrics2025.concat(metrics).sort((a, b) => a.month.localeCompare(b.month))
   const allMonths = allMetrics.map(x => x.month)
-  return { months: allMonths, metrics: allMetrics }
+  // TEMP debug: expose what the server actually read for the current month so we can see, on the
+  // live endpoint, whether the Race Report (rep*) read is complete on Vercel vs the order table (x*).
+  const nx = ob.get('2026-11'); const nr = rb.get('2026-11')
+  const _debug = {
+    reportRows: reportRecs.length, orderRows: orderRecs.length,
+    nov_order_sales: nx ? Math.round(nx.sales) : null, nov_order_count: nx ? nx.orders : null,
+    nov_rep_newSales: nr ? Math.round(nr.newSales) : null, nov_rep_repeatSales: nr ? Math.round(nr.repeatSales) : null,
+    nov_rep_newOrder: nr ? nr.newOrder : null, nov_rep_repeatOrder: nr ? nr.repeatOrder : null,
+  }
+  return { months: allMonths, metrics: allMetrics, _debug }
 }
 
 export async function computeDdSalesAnalysis(month: string) {
