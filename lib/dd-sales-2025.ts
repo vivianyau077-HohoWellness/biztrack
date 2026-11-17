@@ -1,4 +1,4 @@
-import { fetchLarkRecords } from './lark'
+import { fetchLarkRecords, fetchLarkRecordsSearch } from './lark'
 import type { MonthMetrics } from './dd-sales-analysis'
 
 // 2025 historical data lives in separate tables with a slightly different shape.
@@ -84,7 +84,7 @@ type Rep = {
 
 export async function computeDd2025Months(): Promise<MonthMetrics[]> {
   const [dailyRecs, h1Recs, h2Recs] = await Promise.all([
-    fetchLarkRecords(T_DAILY_2025, APP),
+    fetchLarkRecordsSearch(T_DAILY_2025, APP),
     fetchLarkRecords(T_REPORT_H1, APP),
     fetchLarkRecords(T_REPORT_H2, APP),
   ])

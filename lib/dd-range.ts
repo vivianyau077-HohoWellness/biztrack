@@ -1,4 +1,4 @@
-import { fetchLarkRecords } from './lark'
+import { fetchLarkRecords, fetchLarkRecordsSearch } from './lark'
 import type { MonthMetrics } from './dd-sales-analysis'
 
 // Aggregate DD metrics for an arbitrary date range [fromISO, toISO] (inclusive),
@@ -88,11 +88,12 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
   if (need26) { orderTables.push(T_ORDER_26); reportTables.push(T_REPORT_26) }
   if (need25) { orderTables.push(T_DAILY_25); reportTables.push(T_REPORT_25_H1, T_REPORT_25_H2) }
 
-  // Project the 2026 order table to the fields we use — the full ~80-field rows make the GET
-  // list read heavy enough that Lark drops the newest page(s), undercounting the current month.
+  // The 2026 order table is large; the GET list endpoint truncates it on Vercel (drops the
+  // newest page(s), undercounting the current month). Read it via the search endpoint instead
+  // (reliable for large tables — same method NE/Juji use). Older/smaller tables stay on GET.
   const ORDER_FIELDS_26 = ['Date', 'Channel', 'Total Price', 'Price Domain', 'AUTO N/R', 'AUTO VIP']
   const [orderSets, reportSets] = await Promise.all([
-    Promise.all(orderTables.map(t => fetchLarkRecords(t, APP, undefined, t === T_ORDER_26 ? ORDER_FIELDS_26 : undefined))),
+    Promise.all(orderTables.map(t => t === T_ORDER_26 ? fetchLarkRecordsSearch(t, APP, ORDER_FIELDS_26) : fetchLarkRecords(t, APP))),
     Promise.all(reportTables.map(t => fetchLarkRecords(t, APP))),
   ])
 
