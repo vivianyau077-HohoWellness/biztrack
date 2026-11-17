@@ -88,8 +88,11 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
   if (need26) { orderTables.push(T_ORDER_26); reportTables.push(T_REPORT_26) }
   if (need25) { orderTables.push(T_DAILY_25); reportTables.push(T_REPORT_25_H1, T_REPORT_25_H2) }
 
+  // Project the 2026 order table to the fields we use — the full ~80-field rows make the GET
+  // list read heavy enough that Lark drops the newest page(s), undercounting the current month.
+  const ORDER_FIELDS_26 = ['Date', 'Channel', 'Total Price', 'Price Domain', 'AUTO N/R', 'AUTO VIP']
   const [orderSets, reportSets] = await Promise.all([
-    Promise.all(orderTables.map(t => fetchLarkRecords(t, APP))),
+    Promise.all(orderTables.map(t => fetchLarkRecords(t, APP, undefined, t === T_ORDER_26 ? ORDER_FIELDS_26 : undefined))),
     Promise.all(reportTables.map(t => fetchLarkRecords(t, APP))),
   ])
 

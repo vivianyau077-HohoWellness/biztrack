@@ -8,6 +8,10 @@ import { computeDd2025Months } from './dd-sales-2025'
 const APP = 'S8XXb8PT2a82ouslzQWjBaYap2g'
 const T_ORDER = 'tblpMwKyxbddnXNG'
 const T_REPORT = 'tbl68wmsOooWD2zJ'
+// Read only the order fields we use. Without projection the wide (~80-field) rows make the
+// GET list call so heavy that Lark drops the last page(s) — i.e. the newest orders (current
+// month) go missing and the month total is undercounted. Projecting keeps the read complete.
+const ORDER_FIELDS = ['Date', 'Channel', 'Total Price', 'Price Domain', 'AUTO N/R', 'AUTO VIP']
 
 function fnum(v: unknown): number {
   if (v == null) return 0
@@ -86,7 +90,7 @@ export type MonthMetrics = {
 export async function computeDdSalesMatrix() {
   const p2025 = computeDd2025Months().catch((e) => { console.error('[dd-2025] failed:', e); return [] as MonthMetrics[] })
   const [orderRecs, reportRecs] = await Promise.all([
-    fetchLarkRecords(T_ORDER, APP),
+    fetchLarkRecords(T_ORDER, APP, undefined, ORDER_FIELDS),
     fetchLarkRecords(T_REPORT, APP),
   ])
 
@@ -228,7 +232,7 @@ export async function computeDdSalesMatrix() {
 
 export async function computeDdSalesAnalysis(month: string) {
   const [orderRecs, reportRecs] = await Promise.all([
-    fetchLarkRecords(T_ORDER, APP),
+    fetchLarkRecords(T_ORDER, APP, undefined, ORDER_FIELDS),
     fetchLarkRecords(T_REPORT, APP),
   ])
 
