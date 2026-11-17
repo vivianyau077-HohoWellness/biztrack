@@ -84,7 +84,7 @@ type Rep = {
 
 export async function computeDd2025Months(): Promise<MonthMetrics[]> {
   const [dailyRecs, h1Recs, h2Recs] = await Promise.all([
-    fetchLarkRecordsSearch(T_DAILY_2025, APP),
+    fetchLarkRecords(T_DAILY_2025, APP),
     fetchLarkRecords(T_REPORT_H1, APP),
     fetchLarkRecords(T_REPORT_H2, APP),
   ])

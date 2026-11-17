@@ -93,7 +93,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
   // (reliable for large tables — same method NE/Juji use). Older/smaller tables stay on GET.
   const ORDER_FIELDS_26 = ['Date', 'Channel', 'Total Price', 'Price Domain', 'AUTO N/R', 'AUTO VIP']
   const [orderSets, reportSets] = await Promise.all([
-    Promise.all(orderTables.map(t => t === T_ORDER_26 ? fetchLarkRecordsSearch(t, APP, ORDER_FIELDS_26) : fetchLarkRecords(t, APP))),
+    Promise.all(orderTables.map(t => fetchLarkRecords(t, APP, undefined, t === T_ORDER_26 ? ORDER_FIELDS_26 : undefined))),
     Promise.all(reportTables.map(t => fetchLarkRecords(t, APP))),
   ])
 
@@ -182,15 +182,22 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
   const div = (a: number, b: number) => (b ? a / b : 0)
   const chSum = (names: string[]) => names.reduce((s, n) => s + (ch.get(n) ?? 0), 0)
 
+  // Headline total from the Race Report rows in range (complete & matches Lark); the order-table
+  // GET read can drop the newest rows for the current month, so it undercounts — the report does not.
+  const repSalesTot = repNewSales + repRepeatSales
+  const repOrderTot = repNewOrder + repRepeatOrder
+  const headSales = repSalesTot > 0 ? repSalesTot : sales
+  const headOrder = repOrderTot > 0 ? repOrderTot : orders
+
   return {
     month: fromISO + '~' + toISO,
-    totalSales: R(sales),
-    totalOrder: orders,
+    totalSales: R(headSales),
+    totalOrder: headOrder,
     fbBeauty: R(chSum(BEAUTY_CH)), fbRepair: R(chSum(REPAIR_CH)), fbSG: R(chSum(FBSG_CH)),
     whatsapp: R(chSum(WA_ALL)), shopee: R(chSum(SHOPEE_ALL)),
     website: R(chSum(['Website'])), lazada: R(chSum(['Lazada'])),
-    others: R(sales - chSum(BEAUTY_CH) - chSum(REPAIR_CH) - chSum(FBSG_CH) - chSum(WA_ALL) - chSum(SHOPEE_ALL) - chSum(['Website']) - chSum(['Lazada'])),
-    roas: Math.round(div(sales, totAd) * 100) / 100, adSpend: R(totAd), adFB: R(adFB - adWA), adWA: R(adWA),
+    others: R(headSales - chSum(BEAUTY_CH) - chSum(REPAIR_CH) - chSum(FBSG_CH) - chSum(WA_ALL) - chSum(SHOPEE_ALL) - chSum(['Website']) - chSum(['Lazada'])),
+    roas: Math.round(div(headSales, totAd) * 100) / 100, adSpend: R(totAd), adFB: R(adFB - adWA), adWA: R(adWA),
     totalLead: R(totLd), cpl: R(div(totAd, totLd)),
     cplBeauty: R(div(adB - waAdB, pmB - wpmB)), cplRepair: R(div(adR - waAdR, pmR - wpmR)), cplSG: R(div(adSG - waAdSG, pmSG - wpmSG)),
     cplWaB: R(div(waAdB, wpmB)), cplWaR: R(div(waAdR, wpmR)), cplWaSG: R(div(waAdSG, wpmSG)),
@@ -198,7 +205,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
     repeatOrder: ordRepeatOrder, repeatFbSales: R(repFb), repeatWaSales: R(repWa),
     newConv: Math.round(div(ordNewOrder, totLd) * 1000) / 10,
     repeatConv: Math.round(div(ordRepeatOrder, totLd) * 1000) / 10,
-    overallConv: Math.round(div(orders, totLd) * 1000) / 10,
+    overallConv: Math.round(div(headOrder, totLd) * 1000) / 10,
     vipOrder, vipSales: R(vipSales),
     newVipOrder, newVipSales: R(newVipSales), repVipOrder, repVipSales: R(repVipSales),
     newVipAov: R(div(newVipSales, newVipOrder)), repVipAov: R(div(repVipSales, repVipOrder)),
@@ -207,7 +214,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
     repOtherSales: R(ordRepeatSales - bRepSales - rRepSales - sgRepSales - repWa),
     totalRepeatSales: R(ordRepeatSales + repVipSales),
     newAov: R(div(ordNewSales, ordNewOrder)), repeatAov: R(div(ordRepeatSales, ordRepeatOrder)),
-    vipAov: R(div(vipSales, vipOrder)), overallAov: R(div(sales, orders)),
+    vipAov: R(div(vipSales, vipOrder)), overallAov: R(div(headSales, headOrder)),
     cpna: R(div(totAd, ordNewOrder + newVipOrder)),
     goal: R(goal),
     adBeauty: R(adB - waAdB), adRepair: R(adR - waAdR), adSGspend: R(adSG - waAdSG),

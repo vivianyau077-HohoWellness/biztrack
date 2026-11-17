@@ -90,7 +90,7 @@ export type MonthMetrics = {
 export async function computeDdSalesMatrix() {
   const p2025 = computeDd2025Months().catch((e) => { console.error('[dd-2025] failed:', e); return [] as MonthMetrics[] })
   const [orderRecs, reportRecs] = await Promise.all([
-    fetchLarkRecordsSearch(T_ORDER, APP, ORDER_FIELDS),
+    fetchLarkRecords(T_ORDER, APP, undefined, ORDER_FIELDS),
     fetchLarkRecords(T_REPORT, APP),
   ])
 
@@ -186,15 +186,22 @@ export async function computeDdSalesMatrix() {
     const totAd = adFB
     // Total Lead = FB PM (焕肤 + 修复 + SG) = Lark "No. of Total Messages" (which already includes SG). WA PM excluded.
     const totLd = rep.pmB + rep.pmR + rep.pmSG
+    // Headline total comes from the Race Report (New + Repeat sales/orders): it is small, reads
+    // completely, and matches the Lark dashboard. The order table's GET read can drop the newest
+    // rows for the current month, so using it for the headline undercounts — the report does not.
+    const repSalesTot = rep.newSales + rep.repeatSales
+    const repOrderTot = rep.newOrder + rep.repeatOrder
+    const headSales = repSalesTot > 0 ? repSalesTot : x.sales
+    const headOrder = repOrderTot > 0 ? repOrderTot : x.orders
     return {
       month: m,
-      totalSales: R(x.sales),
-      totalOrder: x.orders,
+      totalSales: R(headSales),
+      totalOrder: headOrder,
       fbBeauty: R(chSum(x, BEAUTY_CH)), fbRepair: R(chSum(x, REPAIR_CH)), fbSG: R(chSum(x, FBSG_CH)),
       whatsapp: R(chSum(x, WA_ALL)), shopee: R(chSum(x, SHOPEE_ALL)),
       website: R(chSum(x, ['Website'])), lazada: R(chSum(x, ['Lazada'])),
-      others: R(x.sales - chSum(x, BEAUTY_CH) - chSum(x, REPAIR_CH) - chSum(x, FBSG_CH) - chSum(x, WA_ALL) - chSum(x, SHOPEE_ALL) - chSum(x, ['Website']) - chSum(x, ['Lazada'])),
-      roas: Math.round(div(x.sales, totAd) * 100) / 100, adSpend: R(totAd), adFB: R(adFB - rep.adWA), adWA: R(rep.adWA),
+      others: R(headSales - chSum(x, BEAUTY_CH) - chSum(x, REPAIR_CH) - chSum(x, FBSG_CH) - chSum(x, WA_ALL) - chSum(x, SHOPEE_ALL) - chSum(x, ['Website']) - chSum(x, ['Lazada'])),
+      roas: Math.round(div(headSales, totAd) * 100) / 100, adSpend: R(totAd), adFB: R(adFB - rep.adWA), adWA: R(rep.adWA),
       totalLead: R(totLd), cpl: R(div(totAd, totLd)),
       cplBeauty: R(div(rep.adB - rep.waAdB, rep.pmB - rep.wpmB)), cplRepair: R(div(rep.adR - rep.waAdR, rep.pmR - rep.wpmR)), cplSG: R(div(rep.adSG - rep.waAdSG, rep.pmSG - rep.wpmSG)),
       cplWaB: R(div(rep.waAdB, rep.wpmB)), cplWaR: R(div(rep.waAdR, rep.wpmR)), cplWaSG: R(div(rep.waAdSG, rep.wpmSG)),
@@ -202,7 +209,7 @@ export async function computeDdSalesMatrix() {
       repeatOrder: x.repeatOrder, repeatFbSales: R(x.repFb), repeatWaSales: R(x.repWa),
       newConv: Math.round(div(x.newOrder, totLd) * 1000) / 10,
       repeatConv: Math.round(div(x.repeatOrder, totLd) * 1000) / 10,
-      overallConv: Math.round(div(x.orders, totLd) * 1000) / 10,
+      overallConv: Math.round(div(headOrder, totLd) * 1000) / 10,
       vipOrder: x.vipOrder, vipSales: R(x.vipSales),
       newVipOrder: x.newVipOrder, newVipSales: R(x.newVipSales), repVipOrder: x.repVipOrder, repVipSales: R(x.repVipSales),
       newVipAov: R(div(x.newVipSales, x.newVipOrder)), repVipAov: R(div(x.repVipSales, x.repVipOrder)),
@@ -232,7 +239,7 @@ export async function computeDdSalesMatrix() {
 
 export async function computeDdSalesAnalysis(month: string) {
   const [orderRecs, reportRecs] = await Promise.all([
-    fetchLarkRecordsSearch(T_ORDER, APP, ORDER_FIELDS),
+    fetchLarkRecords(T_ORDER, APP, undefined, ORDER_FIELDS),
     fetchLarkRecords(T_REPORT, APP),
   ])
 
