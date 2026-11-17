@@ -1,4 +1,4 @@
-import { fetchLarkRecords, fetchLarkRecordsSearch } from './lark'
+import { fetchLarkRecords } from './lark'
 import { computeDd2025Months } from './dd-sales-2025'
 
 // Monthly sales analysis for DD.

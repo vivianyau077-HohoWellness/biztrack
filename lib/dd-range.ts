@@ -1,4 +1,4 @@
-import { fetchLarkRecords, fetchLarkRecordsSearch } from './lark'
+import { fetchLarkRecords } from './lark'
 import type { MonthMetrics } from './dd-sales-analysis'
 
 // Aggregate DD metrics for an arbitrary date range [fromISO, toISO] (inclusive),

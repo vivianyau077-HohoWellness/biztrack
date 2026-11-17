@@ -1,4 +1,4 @@
-import { fetchLarkRecords, fetchLarkRecordsSearch } from './lark'
+import { fetchLarkRecords } from './lark'
 import type { MonthMetrics } from './dd-sales-analysis'
 
 // 2025 historical data lives in separate tables with a slightly different shape.
