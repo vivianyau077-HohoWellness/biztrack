@@ -1,5 +1,12 @@
-import { fetchLarkRecords } from './lark'
+import { fetchLarkRecords, fetchLarkRecordsSearch } from './lark'
 import type { MonthMetrics } from './dd-sales-analysis'
+
+// Prefer the real-time search endpoint (GET/list lags on Vercel and drops the newest records);
+// fall back to GET only if search is rejected, so the dashboard never breaks.
+async function readDd(tableId: string, appToken: string, fields?: string[]) {
+  try { return await fetchLarkRecordsSearch(tableId, appToken, fields) }
+  catch { return await fetchLarkRecords(tableId, appToken, undefined, fields) }
+}
 
 // Aggregate DD metrics for an arbitrary date range [fromISO, toISO] (inclusive),
 // reading live from Lark. Handles both the 2026 tables and the 2025 tables so a
@@ -93,8 +100,8 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
   // (reliable for large tables — same method NE/Juji use). Older/smaller tables stay on GET.
   const ORDER_FIELDS_26 = ['Date', 'Channel', 'Total Price', 'Price Domain', 'AUTO N/R', 'AUTO VIP']
   const [orderSets, reportSets] = await Promise.all([
-    Promise.all(orderTables.map(t => fetchLarkRecords(t, APP, undefined, t === T_ORDER_26 ? ORDER_FIELDS_26 : undefined))),
-    Promise.all(reportTables.map(t => fetchLarkRecords(t, APP))),
+    Promise.all(orderTables.map(t => readDd(t, APP, t === T_ORDER_26 ? ORDER_FIELDS_26 : undefined))),
+    Promise.all(reportTables.map(t => readDd(t, APP))),
   ])
 
   // ── Order-level ────────────────────────────────
