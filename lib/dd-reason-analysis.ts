@@ -14,7 +14,7 @@ const STD: FieldMap = { date: 'Date', phone: 'Phone Number', name: 'Name', chann
 type Src = { table: string; map: FieldMap }
 type BrandCfg = { app: string; fetch: 'get' | 'search'; sources: Src[] }
 const BRANDS: Record<string, BrandCfg> = {
-  DD: { app: 'S8XXb8PT2a82ouslzQWjBaYap2g', fetch: 'get', sources: [
+  DD: { app: 'S8XXb8PT2a82ouslzQWjBaYap2g', fetch: 'search', sources: [
     { table: 'tblpMwKyxbddnXNG', map: STD }, // 2026
     { table: 'tblEy6fdbsuXhS6L', map: STD }, // 2025
   ] },

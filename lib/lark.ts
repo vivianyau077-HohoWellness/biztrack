@@ -20,8 +20,13 @@ type AppKey = keyof typeof APPS
 // access to the DD base — the dashboard reads DD in real time (the main app a97a can only use
 // the lagging GET read on DD and can't search it). Juji stays on the main app.
 const NE_BASE = 'Q50NbFCftaDPTgs6sgNjzeNrpNh'
+const DD_BASE = 'S8XXb8PT2a82ouslzQWjBaYap2g'
+// The connector app (Vivian-MCP) is now a collaborator on both NE and DD bases, and it is the
+// one that can use the real-time records/search read. DD's GET list read drops the newest rows
+// (current-month undercount), so DD is routed to the connector + search like NE. Juji stays on main.
+const CONNECTOR_BASES = new Set([NE_BASE, DD_BASE])
 function appForBase(appToken?: string): AppKey {
-  return appToken === NE_BASE ? 'connector' : 'main'
+  return appToken && CONNECTOR_BASES.has(appToken) ? 'connector' : 'main'
 }
 
 // Per-app token cache
