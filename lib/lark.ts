@@ -20,9 +20,8 @@ type AppKey = keyof typeof APPS
 // access to the DD base — the dashboard reads DD in real time (the main app a97a can only use
 // the lagging GET read on DD and can't search it). Juji stays on the main app.
 const NE_BASE = 'Q50NbFCftaDPTgs6sgNjzeNrpNh'
-const DD_BASE = 'S8XXb8PT2a82ouslzQWjBaYap2g'
 function appForBase(appToken?: string): AppKey {
-  return (appToken === NE_BASE || appToken === DD_BASE) ? 'connector' : 'main'
+  return appToken === NE_BASE ? 'connector' : 'main'
 }
 
 // Per-app token cache
@@ -45,10 +44,10 @@ export async function getTenantAccessToken(app: AppKey = 'main'): Promise<string
   return data.tenant_access_token
 }
 
-export async function larkFetch(path: string, options: RequestInit = {}): Promise<any> {
+export async function larkFetch(path: string, options: RequestInit = {}, forceApp?: AppKey): Promise<any> {
   // Pick the app that can read this base: /bitable/v1/apps/<app_token>/...
   const m = path.match(/\/bitable\/v1\/apps\/([^/?]+)/)
-  const token = await getTenantAccessToken(appForBase(m?.[1]))
+  const token = await getTenantAccessToken(forceApp ?? appForBase(m?.[1]))
   const res = await fetch(`${LARK_BASE}${path}`, {
     ...options,
     headers: {
@@ -162,9 +161,10 @@ export async function fetchLarkRecordsSearch(
   tableId: string,
   appToken: string,
   fieldNames?: string[],
+  forceApp?: AppKey,
 ): Promise<LarkRecord[]> {
   const fkey = fieldNames && fieldNames.length ? ':f=' + fieldNames.join(',') : ''
-  const cacheKey = 'search:' + appToken + ':' + tableId + fkey
+  const cacheKey = 'search:' + (forceApp ?? '') + ':' + appToken + ':' + tableId + fkey
   const hit = _recCache.get(cacheKey)
   if (hit && Date.now() - hit.at < REC_TTL_MS) return hit.data
   const inflight = _recInflight.get(cacheKey)
@@ -182,6 +182,7 @@ export async function fetchLarkRecordsSearch(
       const data = await larkFetch(
         `/bitable/v1/apps/${appToken}/tables/${tableId}/records/search?${params}`,
         { method: 'POST', body: JSON.stringify(body) },
+        forceApp,
       )
       if (data.code !== 0) {
         if (useFields) { useFields = false; all.length = 0; pageToken = undefined; continue }

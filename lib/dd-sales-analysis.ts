@@ -1,13 +1,5 @@
-import { fetchLarkRecords, fetchLarkRecordsSearch } from './lark'
+import { fetchLarkRecords } from './lark'
 import { computeDd2025Months } from './dd-sales-2025'
-
-// Read a DD table completely. The GET/list endpoint lags on Vercel and drops the newest records
-// (current month undercounts). The search endpoint is real-time and returns everything, so we
-// prefer it and fall back to GET only if search is rejected — never breaking the dashboard.
-async function readDd(tableId: string, appToken: string, fields?: string[]) {
-  try { return await fetchLarkRecordsSearch(tableId, appToken, fields) }
-  catch { return await fetchLarkRecords(tableId, appToken, undefined, fields) }
-}
 
 // Monthly sales analysis for DD.
 //  - Ads (after SST) + leads (PMed) + New/Repeat orders & sales come from the
@@ -98,8 +90,8 @@ export type MonthMetrics = {
 export async function computeDdSalesMatrix() {
   const p2025 = computeDd2025Months().catch((e) => { console.error('[dd-2025] failed:', e); return [] as MonthMetrics[] })
   const [orderRecs, reportRecs] = await Promise.all([
-    readDd(T_ORDER, APP, ORDER_FIELDS),
-    readDd(T_REPORT, APP),
+    fetchLarkRecords(T_ORDER, APP, undefined, ORDER_FIELDS),
+    fetchLarkRecords(T_REPORT, APP),
   ])
 
   type OB = {
@@ -242,22 +234,13 @@ export async function computeDdSalesMatrix() {
   const metrics2025 = await p2025
   const allMetrics = metrics2025.concat(metrics).sort((a, b) => a.month.localeCompare(b.month))
   const allMonths = allMetrics.map(x => x.month)
-  // TEMP debug: expose what the server actually read for the current month so we can see, on the
-  // live endpoint, whether the Race Report (rep*) read is complete on Vercel vs the order table (x*).
-  const nx = ob.get('2026-11'); const nr = rb.get('2026-11')
-  const _debug = {
-    reportRows: reportRecs.length, orderRows: orderRecs.length,
-    nov_order_sales: nx ? Math.round(nx.sales) : null, nov_order_count: nx ? nx.orders : null,
-    nov_rep_newSales: nr ? Math.round(nr.newSales) : null, nov_rep_repeatSales: nr ? Math.round(nr.repeatSales) : null,
-    nov_rep_newOrder: nr ? nr.newOrder : null, nov_rep_repeatOrder: nr ? nr.repeatOrder : null,
-  }
-  return { months: allMonths, metrics: allMetrics, _debug }
+  return { months: allMonths, metrics: allMetrics }
 }
 
 export async function computeDdSalesAnalysis(month: string) {
   const [orderRecs, reportRecs] = await Promise.all([
-    readDd(T_ORDER, APP, ORDER_FIELDS),
-    readDd(T_REPORT, APP),
+    fetchLarkRecords(T_ORDER, APP, undefined, ORDER_FIELDS),
+    fetchLarkRecords(T_REPORT, APP),
   ])
 
   // ── From daily order table: channel breakdown + VIP ────────────────────────
