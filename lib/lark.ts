@@ -40,6 +40,7 @@ export async function getTenantAccessToken(app: AppKey = 'main'): Promise<string
   const { id, secret } = APPS[app]
   const res = await fetch(`${LARK_BASE}/auth/v3/tenant_access_token/internal`, {
     method: 'POST',
+    cache: 'no-store',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ app_id: id, app_secret: secret }),
   })
@@ -56,6 +57,11 @@ export async function larkFetch(path: string, options: RequestInit = {}, forceAp
   const token = await getTenantAccessToken(forceApp ?? appForBase(m?.[1]))
   const res = await fetch(`${LARK_BASE}${path}`, {
     ...options,
+    // Never let Next.js cache Lark responses. Lark returns its 99991663 auth error as an
+    // HTTP 200 body, which Next's default Data Cache will persist across deployments — so a
+    // stale error from before the app was authorized would keep being served. no-store also
+    // forces any route that reads Lark to render dynamically (always live).
+    cache: 'no-store',
     headers: {
       Authorization:  `Bearer ${token}`,
       'Content-Type': 'application/json',
