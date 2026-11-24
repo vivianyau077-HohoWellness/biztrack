@@ -21,9 +21,10 @@ type AppKey = keyof typeof APPS
 // the lagging GET read on DD and can't search it). Juji stays on the main app.
 const NE_BASE = 'Q50NbFCftaDPTgs6sgNjzeNrpNh'
 const DD_BASE = 'S8XXb8PT2a82ouslzQWjBaYap2g'
-// The connector app (Vivian-MCP) is now a collaborator on both NE and DD bases, and it is the
-// one that can use the real-time records/search read. DD's GET list read drops the newest rows
-// (current-month undercount), so DD is routed to the connector + search like NE. Juji stays on main.
+// The connector app (Vivian-MCP) is a collaborator on both NE and DD bases and can use the
+// real-time records/search read. DD's GET list read truncates (drops the newest rows →
+// current-month undercount), so DD + NE go through the connector + search. Juji stays on main.
+// Verified 2026-11-24: connector tenant token reads DD search live (7,422 orders, 24 Nov report rows).
 const CONNECTOR_BASES = new Set([NE_BASE, DD_BASE])
 function appForBase(appToken?: string): AppKey {
   return appToken && CONNECTOR_BASES.has(appToken) ? 'connector' : 'main'

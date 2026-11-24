@@ -88,10 +88,9 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
   if (need26) { orderTables.push(T_ORDER_26); reportTables.push(T_REPORT_26) }
   if (need25) { orderTables.push(T_DAILY_25); reportTables.push(T_REPORT_25_H1, T_REPORT_25_H2) }
 
-  // The 2026 order + report tables grow daily; the GET list endpoint truncates them on Vercel
-  // (drops the newest page(s), undercounting the current month). Read those via the search
-  // endpoint (reliable for live tables — same method NE/Juji use, enabled now that the connector
-  // app is a DD-base collaborator). The static 2025 tables stay on GET.
+  // The 2026 order + report tables grow daily; GET truncates them on Vercel (drops newest rows →
+  // current-month undercount). Read those via search (connector app, authorized on DD since
+  // 2026-11-24). Static 2025 tables stay on GET.
   const ORDER_FIELDS_26 = ['Date', 'Channel', 'Total Price', 'Price Domain', 'AUTO N/R', 'AUTO VIP']
   const [orderSets, reportSets] = await Promise.all([
     Promise.all(orderTables.map(t => t === T_ORDER_26
