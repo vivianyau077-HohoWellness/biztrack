@@ -37,7 +37,7 @@ const mlabel = (m: string) => {
 }
 const MONTH_OPTS: Array<[string, string]> = MON.map((l, i) => [(i < 9 ? '0' : '') + (i + 1), l])
 
-function rm(n: number) { return 'RM ' + Math.round(n).toLocaleString() }
+function rm(n: number) { const frac = Math.abs(n - Math.round(n)) > 0.005; return 'RM ' + n.toLocaleString(undefined, { minimumFractionDigits: frac ? 2 : 0, maximumFractionDigits: 2 }) }
 function n0(n: number) { return Math.round(n).toLocaleString() }
 function pc(n: number) { return n.toFixed(1) + '%' }
 function x2(n: number) { return n.toFixed(2) }

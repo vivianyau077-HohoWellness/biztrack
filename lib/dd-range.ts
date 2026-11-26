@@ -203,12 +203,13 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
   // the order-table "Collected Sales" field; "others" balances to the headline like the Total view.
   const orderColTot = Array.from(chCol.values()).reduce((s, v) => s + v, 0)
   const headColSales = repColSales > 0 ? repColSales : orderColTot
+  const R2 = (n: number) => Math.round(n * 100) / 100  // keep sen (collected amounts aren't whole)
   const collected = {
-    totalSales: R(headColSales),
-    fbBeauty: R(chColSum(BEAUTY_CH)), fbRepair: R(chColSum(REPAIR_CH)), fbSG: R(chColSum(FBSG_CH)),
-    whatsapp: R(chColSum(WA_ALL)), shopee: R(chColSum(SHOPEE_ALL)),
-    website: R(chColSum(['Website'])), lazada: R(chColSum(['Lazada'])),
-    others: R(headColSales - chColSum(BEAUTY_CH) - chColSum(REPAIR_CH) - chColSum(FBSG_CH) - chColSum(WA_ALL) - chColSum(SHOPEE_ALL) - chColSum(['Website']) - chColSum(['Lazada'])),
+    totalSales: R2(headColSales),
+    fbBeauty: R2(chColSum(BEAUTY_CH)), fbRepair: R2(chColSum(REPAIR_CH)), fbSG: R2(chColSum(FBSG_CH)),
+    whatsapp: R2(chColSum(WA_ALL)), shopee: R2(chColSum(SHOPEE_ALL)),
+    website: R2(chColSum(['Website'])), lazada: R2(chColSum(['Lazada'])),
+    others: R2(headColSales - chColSum(BEAUTY_CH) - chColSum(REPAIR_CH) - chColSum(FBSG_CH) - chColSum(WA_ALL) - chColSum(SHOPEE_ALL) - chColSum(['Website']) - chColSum(['Lazada'])),
     roas: Math.round(div(headColSales, totAd) * 100) / 100,
   }
 

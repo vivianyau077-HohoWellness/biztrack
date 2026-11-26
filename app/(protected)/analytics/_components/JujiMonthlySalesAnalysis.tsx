@@ -18,7 +18,7 @@ type Data = { months: string[]; metrics: JujiMonth[] }
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const mlabel = (m: string) => { if (!m || m.length < 7) return m; const mo = parseInt(m.slice(5, 7), 10); return (MON[mo - 1] ?? m) + "'" + m.slice(2, 4) }
 const MONTH_OPTS: Array<[string, string]> = MON.map((l, i) => [(i < 9 ? '0' : '') + (i + 1), l])
-const rm = (n: number) => 'RM ' + Math.round(n).toLocaleString()
+const rm = (n: number) => { const frac = Math.abs(n - Math.round(n)) > 0.005; return 'RM ' + n.toLocaleString(undefined, { minimumFractionDigits: frac ? 2 : 0, maximumFractionDigits: 2 }) }
 const n0 = (n: number) => Math.round(n).toLocaleString()
 const x2 = (n: number) => n.toFixed(2)
 

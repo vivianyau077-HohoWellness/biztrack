@@ -15,7 +15,7 @@ type Metrics = {
 }
 type Resp = { a: Metrics; b: Metrics }
 
-const rm = (n: number) => 'RM ' + Math.round(n).toLocaleString()
+const rm = (n: number) => { const frac = Math.abs(n - Math.round(n)) > 0.005; return 'RM ' + n.toLocaleString(undefined, { minimumFractionDigits: frac ? 2 : 0, maximumFractionDigits: 2 }) }
 const n0 = (n: number) => Math.round(n).toLocaleString()
 const x2 = (n: number) => n.toFixed(2)
 type Fmt = 'rm' | 'num' | 'x'

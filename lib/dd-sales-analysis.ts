@@ -209,12 +209,13 @@ export async function computeDdSalesMatrix() {
     // Collected view: headline from report "Total Collected Sales", channels from order "Collected Sales".
     const orderColTot = Array.from(x.chCol.values()).reduce((s, v) => s + v, 0)
     const headColSales = rep.colSales > 0 ? rep.colSales : orderColTot
+    const R2 = (n: number) => Math.round(n * 100) / 100  // keep sen (collected amounts aren't whole)
     const collected = {
-      totalSales: R(headColSales),
-      fbBeauty: R(chColSum(x, BEAUTY_CH)), fbRepair: R(chColSum(x, REPAIR_CH)), fbSG: R(chColSum(x, FBSG_CH)),
-      whatsapp: R(chColSum(x, WA_ALL)), shopee: R(chColSum(x, SHOPEE_ALL)),
-      website: R(chColSum(x, ['Website'])), lazada: R(chColSum(x, ['Lazada'])),
-      others: R(headColSales - chColSum(x, BEAUTY_CH) - chColSum(x, REPAIR_CH) - chColSum(x, FBSG_CH) - chColSum(x, WA_ALL) - chColSum(x, SHOPEE_ALL) - chColSum(x, ['Website']) - chColSum(x, ['Lazada'])),
+      totalSales: R2(headColSales),
+      fbBeauty: R2(chColSum(x, BEAUTY_CH)), fbRepair: R2(chColSum(x, REPAIR_CH)), fbSG: R2(chColSum(x, FBSG_CH)),
+      whatsapp: R2(chColSum(x, WA_ALL)), shopee: R2(chColSum(x, SHOPEE_ALL)),
+      website: R2(chColSum(x, ['Website'])), lazada: R2(chColSum(x, ['Lazada'])),
+      others: R2(headColSales - chColSum(x, BEAUTY_CH) - chColSum(x, REPAIR_CH) - chColSum(x, FBSG_CH) - chColSum(x, WA_ALL) - chColSum(x, SHOPEE_ALL) - chColSum(x, ['Website']) - chColSum(x, ['Lazada'])),
       roas: Math.round(div(headColSales, totAd) * 100) / 100,
     }
     return {
