@@ -108,6 +108,16 @@ function fmtVal(v: number, fmt?: Fmt) {
   return n0(v)
 }
 
+// Rows that switch between gross (Total) and collected sales via the toggle.
+const COLLECTIBLE = new Set(['totalSales', 'fbBeauty', 'fbRepair', 'fbSG', 'whatsapp', 'shopee', 'website', 'lazada', 'others', 'roas'])
+function pick(side: Metrics, key: string, collected: boolean): number {
+  if (collected && COLLECTIBLE.has(key)) {
+    const c = (side as unknown as { collected?: Record<string, number> }).collected
+    if (c && key in c) return c[key]
+  }
+  return side[key] as number
+}
+
 function iso(d: Date) {
   const y = d.getFullYear(), m = d.getMonth() + 1, day = d.getDate()
   return y + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day
@@ -129,6 +139,7 @@ export default function PeriodCompare() {
   const [yearB, setYearB] = useState(prevYear)
   const [dayFrom, setDayFrom] = useState(1)
   const [dayTo, setDayTo] = useState(today.getDate())
+  const [collected, setCollected] = useState(false)  // false = Total sales, true = Collected sales
 
   const aFrom = `${yearA}-${pad2(monthA + 1)}-${pad2(dayFrom)}`
   const aTo = `${yearA}-${pad2(monthA + 1)}-${pad2(dayTo)}`
@@ -191,6 +202,13 @@ export default function PeriodCompare() {
             </div>
           </div>
           <span className="text-xs text-muted-foreground pb-2">Deviance = A − B {isFetching && '· loading…'}</span>
+          <div className="pb-1.5 ml-auto">
+            <p className="text-xs font-semibold mb-1 text-muted-foreground">Sales basis</p>
+            <div className="inline-flex rounded-md border border-input overflow-hidden text-sm">
+              <button onClick={() => setCollected(false)} className={cn('px-3 h-9', !collected ? 'bg-primary text-primary-foreground font-semibold' : 'bg-background text-muted-foreground')}>Total</button>
+              <button onClick={() => setCollected(true)} className={cn('px-3 h-9 border-l border-input', collected ? 'bg-primary text-primary-foreground font-semibold' : 'bg-background text-muted-foreground')}>Collected</button>
+            </div>
+          </div>
         </div>
 
         {error ? (
@@ -212,8 +230,8 @@ export default function PeriodCompare() {
                 {ROWS.map((row, i) => {
                   if (row.spacer) return <tr key={i}><td colSpan={4} className="h-2" /></tr>
                   const key = row.key as keyof Metrics
-                  const aV = data.a[key] as number
-                  const bV = data.b[key] as number
+                  const aV = pick(data.a, key as string, collected)
+                  const bV = pick(data.b, key as string, collected)
                   const dev = aV - bV
                   return (
                     <tr key={i} className="border-b last:border-0 hover:bg-muted/20">

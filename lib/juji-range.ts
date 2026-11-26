@@ -5,7 +5,7 @@ import { fnum, fstr } from './ne-data'
 const JUJI_APP = 'QV2vbeAyIaDiu2skeFojbNhspnh'
 const T_ORDER = 'tblIb0g8xEeRGsbe'
 const T_REPORT = 'tbliqUdaDADNXKAd'
-const O = ['Date', 'Channel', 'Total Price', 'Price Domain', 'AUTO N/R', 'AUTO VIP']
+const O = ['Date', 'Channel', 'Total Price', 'Price Domain', 'AUTO N/R', 'AUTO VIP', 'Collected Sales']
 const R = ['Date', 'Total Ad Spent', 'No. of Total Messages']
 
 function dateMs(v: unknown): number {
@@ -28,20 +28,30 @@ function channelKey(c: string): string {
   return 'others'
 }
 
+// Collected-sales view (toggle OFF): same channel buckets + total + roas, from "Collected Sales".
+export type JujiCollected = {
+  totalSales: number
+  fb: number; fbEng: number; wa: number; shopee: number; shopeeSg: number; lazada: number; offline: number; others: number
+  roas: number
+}
 export type JujiRange = {
   totalSales: number; totalOrder: number
   fb: number; fbEng: number; wa: number; shopee: number; shopeeSg: number; lazada: number; offline: number; others: number
   newOrder: number; newSales: number; repeatOrder: number; repeatSales: number; vipOrder: number; vipSales: number
   newAov: number; repeatAov: number; vipAov: number; overallAov: number
   adSpend: number; roas: number; messages: number; costPerMsg: number; cpna: number
-  [k: string]: number
+  collected: JujiCollected
 }
 export type JujiPeriodResp = { a: JujiRange; b: JujiRange }
 
+function blankCollected(): JujiCollected {
+  return { totalSales: 0, fb: 0, fbEng: 0, wa: 0, shopee: 0, shopeeSg: 0, lazada: 0, offline: 0, others: 0, roas: 0 }
+}
 function blank(): JujiRange {
   return { totalSales: 0, totalOrder: 0, fb: 0, fbEng: 0, wa: 0, shopee: 0, shopeeSg: 0, lazada: 0, offline: 0, others: 0,
     newOrder: 0, newSales: 0, repeatOrder: 0, repeatSales: 0, vipOrder: 0, vipSales: 0,
-    newAov: 0, repeatAov: 0, vipAov: 0, overallAov: 0, adSpend: 0, roas: 0, messages: 0, costPerMsg: 0, cpna: 0 }
+    newAov: 0, repeatAov: 0, vipAov: 0, overallAov: 0, adSpend: 0, roas: 0, messages: 0, costPerMsg: 0, cpna: 0,
+    collected: blankCollected() }
 }
 
 type Rec = { fields: Record<string, unknown> }
@@ -53,8 +63,11 @@ function rangeMetrics(orders: Rec[], reports: Rec[], from: string, to: string): 
     const price = fnum(f['Total Price']) || fnum(f['Price Domain']); if (price <= 0) continue
     const ms = dateMs(f['Date']); if (!ms) continue
     const dk = dayKey(ms); if (dk < from || dk > to) continue
+    const collected = fnum(f['Collected Sales'])
     m.totalSales += price; m.totalOrder += 1
-    ;(m as Record<string, number>)[channelKey(ch)] += price
+    ;(m as unknown as Record<string, number>)[channelKey(ch)] += price
+    m.collected.totalSales += collected
+    ;(m.collected as unknown as Record<string, number>)[channelKey(ch)] += collected
     if (fstr(f['AUTO VIP']).indexOf('VIP') >= 0) { m.vipOrder += 1; m.vipSales += price }
     const nr = fstr(f['AUTO N/R'])
     if (nr === 'New') { m.newOrder += 1; m.newSales += price }
@@ -68,6 +81,7 @@ function rangeMetrics(orders: Rec[], reports: Rec[], from: string, to: string): 
     m.messages += fnum(f['No. of Total Messages'])
   }
   m.roas = m.adSpend ? m.totalSales / m.adSpend : 0
+  m.collected.roas = m.adSpend ? m.collected.totalSales / m.adSpend : 0
   m.costPerMsg = m.messages ? m.adSpend / m.messages : 0
   m.cpna = m.newOrder ? m.adSpend / m.newOrder : 0
   m.newAov = m.newOrder ? m.newSales / m.newOrder : 0

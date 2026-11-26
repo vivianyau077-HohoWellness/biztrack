@@ -1,11 +1,13 @@
 import { fetchLarkRecordsSearch } from './lark'
 import { NE_APP, fnum, fstr } from './ne-data'
+import type { NeCollected } from './ne-range'
+import { blankNeCollected } from './ne-range'
 
 // Nutrieye monthly business analysis — by channel + New/Repeat, with ad / ROAS /
 // messages / goal from the 2026 Race Report. NE has no VIP concept.
 const T_ORDER = 'tblCgCKSZ3zALx6t'   // 2026 NE Daily Order
 const T_REPORT = 'tblyv0SrWCTdbeU1'  // 2026 NE Race Report
-const O = ['Date', 'Channel', 'Total Price', 'Price Domain', 'AUTO N/R']
+const O = ['Date', 'Channel', 'Total Price', 'Price Domain', 'AUTO N/R', 'Collected Sales']
 const R = ['Date', 'Total Ad Spent', 'No. of Total Messages', 'Goal Sales']
 
 function dateMs(v: unknown): number {
@@ -35,6 +37,7 @@ export type NeMonth = {
   newOrder: number; newSales: number; repeatOrder: number; repeatSales: number; vipOrder: number; vipSales: number
   newAov: number; repeatAov: number; vipAov: number; overallAov: number
   adSpend: number; roas: number; messages: number; costPerMsg: number; goal: number
+  collected: NeCollected
 }
 export type NeMonthly = { months: string[]; metrics: NeMonth[] }
 
@@ -49,7 +52,8 @@ export async function computeNeMonthly(): Promise<NeMonthly> {
     if (!m) {
       m = { month: mk, totalSales: 0, totalOrder: 0, fb: 0, fbEng: 0, wa: 0, shopee: 0, shopeeSg: 0, lazada: 0, offline: 0, others: 0,
         newOrder: 0, newSales: 0, repeatOrder: 0, repeatSales: 0, vipOrder: 0, vipSales: 0,
-        newAov: 0, repeatAov: 0, vipAov: 0, overallAov: 0, adSpend: 0, roas: 0, messages: 0, costPerMsg: 0, goal: 0 }
+        newAov: 0, repeatAov: 0, vipAov: 0, overallAov: 0, adSpend: 0, roas: 0, messages: 0, costPerMsg: 0, goal: 0,
+        collected: blankNeCollected() }
       byMonth.set(mk, m)
     }
     return m
@@ -61,8 +65,11 @@ export async function computeNeMonthly(): Promise<NeMonthly> {
     const price = fnum(f['Total Price']) || fnum(f['Price Domain']); if (price <= 0) continue
     const ms = dateMs(f['Date']); if (!ms) continue
     const m = ens(monthKey(ms))
+    const collected = fnum(f['Collected Sales'])
     m.totalSales += price; m.totalOrder += 1
     ;(m as unknown as Record<string, number>)[channelKey(ch)] += price
+    m.collected.totalSales += collected
+    ;(m.collected as unknown as Record<string, number>)[channelKey(ch)] += collected
     const nr = fstr(f['AUTO N/R'])
     if (nr === 'New') { m.newOrder += 1; m.newSales += price }
     else if (nr === 'Repeat') { m.repeatOrder += 1; m.repeatSales += price }
@@ -83,6 +90,7 @@ export async function computeNeMonthly(): Promise<NeMonthly> {
     const r = rep.get(m.month)
     if (r) { m.adSpend = r.ad; m.messages = r.msg; m.goal = r.goal }
     m.roas = m.adSpend ? m.totalSales / m.adSpend : 0
+    m.collected.roas = m.adSpend ? m.collected.totalSales / m.adSpend : 0
     m.costPerMsg = m.messages ? m.adSpend / m.messages : 0
     m.newAov = m.newOrder ? m.newSales / m.newOrder : 0
     m.repeatAov = m.repeatOrder ? m.repeatSales / m.repeatOrder : 0

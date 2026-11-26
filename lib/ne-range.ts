@@ -4,7 +4,7 @@ import { NE_APP, fnum, fstr } from './ne-data'
 // Nutrieye metrics over an arbitrary date range — powers NE Period Comparison. No VIP.
 const T_ORDER = 'tblCgCKSZ3zALx6t'
 const T_REPORT = 'tblyv0SrWCTdbeU1'
-const O = ['Date', 'Channel', 'Total Price', 'Price Domain', 'AUTO N/R']
+const O = ['Date', 'Channel', 'Total Price', 'Price Domain', 'AUTO N/R', 'Collected Sales']
 const R = ['Date', 'Total Ad Spent', 'No. of Total Messages']
 
 function dateMs(v: unknown): number {
@@ -27,20 +27,27 @@ function channelKey(c: string): string {
   return 'others'
 }
 
+export type NeCollected = {
+  totalSales: number
+  fb: number; fbEng: number; wa: number; shopee: number; shopeeSg: number; lazada: number; offline: number; others: number
+  roas: number
+}
 export type NeRange = {
   totalSales: number; totalOrder: number
   fb: number; fbEng: number; wa: number; shopee: number; shopeeSg: number; lazada: number; offline: number; others: number
   newOrder: number; newSales: number; repeatOrder: number; repeatSales: number; vipOrder: number; vipSales: number
   newAov: number; repeatAov: number; vipAov: number; overallAov: number
   adSpend: number; roas: number; messages: number; costPerMsg: number; cpna: number
-  [k: string]: number
+  collected: NeCollected
 }
 export type NePeriodResp = { a: NeRange; b: NeRange }
 
+export const blankNeCollected = (): NeCollected => ({ totalSales: 0, fb: 0, fbEng: 0, wa: 0, shopee: 0, shopeeSg: 0, lazada: 0, offline: 0, others: 0, roas: 0 })
 function blank(): NeRange {
   return { totalSales: 0, totalOrder: 0, fb: 0, fbEng: 0, wa: 0, shopee: 0, shopeeSg: 0, lazada: 0, offline: 0, others: 0,
     newOrder: 0, newSales: 0, repeatOrder: 0, repeatSales: 0, vipOrder: 0, vipSales: 0,
-    newAov: 0, repeatAov: 0, vipAov: 0, overallAov: 0, adSpend: 0, roas: 0, messages: 0, costPerMsg: 0, cpna: 0 }
+    newAov: 0, repeatAov: 0, vipAov: 0, overallAov: 0, adSpend: 0, roas: 0, messages: 0, costPerMsg: 0, cpna: 0,
+    collected: blankNeCollected() }
 }
 
 type Rec = { fields: Record<string, unknown> }
@@ -52,8 +59,11 @@ function rangeMetrics(orders: Rec[], reports: Rec[], from: string, to: string): 
     const price = fnum(f['Total Price']) || fnum(f['Price Domain']); if (price <= 0) continue
     const ms = dateMs(f['Date']); if (!ms) continue
     const dk = dayKey(ms); if (dk < from || dk > to) continue
+    const collected = fnum(f['Collected Sales'])
     m.totalSales += price; m.totalOrder += 1
-    ;(m as Record<string, number>)[channelKey(ch)] += price
+    ;(m as unknown as Record<string, number>)[channelKey(ch)] += price
+    m.collected.totalSales += collected
+    ;(m.collected as unknown as Record<string, number>)[channelKey(ch)] += collected
     const nr = fstr(f['AUTO N/R'])
     if (nr === 'New') { m.newOrder += 1; m.newSales += price }
     else if (nr === 'Repeat') { m.repeatOrder += 1; m.repeatSales += price }
@@ -66,6 +76,7 @@ function rangeMetrics(orders: Rec[], reports: Rec[], from: string, to: string): 
     m.messages += fnum(f['No. of Total Messages'])
   }
   m.roas = m.adSpend ? m.totalSales / m.adSpend : 0
+  m.collected.roas = m.adSpend ? m.collected.totalSales / m.adSpend : 0
   m.costPerMsg = m.messages ? m.adSpend / m.messages : 0
   m.cpna = m.newOrder ? m.adSpend / m.newOrder : 0
   m.newAov = m.newOrder ? m.newSales / m.newOrder : 0

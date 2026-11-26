@@ -91,7 +91,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
   // The 2026 order + report tables grow daily; GET truncates them on Vercel (drops newest rows →
   // current-month undercount). Read those via search (connector app, authorized on DD since
   // 2026-11-24). Static 2025 tables stay on GET.
-  const ORDER_FIELDS_26 = ['Date', 'Channel', 'Total Price', 'Price Domain', 'AUTO N/R', 'AUTO VIP']
+  const ORDER_FIELDS_26 = ['Date', 'Channel', 'Total Price', 'Price Domain', 'AUTO N/R', 'AUTO VIP', 'Collected Sales']
   const [orderSets, reportSets] = await Promise.all([
     Promise.all(orderTables.map(t => t === T_ORDER_26
       ? fetchLarkRecordsSearch(t, APP, ORDER_FIELDS_26)
@@ -104,6 +104,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
   // ── Order-level ────────────────────────────────
   let sales = 0, orders = 0
   const ch = new Map<string, number>()
+  const chCol = new Map<string, number>()  // collected sales by channel (toggle: Collected view)
   let newFb = 0, newWa = 0, repFb = 0, repWa = 0
   let ordNewOrder = 0, ordNewSales = 0, ordRepeatOrder = 0, ordRepeatSales = 0
   let vipOrder = 0, vipSales = 0
@@ -120,9 +121,11 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
       const channel = fstr(f['Channel'])
       if (channel === 'Return') continue
       const price = fnum(f['Total Price']) || fnum(f['Price Domain'])
+      const collected = fnum(f['Collected Sales'])
       const nr = nrOf(f['AUTO N/R'])
       sales += price; orders++
       ch.set(channel || '(unknown)', (ch.get(channel || '(unknown)') ?? 0) + price)
+      chCol.set(channel || '(unknown)', (chCol.get(channel || '(unknown)') ?? 0) + collected)
       const isFb = inSet(channel, FB_ALL), isWa = inSet(channel, WA_ALL)
       const isVipRow = isVip(f['AUTO VIP'])
       // New / Repeat both EXCLUDE VIP orders (VIP counted only in its own row).
@@ -146,6 +149,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
   let adB = 0, adR = 0, adSG = 0, adWA = 0, ldB = 0, ldR = 0, ldSG = 0, pmB = 0, pmR = 0, pmSG = 0, wpmB = 0, wpmR = 0, wpmSG = 0
   let waAdB = 0, waAdR = 0, waAdSG = 0
   let repNewOrder = 0, repRepeatOrder = 0, repNewSales = 0, repRepeatSales = 0, goal = 0
+  let repColSales = 0  // report "Total Collected Sales" over range (headline for Collected view)
   for (const set of reportSets) {
     for (const r of set as Rec[]) {
       const f = r.fields
@@ -172,6 +176,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
       repRepeatOrder += fnum(f['Repeat Order'])
       repNewSales += fnum(f['Total New Sales']) || fnum(f['Total New Sales Amount'])
       repRepeatSales += fnum(f['Total Repeat Sales'])
+      repColSales += fnum(f['Total Collected Sales'])
       const g = fnum(f['Goal Sales'])
       if (g > goal) goal = g
     }
@@ -185,6 +190,7 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
   const R = (n: number) => Math.round(n)
   const div = (a: number, b: number) => (b ? a / b : 0)
   const chSum = (names: string[]) => names.reduce((s, n) => s + (ch.get(n) ?? 0), 0)
+  const chColSum = (names: string[]) => names.reduce((s, n) => s + (chCol.get(n) ?? 0), 0)
 
   // Headline total from the Race Report rows in range (complete & matches Lark); the order-table
   // GET read can drop the newest rows for the current month, so it undercounts — the report does not.
@@ -193,8 +199,22 @@ export async function computeDdRange(fromISO: string, toISO: string): Promise<Mo
   const headSales = repSalesTot > 0 ? repSalesTot : sales
   const headOrder = repOrderTot > 0 ? repOrderTot : orders
 
+  // Collected-sales view (toggle OFF): headline from report "Total Collected Sales", channels from
+  // the order-table "Collected Sales" field; "others" balances to the headline like the Total view.
+  const orderColTot = Array.from(chCol.values()).reduce((s, v) => s + v, 0)
+  const headColSales = repColSales > 0 ? repColSales : orderColTot
+  const collected = {
+    totalSales: R(headColSales),
+    fbBeauty: R(chColSum(BEAUTY_CH)), fbRepair: R(chColSum(REPAIR_CH)), fbSG: R(chColSum(FBSG_CH)),
+    whatsapp: R(chColSum(WA_ALL)), shopee: R(chColSum(SHOPEE_ALL)),
+    website: R(chColSum(['Website'])), lazada: R(chColSum(['Lazada'])),
+    others: R(headColSales - chColSum(BEAUTY_CH) - chColSum(REPAIR_CH) - chColSum(FBSG_CH) - chColSum(WA_ALL) - chColSum(SHOPEE_ALL) - chColSum(['Website']) - chColSum(['Lazada'])),
+    roas: Math.round(div(headColSales, totAd) * 100) / 100,
+  }
+
   return {
     month: fromISO + '~' + toISO,
+    collected,
     totalSales: R(headSales),
     totalOrder: headOrder,
     fbBeauty: R(chSum(BEAUTY_CH)), fbRepair: R(chSum(REPAIR_CH)), fbSG: R(chSum(FBSG_CH)),

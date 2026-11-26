@@ -122,9 +122,20 @@ function fmtVal(v: number, fmt?: Fmt) {
   return n0(v)
 }
 
+// Rows that switch between gross (Total) and collected sales via the toggle.
+const COLLECTIBLE = new Set(['totalSales', 'fbBeauty', 'fbRepair', 'fbSG', 'whatsapp', 'shopee', 'website', 'lazada', 'others', 'roas'])
+function pick(m: MonthMetrics, key: string, collected: boolean): number {
+  if (collected && COLLECTIBLE.has(key)) {
+    const c = (m as unknown as { collected?: Record<string, number> }).collected
+    if (c && key in c) return c[key]
+  }
+  return (m as unknown as Record<string, number>)[key]
+}
+
 export default function MonthlySalesAnalysis() {
   const [selYear, setSelYear] = useState('')
   const [selMonth, setSelMonth] = useState('')
+  const [collected, setCollected] = useState(false)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['sales-matrix'],
@@ -164,6 +175,10 @@ export default function MonthlySalesAnalysis() {
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
           <span className="text-xs text-muted-foreground">Deviance = Current ({mlabel(curMonth)}) − {mlabel(sel)}</span>
+          <div className="ml-auto inline-flex rounded-md border border-input overflow-hidden text-sm">
+            <button onClick={() => setCollected(false)} className={cn('px-3 h-9', !collected ? 'bg-primary text-primary-foreground font-semibold' : 'bg-background text-muted-foreground')}>Total</button>
+            <button onClick={() => setCollected(true)} className={cn('px-3 h-9 border-l border-input', collected ? 'bg-primary text-primary-foreground font-semibold' : 'bg-background text-muted-foreground')}>Collected</button>
+          </div>
         </div>
 
         {!selMet || !curMet ? (
@@ -183,8 +198,8 @@ export default function MonthlySalesAnalysis() {
                 {ROWS.map((row, i) => {
                   if (row.spacer) return <tr key={i}><td colSpan={4} className="h-2" /></tr>
                   const key = row.key as keyof MonthMetrics
-                  const selV = selMet[key] as number
-                  const curV = curMet[key] as number
+                  const selV = pick(selMet, key as string, collected)
+                  const curV = pick(curMet, key as string, collected)
                   const dev = curV - selV // current − selected: negative = current behind
                   return (
                     <tr key={i} className="border-b last:border-0 hover:bg-muted/20">

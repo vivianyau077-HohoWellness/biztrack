@@ -11,7 +11,7 @@ const T_REPORT = 'tbl68wmsOooWD2zJ'
 // Read only the order fields we use. Without projection the wide (~80-field) rows make the
 // GET list call so heavy that Lark drops the last page(s) — i.e. the newest orders (current
 // month) go missing and the month total is undercounted. Projecting keeps the read complete.
-const ORDER_FIELDS = ['Date', 'Channel', 'Total Price', 'Price Domain', 'AUTO N/R', 'AUTO VIP']
+const ORDER_FIELDS = ['Date', 'Channel', 'Total Price', 'Price Domain', 'AUTO N/R', 'AUTO VIP', 'Collected Sales']
 
 function fnum(v: unknown): number {
   if (v == null) return 0
@@ -59,8 +59,17 @@ const SHOPEE_ALL = ['Shopee', 'Shopee SG']
 const FBSG_CH = ['FB SG', 'FB SG MY', 'FB SG ENG']
 const inSet = (c: string, s: string[]) => s.includes(c)
 
+// Collected-sales view (toggle OFF): mirrors the Total-view sales rows + ROAS, but using the
+// order table's "Collected Sales" field per channel and the report's "Total Collected Sales".
+export type CollectedSales = {
+  totalSales: number
+  fbBeauty: number; fbRepair: number; fbSG: number; whatsapp: number; shopee: number; website: number; lazada: number; others: number
+  roas: number
+}
+
 export type MonthMetrics = {
   month: string
+  collected?: CollectedSales
   totalSales: number
   totalOrder: number
   fbBeauty: number; fbRepair: number; fbSG: number; whatsapp: number; shopee: number; website: number; lazada: number; others: number
@@ -97,6 +106,7 @@ export async function computeDdSalesMatrix() {
   type OB = {
     sales: number; orders: number
     ch: Map<string, number>
+    chCol: Map<string, number>   // collected sales by channel (Collected view)
     newOrder: number; newSales: number; repeatOrder: number; repeatSales: number
     newFb: number; newWa: number; repFb: number; repWa: number
     vipOrder: number; vipSales: number
@@ -109,7 +119,7 @@ export async function computeDdSalesMatrix() {
   const ob = new Map<string, OB>()
   const getOB = (m: string) => {
     let x = ob.get(m)
-    if (!x) { x = { sales: 0, orders: 0, ch: new Map(), newOrder: 0, newSales: 0, repeatOrder: 0, repeatSales: 0, newFb: 0, newWa: 0, repFb: 0, repWa: 0, vipOrder: 0, vipSales: 0, newVipOrder: 0, newVipSales: 0, repVipOrder: 0, repVipSales: 0, ordBeauty: 0, ordRepair: 0, bNewOrd: 0, bNewSales: 0, bRepOrd: 0, bRepSales: 0, rNewOrd: 0, rNewSales: 0, rRepOrd: 0, rRepSales: 0, sgNewSales: 0, sgRepSales: 0 }; ob.set(m, x) }
+    if (!x) { x = { sales: 0, orders: 0, ch: new Map(), chCol: new Map(), newOrder: 0, newSales: 0, repeatOrder: 0, repeatSales: 0, newFb: 0, newWa: 0, repFb: 0, repWa: 0, vipOrder: 0, vipSales: 0, newVipOrder: 0, newVipSales: 0, repVipOrder: 0, repVipSales: 0, ordBeauty: 0, ordRepair: 0, bNewOrd: 0, bNewSales: 0, bRepOrd: 0, bRepSales: 0, rNewOrd: 0, rNewSales: 0, rRepOrd: 0, rRepSales: 0, sgNewSales: 0, sgRepSales: 0 }; ob.set(m, x) }
     return x
   }
 
@@ -125,6 +135,7 @@ export async function computeDdSalesMatrix() {
     const x = getOB(m)
     x.sales += price; x.orders++
     x.ch.set(channel || '(unknown)', (x.ch.get(channel || '(unknown)') ?? 0) + price)
+    x.chCol.set(channel || '(unknown)', (x.chCol.get(channel || '(unknown)') ?? 0) + fnum(f['Collected Sales']))
     const isFb = inSet(channel, FB_ALL), isWa = inSet(channel, WA_ALL)
     const isVipRow = vip === 'Malaysia VIP' || vip === 'Singapore VIP'
     // New / Repeat both EXCLUDE VIP orders (VIP counted only in its own row).
@@ -143,8 +154,8 @@ export async function computeDdSalesMatrix() {
     if (inSet(channel, FBSG_CH)) { if (isNew) x.sgNewSales += price; else if (isRepeat) x.sgRepSales += price }
   }
 
-  type RB = { adB: number; adR: number; adSG: number; adWA: number; waAdB: number; waAdR: number; waAdSG: number; ldB: number; ldR: number; ldSG: number; pmB: number; pmR: number; pmSG: number; wpmB: number; wpmR: number; wpmSG: number; goal: number; newOrder: number; repeatOrder: number; newSales: number; repeatSales: number }
-  const emptyRB = (): RB => ({ adB: 0, adR: 0, adSG: 0, adWA: 0, waAdB: 0, waAdR: 0, waAdSG: 0, ldB: 0, ldR: 0, ldSG: 0, pmB: 0, pmR: 0, pmSG: 0, wpmB: 0, wpmR: 0, wpmSG: 0, goal: 0, newOrder: 0, repeatOrder: 0, newSales: 0, repeatSales: 0 })
+  type RB = { adB: number; adR: number; adSG: number; adWA: number; waAdB: number; waAdR: number; waAdSG: number; ldB: number; ldR: number; ldSG: number; pmB: number; pmR: number; pmSG: number; wpmB: number; wpmR: number; wpmSG: number; goal: number; newOrder: number; repeatOrder: number; newSales: number; repeatSales: number; colSales: number }
+  const emptyRB = (): RB => ({ adB: 0, adR: 0, adSG: 0, adWA: 0, waAdB: 0, waAdR: 0, waAdSG: 0, ldB: 0, ldR: 0, ldSG: 0, pmB: 0, pmR: 0, pmSG: 0, wpmB: 0, wpmR: 0, wpmSG: 0, goal: 0, newOrder: 0, repeatOrder: 0, newSales: 0, repeatSales: 0, colSales: 0 })
   const rb = new Map<string, RB>()
   for (const r of reportRecs) {
     const f = r.fields as Record<string, unknown>
@@ -165,6 +176,7 @@ export async function computeDdSalesMatrix() {
     y.repeatOrder += fnum(f['Repeat Order'])
     y.newSales += fnum(f['Total New Sales'])
     y.repeatSales += fnum(f['Total Repeat Sales'])
+    y.colSales += fnum(f['Total Collected Sales'])
     const g = fnum(f['Goal Sales'])
     if (g > y.goal) y.goal = g // same per month; take the value
     rb.set(m, y)
@@ -177,6 +189,7 @@ export async function computeDdSalesMatrix() {
   const R = (n: number) => Math.round(n)
   const div = (a: number, b: number) => (b ? a / b : 0)
   const chSum = (x: OB, names: string[]) => names.reduce((s, n) => s + (x.ch.get(n) ?? 0), 0)
+  const chColSum = (x: OB, names: string[]) => names.reduce((s, n) => s + (x.chCol.get(n) ?? 0), 0)
 
   const metrics: MonthMetrics[] = months.map(m => {
     const x = ob.get(m) ?? getOB(m)
@@ -193,8 +206,20 @@ export async function computeDdSalesMatrix() {
     const repOrderTot = rep.newOrder + rep.repeatOrder
     const headSales = repSalesTot > 0 ? repSalesTot : x.sales
     const headOrder = repOrderTot > 0 ? repOrderTot : x.orders
+    // Collected view: headline from report "Total Collected Sales", channels from order "Collected Sales".
+    const orderColTot = Array.from(x.chCol.values()).reduce((s, v) => s + v, 0)
+    const headColSales = rep.colSales > 0 ? rep.colSales : orderColTot
+    const collected = {
+      totalSales: R(headColSales),
+      fbBeauty: R(chColSum(x, BEAUTY_CH)), fbRepair: R(chColSum(x, REPAIR_CH)), fbSG: R(chColSum(x, FBSG_CH)),
+      whatsapp: R(chColSum(x, WA_ALL)), shopee: R(chColSum(x, SHOPEE_ALL)),
+      website: R(chColSum(x, ['Website'])), lazada: R(chColSum(x, ['Lazada'])),
+      others: R(headColSales - chColSum(x, BEAUTY_CH) - chColSum(x, REPAIR_CH) - chColSum(x, FBSG_CH) - chColSum(x, WA_ALL) - chColSum(x, SHOPEE_ALL) - chColSum(x, ['Website']) - chColSum(x, ['Lazada'])),
+      roas: Math.round(div(headColSales, totAd) * 100) / 100,
+    }
     return {
       month: m,
+      collected,
       totalSales: R(headSales),
       totalOrder: headOrder,
       fbBeauty: R(chSum(x, BEAUTY_CH)), fbRepair: R(chSum(x, REPAIR_CH)), fbSG: R(chSum(x, FBSG_CH)),
